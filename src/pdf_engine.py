@@ -93,14 +93,32 @@ def pdf_to_word(pdf_path: str, docx_path: str) -> bool:
 
 
 # --- 2. PDF BİRLEŞTİRME ---
-def merge_pdfs(pdf_list: List[str], output_path: str) -> bool:
-    """Merge multiple PDFs into a single output. Raises Exception on failure."""
+def merge_pdfs(pdf_list: List[str], output_path: str, progress_callback=None) -> bool:
+    """
+    Merge multiple PDFs into a single output.
+
+    progress_callback signature (optional):
+        progress_callback(current: int, total: int, where_text: str) -> bool|None
+    If it returns False, the operation is cancelled.
+    """
     try:
         merger = PyPDF2.PdfMerger()
-        for pdf in pdf_list:
+        total = len(pdf_list)
+        for idx, pdf in enumerate(pdf_list, start=1):
             if not os.path.isfile(pdf):
                 raise FileNotFoundError(f"Birleştirilecek dosya bulunamadı: {pdf}")
+
+            where = os.path.basename(pdf)
+            if progress_callback:
+                res = progress_callback(idx, max(1, total), where)
+                if res is False:
+                    raise Exception("İşlem iptal edildi.")
+
             merger.append(pdf)
+
+        if progress_callback:
+            # Yazı aşamasını göstermek için son aşama (output yazılıyor)
+            progress_callback(max(1, total), max(1, total), "PDF yazılıyor...")
         merger.write(output_path)
         merger.close()
         return True

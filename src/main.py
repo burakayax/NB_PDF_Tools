@@ -2,6 +2,8 @@ import customtkinter as ctk
 from tkinter import messagebox
 import os
 import sys
+import ctypes
+from ctypes import wintypes
 
 # Senin orijinal import yapın ve klasör desteğin
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -78,9 +80,60 @@ class NBPDFApp(ctk.CTk):
 
     def ekran_ortala(self, pencere, genislik, yukseklik):
         pencere.update_idletasks()
-        x = int((pencere.winfo_screenwidth() / 2) - (genislik / 2))
-        y = int((pencere.winfo_screenheight() / 2) - (yukseklik / 2))
-        pencere.geometry(f"{genislik}x{yukseklik}+{x}+{y}")
+
+        # Windows çoklu monitörde doğru merkeze oturtmak için
+        # fare konumunun bulunduğu monitörün rect bilgisini alıp ortalıyoruz.
+        try:
+            user32 = ctypes.windll.user32
+
+            pt = wintypes.POINT()
+            user32.GetCursorPos(ctypes.byref(pt))
+            px, py = int(pt.x), int(pt.y)
+
+            rects = []
+
+            # BOOL CALLBACK EnumDisplayMonitors(HDC, LPCRECT, MONITORENUMPROC, LPARAM)
+            MONITORENUMPROC = ctypes.WINFUNCTYPE(
+                ctypes.c_bool,
+                ctypes.c_void_p,
+                ctypes.c_void_p,
+                ctypes.POINTER(wintypes.RECT),
+                ctypes.c_void_p
+            )
+
+            def _cb(hMonitor, hdc, lprcMonitor, dwData):
+                r = lprcMonitor.contents
+                rects.append((int(r.left), int(r.top), int(r.right), int(r.bottom)))
+                return True
+
+            enum_proc = MONITORENUMPROC(_cb)
+            user32.EnumDisplayMonitors(0, 0, enum_proc, 0)
+
+            monitor = None
+            for (l, t, r, b) in rects:
+                if l <= px < r and t <= py < b:
+                    monitor = (l, t, r, b)
+                    break
+
+            # Bulamazsak fallback: primary screen
+            if monitor is None:
+                screen_w = pencere.winfo_screenwidth()
+                screen_h = pencere.winfo_screenheight()
+                x = int((screen_w / 2) - (genislik / 2))
+                y = int((screen_h / 2) - (yukseklik / 2))
+            else:
+                l, t, r, b = monitor
+                monitor_w = r - l
+                monitor_h = b - t
+                x = int(l + (monitor_w / 2) - (genislik / 2))
+                y = int(t + (monitor_h / 2) - (yukseklik / 2))
+
+            pencere.geometry(f"{genislik}x{yukseklik}+{x}+{y}")
+        except Exception:
+            # Herhangi bir sebeple API çalışmazsa eski basit ekran ortası mantığı
+            x = int((pencere.winfo_screenwidth() / 2) - (genislik / 2))
+            y = int((pencere.winfo_screenheight() / 2) - (yukseklik / 2))
+            pencere.geometry(f"{genislik}x{yukseklik}+{x}+{y}")
 
 if __name__ == "__main__":
     app = NBPDFApp()

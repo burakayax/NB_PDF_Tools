@@ -2,6 +2,10 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import os
 import time
+import threading
+from queue import Queue, Empty
+
+from modules.progress_dialog import ProgressDialog
 
 
 def reorder_list(lst, from_idx, to_idx):
@@ -25,6 +29,12 @@ class MergeWindow(ctk.CTkToplevel):
         self._dragging = None
         self.dragging_path = None
         self._last_move = 0
+        self._anim_after_id = None
+        # Drag sırasında animasyon hissini yumuşatmak için hız ayarları
+        self._anim_steps = 6
+        self._anim_duration_ms = 90
+        self._anim_min_interval_ms = 45
+        self._last_anim_start = 0.0
 
         self.title("NB Studio - PDF Birleştirme")
         # Pencere boyutunu her şeyin sığacağı klasik ölçüye çektik
@@ -56,6 +66,13 @@ class MergeWindow(ctk.CTkToplevel):
 
         # Kaydırılabilir Izgara Alanı
         self.scroll_frame = ctk.CTkScrollableFrame(self.main_card, fg_color="transparent")
+        # Sürükle-bırak animasyonunu düzgün yapmak için kartları scroll_frame içinde tek bir container'e "place" ile diziyoruz.
+        self.items_container = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
+        self.items_container.pack(fill="both", expand=True)
+        self.card_height = 64
+        self.card_pad_x = 8
+        self.card_pad_y = 6
+        self.card_step = self.card_height + (2 * self.card_pad_y)
 
         # 3. KONTROL BUTONLARI (Alt Bölüm)
         self.controls_container = ctk.CTkFrame(self, fg_color="transparent")
@@ -76,6 +93,101 @@ class MergeWindow(ctk.CTkToplevel):
                                      state="disabled", command=self.run_merge)
         self.btn_run.pack(fill="x", pady=(10, 0))
 
+    def _get_card_width(self) -> int:
+        """Return the width to use for place-based cards."""
+        self.items_container.update_idletasks()
+        container_w = self.items_container.winfo_width()
+        if container_w <= 1:
+            # Initial/fallback width; will be corrected after first layout.
+            return 520
+        return max(200, container_w - (2 * self.card_pad_x))
+
+    def _cancel_animation(self):
+        if self._anim_after_id is not None:
+            try:
+                self.after_cancel(self._anim_after_id)
+            except Exception:
+                pass
+            self._anim_after_id = None
+
+    def _layout_items(self, animated: bool = True):
+        """Place all cards according to file_list order (optionally animated)."""
+        if not animated:
+            # Drag anında/ani güncellemede bir önceki after animasyonunu iptal edelim.
+            self._cancel_animation()
+
+        # Keep card_widgets in the same order as file_list
+        self.card_widgets = [self.widget_map[p] for p in self.file_list if p in self.widget_map]
+
+        # Update container height so scroll region is correct
+        total_h = max(1, len(self.card_widgets) * self.card_step)
+        self.items_container.configure(height=total_h)
+
+        card_w = self._get_card_width()
+
+        # Calculate target y positions
+        target = {}
+        for idx, path in enumerate(self.file_list):
+            w = self.widget_map.get(path)
+            if not w:
+                continue
+            y = self.card_pad_y + idx * self.card_step
+            target[w] = y
+
+        # Update colors immediately (dragging highlight)
+        for path, w in self.widget_map.items():
+            try:
+                if path == self.dragging_path:
+                    w.configure(fg_color="#375aeb", border_color="#ffd166")
+                else:
+                    w.configure(fg_color="#2a2a2a", border_color="#444")
+            except Exception:
+                pass
+
+        # Drag sırasında çok sık reorder olursa animasyonu tamamen baştan başlatmak takılma gibi hissedebilir.
+        # Bu yüzden animasyon eşiğini geçmiyorsa anlık yerleştiriyoruz.
+        should_animate = bool(animated and target)
+        if should_animate and self.dragging_path is not None:
+            import time as _time
+            now = _time.time()
+            should_animate = (now - self._last_anim_start) * 1000.0 >= self._anim_min_interval_ms
+            if should_animate:
+                self._last_anim_start = now
+
+        if not should_animate:
+            for w, y in target.items():
+                w.place_configure(x=self.card_pad_x, y=y, width=card_w, height=self.card_height)
+            self.update_idletasks()
+            return
+
+        # Smooth animation between current and target y
+        self._cancel_animation()
+        start_y = {w: w.winfo_y() for w in target.keys()}
+        steps = max(2, int(self._anim_steps))
+        duration_ms = max(30, int(self._anim_duration_ms))
+        step_ms = max(1, duration_ms // steps)
+        tick = {"i": 0}
+
+        def animate_step():
+            tick["i"] += 1
+            i = tick["i"]
+            t = min(1.0, i / steps)
+            for w, y_target in target.items():
+                y0 = start_y.get(w, y_target)
+                y = int(y0 + (y_target - y0) * t)
+                w.place_configure(x=self.card_pad_x, y=y, width=card_w, height=self.card_height)
+
+            if i >= steps:
+                # Ensure final exact positions
+                for w, y_target in target.items():
+                    w.place_configure(x=self.card_pad_x, y=y_target, width=card_w, height=self.card_height)
+                self._anim_after_id = None
+                return
+
+            self._anim_after_id = self.after(step_ms, animate_step)
+
+        self._anim_after_id = self.after(step_ms, animate_step)
+
     def add_files(self):
         files = filedialog.askopenfilenames(parent=self, filetypes=[("PDF", "*.pdf")])
         if files:
@@ -90,16 +202,8 @@ class MergeWindow(ctk.CTkToplevel):
         self.update_ui()
 
     def refresh_order(self):
-        """Repack existing widgets according to self.file_list order without destroying them."""
-        # Ensure widget_map contains the widgets
-        new_widgets = []
-        for path in self.file_list:
-            w = self.widget_map.get(path)
-            if w:
-                w.pack_forget()
-                w.pack(fill="x", padx=8, pady=6)
-                new_widgets.append(w)
-        self.card_widgets = new_widgets
+        """Compatibility shim: place-based layout handles order changes."""
+        self.card_widgets = [self.widget_map[p] for p in self.file_list if p in self.widget_map]
 
     def update_ui(self):
         # Create or update widgets. For simplicity, rebuild widget_map when necessary.
@@ -116,7 +220,7 @@ class MergeWindow(ctk.CTkToplevel):
 
         if not self.file_list:
             # clear frame
-            for widget in self.scroll_frame.winfo_children():
+            for widget in self.items_container.winfo_children():
                 widget.destroy()
             self.card_widgets = []
             self.widget_map = {}
@@ -138,9 +242,9 @@ class MergeWindow(ctk.CTkToplevel):
             fname = os.path.basename(path)
             display_name = (fname[:40] + '..') if len(fname) > 42 else fname
 
-            f_box = ctk.CTkFrame(self.scroll_frame, fg_color="#2a2a2a", corner_radius=8,
+            # Kartları items_container içine "place" ediyoruz; scroll_frame içinde tek container kullanalım.
+            f_box = ctk.CTkFrame(self.items_container, fg_color="#2a2a2a", corner_radius=8,
                                  height=64, border_width=2, border_color="#444")
-            f_box.pack(fill="x", padx=8, pady=6)
             f_box.pack_propagate(False)
 
             label = ctk.CTkLabel(f_box, text=display_name, font=("Segoe UI", 12, "bold"), anchor="w")
@@ -170,18 +274,9 @@ class MergeWindow(ctk.CTkToplevel):
 
             self.widget_map[path] = f_box
 
-        # Now repack widgets in order
+        # Place-based layout: order + highlight + scroll height update (animated for a nicer feel)
         self.refresh_order()
-        # Update highlighting if dragging
-        for path, w in self.widget_map.items():
-            is_dragging = (self.dragging_path == path)
-            try:
-                if is_dragging:
-                    w.configure(fg_color="#375aeb", border_color="#ffd166")
-                else:
-                    w.configure(fg_color="#2a2a2a", border_color="#444")
-            except Exception:
-                pass
+        self._layout_items(animated=True)
 
         self.btn_run.configure(state="normal", fg_color="#2ecc71", text_color="#1a1a1a")
 
@@ -194,13 +289,13 @@ class MergeWindow(ctk.CTkToplevel):
         if idx <= 0 or idx >= len(self.file_list):
             return
         reorder_list(self.file_list, idx, idx - 1)
-        self.update_ui()
+        self._layout_items(animated=True)
 
     def move_down(self, idx):
         if idx < 0 or idx >= len(self.file_list) - 1:
             return
         reorder_list(self.file_list, idx, idx + 1)
-        self.update_ui()
+        self._layout_items(animated=True)
 
     # --- Drag and drop handlers (immediate swap, throttled) ---
     def _drag_start(self, event, path):
@@ -211,7 +306,7 @@ class MergeWindow(ctk.CTkToplevel):
         except ValueError:
             self._dragging = None
         # visually update
-        self.update_ui()
+        self._layout_items(animated=False)
 
     def _drag_motion(self, event):
         # Throttle frequent moves to improve responsiveness
@@ -238,14 +333,11 @@ class MergeWindow(ctk.CTkToplevel):
 
             current_idx = self.file_list.index(self.dragging_path)
             if target != current_idx:
-                # Immediately reorder to create dynamic shifting effect
                 reorder_list(self.file_list, current_idx, target)
                 # Update dragging index to new position
                 self._dragging = target
-                # Repack existing widgets (lighter than full rebuild)
-                self.refresh_order()
-                # Update visual highlight
-                self.update_ui()
+                # Animate widgets to their new positions
+                self._layout_items(animated=True)
         except Exception:
             pass
 
@@ -253,7 +345,7 @@ class MergeWindow(ctk.CTkToplevel):
         # End dragging
         self._dragging = None
         self.dragging_path = None
-        self.update_ui()
+        self._layout_items(animated=True)
 
     def run_merge(self):
         if not self.file_list:
@@ -262,9 +354,57 @@ class MergeWindow(ctk.CTkToplevel):
                                                  defaultextension=".pdf",
                                                  filetypes=[("PDF", "*.pdf")])
         if save_path:
-            try:
-                self.pdf_engine.merge_pdfs(self.file_list, save_path)
-                self.destroy()
-                self.success_dialog(self.master, save_path, self.ortalama_func)
-            except Exception as e:
-                messagebox.showerror("Hata", str(e))
+            self.btn_run.configure(state="disabled", fg_color="#34495e")
+
+            total = len(self.file_list)
+            q = Queue()
+            finished = {"value": False}
+
+            progress_dialog = ProgressDialog(self, self.ortalama_func, total_count=total, title="PDF Birleştirme")
+            progress_dialog.update_idletasks()
+            progress_dialog.update_progress(0, max(1, total), "Hazırlanıyor...")
+            progress_dialog.update()
+
+            def progress_cb(current: int, total_count: int, where_text: str):
+                # Thread -> UI: sadece queue ile haberleselim.
+                q.put(("progress", current, total_count, where_text))
+                return True
+
+            def worker():
+                try:
+                    self.pdf_engine.merge_pdfs(self.file_list, save_path, progress_callback=progress_cb)
+                    q.put(("done", save_path))
+                except Exception as e:
+                    q.put(("error", str(e)))
+
+            t = threading.Thread(target=worker, daemon=True)
+            t.start()
+
+            def poll():
+                try:
+                    while True:
+                        msg = q.get_nowait()
+                        kind = msg[0]
+
+                        if kind == "progress":
+                            _, cur, tot, where_text = msg
+                            progress_dialog.update_progress(cur, tot, where_text=where_text)
+                        elif kind == "done":
+                            finished["value"] = True
+                            progress_dialog.destroy()
+                            self.destroy()
+                            self.success_dialog(self.master, save_path, self.ortalama_func)
+                            return
+                        elif kind == "error":
+                            finished["value"] = True
+                            progress_dialog.destroy()
+                            messagebox.showerror("Hata", msg[1])
+                            self.btn_run.configure(state="normal", fg_color="#2ecc71", text_color="#1a1a1a")
+                            return
+                except Empty:
+                    pass
+
+                if not finished["value"]:
+                    self.after(100, poll)
+
+            self.after(100, poll)
