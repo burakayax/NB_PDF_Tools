@@ -1,6 +1,16 @@
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import os
+import time
+
+
+def reorder_list(lst, from_idx, to_idx):
+    """Return a new list with element moved from from_idx to to_idx."""
+    if from_idx < 0 or from_idx >= len(lst) or to_idx < 0 or to_idx > len(lst):
+        raise IndexError("Invalid indices for reorder_list")
+    item = lst.pop(from_idx)
+    lst.insert(to_idx, item)
+    return lst
 
 
 class MergeWindow(ctk.CTkToplevel):
@@ -10,6 +20,11 @@ class MergeWindow(ctk.CTkToplevel):
         self.pdf_engine = engine
         self.success_dialog = success_dialog_class
         self.file_list = []
+        self.card_widgets = []  # list of widgets in current order
+        self.widget_map = {}    # path -> widget
+        self._dragging = None
+        self.dragging_path = None
+        self._last_move = 0
 
         self.title("NB Studio - PDF Birleştirme")
         # Pencere boyutunu her şeyin sığacağı klasik ölçüye çektik
@@ -20,7 +35,13 @@ class MergeWindow(ctk.CTkToplevel):
         header_frame = ctk.CTkFrame(self, fg_color="#3a86ff", height=60, corner_radius=0)
         header_frame.pack(fill="x", side="top")
         ctk.CTkLabel(header_frame, text="🔗 PDF BİRLEŞTİRME MERKEZİ",
-                     font=("Segoe UI", 22, "bold"), text_color="white").pack(pady=15)
+                     font=("Segoe UI", 22, "bold"), text_color="white").pack(pady=8)
+
+        # Kullanıcıya küçük not
+        note = ctk.CTkLabel(header_frame,
+                            text="Dosyaları sürükleyip bırakarak sıralayabilirsiniz. Birleştirme bu sıraya göre yapılacaktır.",
+                            font=("Segoe UI", 12, "bold"), text_color="#eaeaea")
+        note.pack(pady=(0, 8))
 
         # 2. ANA LİSTE KARTI (Klasik Koyu Gri)
         self.main_card = ctk.CTkFrame(self, fg_color="#1e1e1e", corner_radius=12, border_width=2, border_color="#333")
@@ -45,7 +66,7 @@ class MergeWindow(ctk.CTkToplevel):
                                      fg_color="#3a86ff", height=45, command=self.add_files)
         self.btn_add.pack(fill="x", pady=5)
 
-        # Temizle Butonu (Artık soluk değil, belirgin bir buton)
+        # Temizle Butonu
         self.btn_clear = ctk.CTkButton(self.controls_container, text="🗑️ LİSTEYİ TEMİZLE",
                                        fg_color="#e74c3c", height=35, command=self.clear_list)
 
@@ -59,7 +80,8 @@ class MergeWindow(ctk.CTkToplevel):
         files = filedialog.askopenfilenames(parent=self, filetypes=[("PDF", "*.pdf")])
         if files:
             for f in files:
-                if f not in self.file_list: self.file_list.append(f)
+                if f not in self.file_list:
+                    self.file_list.append(f)
             self.update_ui()
         self.lift()
 
@@ -67,53 +89,175 @@ class MergeWindow(ctk.CTkToplevel):
         self.file_list = []
         self.update_ui()
 
+    def refresh_order(self):
+        """Repack existing widgets according to self.file_list order without destroying them."""
+        # Ensure widget_map contains the widgets
+        new_widgets = []
+        for path in self.file_list:
+            w = self.widget_map.get(path)
+            if w:
+                w.pack_forget()
+                w.pack(fill="x", padx=8, pady=6)
+                new_widgets.append(w)
+        self.card_widgets = new_widgets
+
     def update_ui(self):
-        for widget in self.scroll_frame.winfo_children(): widget.destroy()
+        # Create or update widgets. For simplicity, rebuild widget_map when necessary.
+        # If widget exists reuse it, otherwise create.
+        existing = set(self.widget_map.keys())
+
+        # Remove widgets that are no longer in file_list
+        for removed in list(existing - set(self.file_list)):
+            w = self.widget_map.pop(removed)
+            try:
+                w.destroy()
+            except Exception:
+                pass
 
         if not self.file_list:
+            # clear frame
+            for widget in self.scroll_frame.winfo_children():
+                widget.destroy()
+            self.card_widgets = []
+            self.widget_map = {}
             self.scroll_frame.pack_forget()
             self.btn_clear.pack_forget()
             self.empty_view.pack(fill="both", expand=True)
             self.btn_run.configure(state="disabled", fg_color="#34495e")
-        else:
-            self.empty_view.pack_forget()
-            self.scroll_frame.pack(pady=10, padx=10, fill="both", expand=True)
-            self.btn_clear.pack(after=self.btn_add, fill="x", pady=5)
+            return
 
-            cols = 3
-            for i, path in enumerate(self.file_list):
-                fname = os.path.basename(path)
-                display_name = (fname[:18] + '..') if len(fname) > 20 else fname
+        # Make sure scroll frame visible
+        self.empty_view.pack_forget()
+        self.scroll_frame.pack(pady=10, padx=10, fill="both", expand=True)
+        self.btn_clear.pack(after=self.btn_add, fill="x", pady=5)
 
-                # Klasik Kart Tasarımı
-                f_box = ctk.CTkFrame(self.scroll_frame, fg_color="#2a2a2a", corner_radius=10,
-                                     width=220, height=140, border_width=1, border_color="#444")
-                f_box.grid(row=i // cols, column=i % cols, padx=10, pady=10)
-                f_box.grid_propagate(False)
+        # Build widgets for new items
+        for i, path in enumerate(self.file_list):
+            if path in self.widget_map:
+                continue
+            fname = os.path.basename(path)
+            display_name = (fname[:40] + '..') if len(fname) > 42 else fname
 
-                ctk.CTkLabel(f_box, text="📄", font=("Segoe UI", 32)).pack(pady=(10, 0))
-                ctk.CTkLabel(f_box, text=display_name, font=("Segoe UI", 11, "bold"),
-                             text_color="#eee").pack(padx=10, pady=(0, 5))
+            f_box = ctk.CTkFrame(self.scroll_frame, fg_color="#2a2a2a", corner_radius=8,
+                                 height=64, border_width=2, border_color="#444")
+            f_box.pack(fill="x", padx=8, pady=6)
+            f_box.pack_propagate(False)
 
-                # Basit ve Net Silme Butonu (Alt bölümde)
-                btn_remove = ctk.CTkButton(f_box, text="Dosyayı Kaldır",
-                                           font=("Segoe UI", 11),
-                                           height=30,
-                                           fg_color="#333",
-                                           hover_color="#e74c3c",
-                                           text_color="#ff7675",
-                                           command=lambda p=path: self.remove_single_file(p))
-                btn_remove.pack(side="bottom", fill="x", padx=10, pady=10)
+            label = ctk.CTkLabel(f_box, text=display_name, font=("Segoe UI", 12, "bold"), anchor="w")
+            label.pack(side="left", padx=12)
 
-            self.btn_run.configure(state="normal", fg_color="#2ecc71", text_color="#1a1a1a")
+            # Yukarı / Aşağı butonları
+            btn_up = ctk.CTkButton(f_box, text="↑", width=30, height=30, fg_color="#333",
+                                   command=lambda idx=i: self.move_up(idx))
+            btn_up.pack(side="right", padx=(6, 12))
+
+            btn_down = ctk.CTkButton(f_box, text="↓", width=30, height=30, fg_color="#333",
+                                     command=lambda idx=i: self.move_down(idx))
+            btn_down.pack(side="right", padx=(6, 0))
+
+            # Kaldır butonu
+            btn_remove = ctk.CTkButton(f_box, text="Kaldır", width=80, height=30, fg_color="#e74c3c",
+                                       command=lambda p=path: self.remove_single_file(p))
+            btn_remove.pack(side="right", padx=(6, 0), pady=10)
+
+            # Bind drag events to both frame and label to ensure any area is draggable
+            f_box.bind("<Button-1>", lambda e, p=path: self._drag_start(e, p))
+            f_box.bind("<B1-Motion>", self._drag_motion)
+            f_box.bind("<ButtonRelease-1>", self._drag_release)
+            label.bind("<Button-1>", lambda e, p=path: self._drag_start(e, p))
+            label.bind("<B1-Motion>", self._drag_motion)
+            label.bind("<ButtonRelease-1>", self._drag_release)
+
+            self.widget_map[path] = f_box
+
+        # Now repack widgets in order
+        self.refresh_order()
+        # Update highlighting if dragging
+        for path, w in self.widget_map.items():
+            is_dragging = (self.dragging_path == path)
+            try:
+                if is_dragging:
+                    w.configure(fg_color="#375aeb", border_color="#ffd166")
+                else:
+                    w.configure(fg_color="#2a2a2a", border_color="#444")
+            except Exception:
+                pass
+
+        self.btn_run.configure(state="normal", fg_color="#2ecc71", text_color="#1a1a1a")
 
     def remove_single_file(self, path):
         if path in self.file_list:
             self.file_list.remove(path)
             self.update_ui()
 
+    def move_up(self, idx):
+        if idx <= 0 or idx >= len(self.file_list):
+            return
+        reorder_list(self.file_list, idx, idx - 1)
+        self.update_ui()
+
+    def move_down(self, idx):
+        if idx < 0 or idx >= len(self.file_list) - 1:
+            return
+        reorder_list(self.file_list, idx, idx + 1)
+        self.update_ui()
+
+    # --- Drag and drop handlers (immediate swap, throttled) ---
+    def _drag_start(self, event, path):
+        # Start dragging: remember which path and its index
+        self.dragging_path = path
+        try:
+            self._dragging = self.file_list.index(path)
+        except ValueError:
+            self._dragging = None
+        # visually update
+        self.update_ui()
+
+    def _drag_motion(self, event):
+        # Throttle frequent moves to improve responsiveness
+        now = time.time()
+        if now - self._last_move < 0.03:  # ~30ms
+            return
+        self._last_move = now
+
+        if self._dragging is None or self.dragging_path is None:
+            return
+        try:
+            # Determine target index by vertical position
+            y = event.y_root
+            target = None
+            for idx, w in enumerate(self.card_widgets):
+                wy = w.winfo_rooty()
+                wh = w.winfo_height()
+                center = wy + wh / 2
+                if y < center:
+                    target = idx
+                    break
+            if target is None:
+                target = len(self.card_widgets) - 1
+
+            current_idx = self.file_list.index(self.dragging_path)
+            if target != current_idx:
+                # Immediately reorder to create dynamic shifting effect
+                reorder_list(self.file_list, current_idx, target)
+                # Update dragging index to new position
+                self._dragging = target
+                # Repack existing widgets (lighter than full rebuild)
+                self.refresh_order()
+                # Update visual highlight
+                self.update_ui()
+        except Exception:
+            pass
+
+    def _drag_release(self, event):
+        # End dragging
+        self._dragging = None
+        self.dragging_path = None
+        self.update_ui()
+
     def run_merge(self):
-        if not self.file_list: return
+        if not self.file_list:
+            return
         save_path = filedialog.asksaveasfilename(parent=self, title="PDF'i Kaydet",
                                                  defaultextension=".pdf",
                                                  filetypes=[("PDF", "*.pdf")])

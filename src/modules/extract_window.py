@@ -1,6 +1,7 @@
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import os
+import tempfile
 
 
 class ExtractWindow(ctk.CTkToplevel):
@@ -89,9 +90,13 @@ class ExtractWindow(ctk.CTkToplevel):
         if file:
             self.selected_file = file
             try:
-                import pikepdf
-                with pikepdf.open(file) as pdf:
-                    self.total_pages = len(pdf.pages)
+                # Öncelikle engine'in get_num_pages fonksiyonunu kullanmaya çalış
+                if hasattr(self.pdf_engine, 'get_num_pages'):
+                    self.total_pages = self.pdf_engine.get_num_pages(file)
+                else:
+                    import pikepdf
+                    with pikepdf.open(file) as pdf:
+                        self.total_pages = len(pdf.pages)
 
                 filename = os.path.basename(file)
                 # KART GÖRÜNÜMÜNÜ GÜNCELLE
@@ -106,8 +111,8 @@ class ExtractWindow(ctk.CTkToplevel):
                 self.ent_page.configure(state="normal", placeholder_text="Numaraları buraya yazın...",
                                         border_color="#3a86ff", fg_color="#2a2a2a", text_color="white")
                 self.validate_inputs()
-            except:
-                messagebox.showerror("Hata", "Dosya okunurken bir hata oluştu.")
+            except Exception as e:
+                messagebox.showerror("Hata", f"Dosya okunurken bir hata oluştu: {e}")
         self.lift()
 
     def validate_inputs(self, *args):
@@ -152,13 +157,22 @@ class ExtractWindow(ctk.CTkToplevel):
                 save_path = filedialog.asksaveasfilename(parent=self, title="PDF'i Kaydet", defaultextension=".pdf",
                                                          filetypes=[("PDF", "*.pdf")])
                 if save_path:
-                    self.pdf_engine.extract_and_merge_pages(self.selected_file, save_path, pages_list)
+                    # Eğer engine'de extract_and_merge_pages varsa onu çağır, yoksa extract_pages kullan
+                    if hasattr(self.pdf_engine, 'extract_and_merge_pages'):
+                        self.pdf_engine.extract_and_merge_pages(self.selected_file, save_path, pages_list)
+                    else:
+                        # extract_pages, verilen sayfaları tek bir PDF olarak kaydeder
+                        self.pdf_engine.extract_pages(self.selected_file, pages_list, save_path)
                     self.destroy()
                     self.success_dialog(self.master, save_path, self.ortalama_func)
             else:
                 folder_path = filedialog.askdirectory(parent=self, title="Kaydedilecek Klasörü Seçin")
                 if folder_path:
-                    self.pdf_engine.extract_and_save_separate_pages(self.selected_file, folder_path, pages_list)
+                    if hasattr(self.pdf_engine, 'extract_and_save_separate_pages'):
+                        self.pdf_engine.extract_and_save_separate_pages(self.selected_file, folder_path, pages_list)
+                    else:
+                        # extract_pages_separate döndürülen dosya yollarını verir
+                        self.pdf_engine.extract_pages_separate(self.selected_file, pages_list, folder_path)
                     self.destroy()
                     self.success_dialog(self.master, os.path.abspath(folder_path), self.ortalama_func)
         except Exception as e:
