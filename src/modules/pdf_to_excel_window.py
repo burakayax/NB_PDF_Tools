@@ -9,7 +9,9 @@ from modules.pdf_password_dialog import PdfPasswordDialog
 from modules.ui_theme import badge_colors, theme
 
 
-class WordWindow(ctk.CTkToplevel):
+class PdfToExcelWindow(ctk.CTkToplevel):
+    """PDF -> Excel: tablo koruma modu her zaman aktiftir."""
+
     def __init__(self, master, ortalama_func, engine, success_dialog_class):
         super().__init__(master)
         self.ui = theme()
@@ -20,8 +22,8 @@ class WordWindow(ctk.CTkToplevel):
         self.selected_password = None
         self.selected_is_encrypted = False
 
-        self.title("PaperFlow - PDF'ten Word'e")
-        self.ortalama_func(self, 620, 540)
+        self.title("PaperFlow - PDF'ten Excel'e")
+        self.ortalama_func(self, 620, 560)
         self.grab_set()
         self.configure(fg_color=self.ui["bg"])
 
@@ -29,7 +31,7 @@ class WordWindow(ctk.CTkToplevel):
         header_frame.pack(fill="x", side="top")
         ctk.CTkLabel(
             header_frame,
-            text="⇢ PDF -> WORD ÇEVİRİCİ",
+            text="▦ PDF -> EXCEL",
             font=self.ui["title_font"],
             text_color="white",
         ).pack(pady=15)
@@ -45,20 +47,27 @@ class WordWindow(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             self.main_card,
-            text="Önce düzen korumaya odaklanan dönüşüm uygulanır; gerekli durumlarda OCR yedek akışı devreye girer.",
+            text="Tablo koruma modu bu pencerede her zaman aktiftir.",
             font=self.ui["small_font"],
             text_color=self.ui["muted"],
+        ).pack(pady=(12, 4), padx=20)
+        ctk.CTkLabel(
+            self.main_card,
+            text="Uygulama tablo yapısını korumaya öncelik verir; gerekli durumlarda destekleyici metin aktarımı da yapılır.",
+            font=self.ui["small_font"],
+            text_color=self.ui["muted"],
+            justify="left",
             wraplength=520,
-        ).pack(pady=(14, 0), padx=20)
+        ).pack(pady=(0, 8), padx=20)
 
         self.content_frame = ctk.CTkFrame(self.main_card, fg_color="transparent")
-        self.content_frame.pack(pady=28, padx=20, fill="both", expand=True)
+        self.content_frame.pack(pady=10, padx=20, fill="both", expand=True)
 
         self.show_empty_state()
 
         self.btn_convert = ctk.CTkButton(
             self,
-            text="WORD'E DÖNÜŞTÜR",
+            text="EXCEL OLARAK KAYDET",
             font=("Segoe UI Semibold", 16, "bold"),
             height=50,
             fg_color=self.ui["accent"],
@@ -73,7 +82,7 @@ class WordWindow(ctk.CTkToplevel):
         for widget in self.content_frame.winfo_children():
             widget.destroy()
 
-        ctk.CTkLabel(self.content_frame, text="⇢", font=("Segoe UI Symbol", 56)).pack()
+        ctk.CTkLabel(self.content_frame, text="▦", font=("Segoe UI Symbol", 56)).pack()
         ctk.CTkLabel(
             self.content_frame,
             text="İşleme başlamak için PDF dosyasını seçin.",
@@ -81,18 +90,17 @@ class WordWindow(ctk.CTkToplevel):
             text_color=self.ui["muted"],
         ).pack(pady=10)
 
-        btn_select = ctk.CTkButton(
+        ctk.CTkButton(
             self.content_frame,
             text="Dosya Seç",
             width=120,
             fg_color=self.ui["accent"],
             hover_color=self.ui["accent_hover"],
             command=self.select_file,
-        )
-        btn_select.pack(pady=10)
+        ).pack(pady=10)
 
     def select_file(self):
-        file = filedialog.askopenfilename(parent=self, filetypes=[("PDF Dosyaları", "*.pdf")])
+        file = filedialog.askopenfilename(parent=self, filetypes=[("PDF", "*.pdf")])
         if file:
             try:
                 password = None
@@ -124,24 +132,24 @@ class WordWindow(ctk.CTkToplevel):
                 self.selected_is_encrypted = is_encrypted
                 self.update_ui()
             except Exception as e:
-                messagebox.showerror("Hata", str(e))
+                messagebox.showerror("Hata", f"❌ {e}")
         self.lift()
 
     def update_ui(self):
-        for widget in self.content_frame.winfo_children(): widget.destroy()
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
 
         fname = os.path.basename(self.selected_file)
-
         f_box = ctk.CTkFrame(
             self.content_frame,
             fg_color=self.ui["panel_alt"],
-            corner_radius=10,
+            corner_radius=8,
             border_width=1,
             border_color=self.ui["border"],
         )
         f_box.pack(pady=20, padx=20, fill="x")
 
-        ctk.CTkLabel(f_box, text="Seçilen Dosya", font=self.ui["small_font"], text_color=self.ui["accent"]).pack(pady=(12, 0))
+        ctk.CTkLabel(f_box, text="Seçilen Dosya", font=("Segoe UI", 11), text_color=self.ui["accent"]).pack(pady=(10, 0))
         ctk.CTkLabel(f_box, text=fname, font=("Segoe UI Semibold", 13, "bold"), text_color=self.ui["text"]).pack(pady=10)
         if self.selected_is_encrypted:
             badge = badge_colors("warning")
@@ -154,75 +162,78 @@ class WordWindow(ctk.CTkToplevel):
                 corner_radius=8,
             ).pack(pady=(0, 8))
 
-        btn_change = ctk.CTkButton(
+        ctk.CTkButton(
             f_box,
             text="Değiştir",
-            width=90,
-            height=28,
+            width=80,
+            height=25,
             fg_color=self.ui["panel"],
             hover_color=self.ui["border"],
             command=self.select_file,
-        )
-        btn_change.pack(pady=(0, 10))
+        ).pack(pady=(0, 10))
 
         self.btn_convert.configure(state="normal")
 
     def run_conversion(self):
-        save_path = filedialog.asksaveasfilename(parent=self, title="Word Dosyasını Kaydet",
-                                                 defaultextension=".docx",
-                                                 filetypes=[("Word Belgesi", "*.docx")])
-        if save_path:
-            self.btn_convert.configure(state="disabled", fg_color=self.ui["panel_alt"])
-            q = Queue()
-            finished = {"value": False}
+        save_path = filedialog.asksaveasfilename(
+            parent=self,
+            title="Excel dosyasını kaydet",
+            defaultextension=".xlsx",
+            filetypes=[("Excel", "*.xlsx")],
+        )
+        if not save_path:
+            return
 
-            progress_dialog = ProgressDialog(self, self.ortalama_func, total_count=3, title="PDF -> Word")
-            progress_dialog.update_progress(0, 3, "Başlanıyor...")
+        self.btn_convert.configure(state="disabled", fg_color=self.ui["panel_alt"])
+        q = Queue()
+        finished = {"value": False}
 
-            def progress_cb(current: int, total: int, where_text: str):
-                q.put(("progress", current, total, where_text))
-                return True
+        progress_dialog = ProgressDialog(self, self.ortalama_func, total_count=3, title="PDF -> Excel")
+        progress_dialog.update_progress(0, 3, "Başlanıyor...")
 
-            def worker():
-                try:
-                    self.pdf_engine.pdf_to_word(
-                        self.selected_file,
-                        save_path,
-                        progress_callback=progress_cb,
-                        password=self.selected_password,
-                    )
-                    q.put(("done", save_path))
-                except Exception as e:
-                    q.put(("error", str(e)))
+        def progress_cb(current: int, total: int, where_text: str):
+            q.put(("progress", current, total, where_text))
+            return True
 
-            t = threading.Thread(target=worker, daemon=True)
-            t.start()
+        def worker():
+            try:
+                self.pdf_engine.pdf_text_to_excel(
+                    self.selected_file,
+                    save_path,
+                    progress_callback=progress_cb,
+                    preserve_tables=True,
+                    password=self.selected_password,
+                )
+                q.put(("done", save_path))
+            except Exception as e:
+                q.put(("error", str(e)))
 
-            def poll():
-                try:
-                    while True:
-                        msg = q.get_nowait()
-                        kind = msg[0]
+        threading.Thread(target=worker, daemon=True).start()
 
-                        if kind == "progress":
-                            _, cur, tot, where_text = msg
-                            progress_dialog.update_progress(cur, tot, where_text=where_text)
-                        elif kind == "done":
-                            finished["value"] = True
-                            progress_dialog.destroy()
-                            self.destroy()
-                            self.success_dialog(self.master, save_path, self.ortalama_func)
-                            return
-                        elif kind == "error":
-                            finished["value"] = True
-                            progress_dialog.destroy()
-                            messagebox.showerror("Hata", f"Dönüştürme başarısız:\n{msg[1]}")
-                            self.btn_convert.configure(state="normal", fg_color=self.ui["accent"])
-                            return
-                except Empty:
-                    pass
+        def poll():
+            try:
+                while True:
+                    msg = q.get_nowait()
+                    kind = msg[0]
+                    if kind == "progress":
+                        _, cur, tot, where_text = msg
+                        progress_dialog.update_progress(cur, tot, where_text=where_text)
+                    elif kind == "done":
+                        finished["value"] = True
+                        progress_dialog.destroy()
+                        self.destroy()
+                        self.success_dialog(self.master, save_path, self.ortalama_func)
+                        return
+                    elif kind == "error":
+                        finished["value"] = True
+                        progress_dialog.destroy()
+                        messagebox.showerror("Hata", f"❌ {msg[1]}")
+                        self.btn_convert.configure(state="normal", fg_color=self.ui["accent"])
+                        return
+            except Empty:
+                pass
 
-                if not finished["value"]:
-                    self.after(100, poll)
+            if not finished["value"]:
+                self.after(100, poll)
 
-            self.after(100, poll)
+        self.after(100, poll)

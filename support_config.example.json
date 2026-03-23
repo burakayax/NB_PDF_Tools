@@ -1,0 +1,6 @@
+{
+  "api_base_url": "https://api.ornek-domain.com/v1/support",
+  "api_key": "BACKEND_TARAFINDAN_VERILEN_ANAHTAR",
+  "api_path_prefix": "",
+  "poll_interval_seconds": 2.5
+}
