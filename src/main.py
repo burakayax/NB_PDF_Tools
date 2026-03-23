@@ -73,7 +73,7 @@ class NBPDFApp(ctk.CTk):
             MergeWindow(self, self.ekran_ortala, pdf_engine, SuccessDialog)
         elif "AYIKLA" in isim:
             ExtractWindow(self, self.ekran_ortala, pdf_engine, SuccessDialog)
-        elif "WORD" in isim and "->" in isim: # PDF -> WORD kısmı
+        elif "PDF" in isim and "WORD" in isim and "->" in isim:  # sadece PDF -> WORD
             WordWindow(self, self.ekran_ortala, pdf_engine, SuccessDialog)
         else:
             messagebox.showinfo("NB Studio", f"{isim.replace('\n', ' ')} modülü yakında aktif olacak!")
