@@ -1,5 +1,6 @@
 import customtkinter as ctk
 
+from modules.i18n import t
 from modules.ui_theme import badge_colors, theme
 
 
@@ -14,7 +15,7 @@ class PdfPasswordDialog(ctk.CTkToplevel):
         self.result = None
         self.action = "cancel"
 
-        self.title("PDF Şifresi Gerekli")
+        self.title(t("pdf_password.title"))
         self.ortalama_func(self, 660, 330)
         self.grab_set()
         self.resizable(False, False)
@@ -24,7 +25,7 @@ class PdfPasswordDialog(ctk.CTkToplevel):
         header.pack(fill="x", side="top")
         ctk.CTkLabel(
             header,
-            text="◇ Şifreli PDF",
+            text=t("pdf_password.header"),
             font=ui["title_font"],
             text_color="white",
         ).pack(pady=12)
@@ -34,7 +35,7 @@ class PdfPasswordDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             body,
-            text=f"Dosya şifreli:\n{file_name}",
+            text=f"{t('pdf_password.header')}:\n{file_name}",
             font=("Segoe UI Semibold", 13, "bold"),
             text_color=ui["text"],
             justify="center",
@@ -43,7 +44,7 @@ class PdfPasswordDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             body,
-            text="  ℹ️ Devam etmek için PDF şifresini girin.  ",
+            text=t("pdf_password.detail"),
             font=ui["body_font"],
             text_color=info_badge["text"],
             fg_color=info_badge["fg"],
@@ -52,14 +53,14 @@ class PdfPasswordDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             body,
-            text="Şifre girerek devam edin." if not allow_skip else "Şifre girmezseniz dosyayı atlayabilirsiniz.",
+            text=t("pdf_password.require_password") if not allow_skip else t("pdf_password.allow_skip"),
             font=ui["small_font"],
             text_color=ui["muted"],
         ).pack(pady=(8, 0))
 
         self.password_entry = ctk.CTkEntry(
             body,
-            placeholder_text="PDF şifresi",
+            placeholder_text=t("pdf_password.placeholder"),
             show="*",
             border_color=ui["border"],
             fg_color=ui["panel_alt"],
@@ -82,7 +83,7 @@ class PdfPasswordDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             button_row,
-            text="İptal",
+            text=t("app.cancel"),
             fg_color=ui["panel_alt"],
             hover_color=ui["border"],
             command=self._cancel,
@@ -90,7 +91,7 @@ class PdfPasswordDialog(ctk.CTkToplevel):
         if allow_skip:
             ctk.CTkButton(
                 button_row,
-                text="Bu Dosyayı Atla",
+                text=t("pdf_password.skip"),
                 fg_color=ui["panel_alt"],
                 hover_color=ui["border"],
                 text_color=ui["warning"],
@@ -98,7 +99,7 @@ class PdfPasswordDialog(ctk.CTkToplevel):
             ).pack(side="left", expand=True, fill="x", padx=6)
         ctk.CTkButton(
             button_row,
-            text="Devam Et",
+            text=t("app.continue"),
             fg_color=ui["accent"],
             hover_color=ui["accent_hover"],
             command=self._submit,
@@ -109,7 +110,7 @@ class PdfPasswordDialog(ctk.CTkToplevel):
     def _submit(self, _event=None):
         password = (self.password_entry.get() or "").strip()
         if not password:
-            self.set_warning("Lütfen PDF şifresini girin.")
+            self.set_warning(t("pdf_password.missing_password"))
             self.after(50, self.password_entry.focus_set)
             return
 
@@ -120,7 +121,7 @@ class PdfPasswordDialog(ctk.CTkToplevel):
                 if isinstance(validation_result, str) and validation_result.strip():
                     self.set_warning(validation_result)
                 else:
-                    self.set_warning("Girilen PDF şifresi hatalı.")
+                    self.set_warning(t("pdf_password.invalid_password"))
                 self.after(50, self.password_entry.focus_set)
                 return
 

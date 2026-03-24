@@ -1,125 +1,116 @@
 # NB PDF Tools
 
-`NB PDF Tools`, Windows odaklı bir masaüstü PDF dönüştürme ve belge yönetim uygulamasıdır. Tek arayüz üzerinden PDF, Word ve Excel dosyalarıyla çalışmayı kolaylaştırır; özellikle ofis kullanım senaryoları için hızlı ve pratik akışlar sunar.
+Çoklu PDF ve ofis belgesi işlemlerini tek yerden yönetmenizi sağlayan araç seti. **Windows masaüstü uygulaması** ve tarayıcıda çalışan **web sürümü** (kimlik doğrulama, abonelik özeti ve PDF API) birlikte sunulur.
 
-## Özellikler
+---
 
-- PDF birleştirme
-- PDF sayfa ayıklama
-- PDF -> Word dönüşümü
-- Word -> PDF dönüşümü
-- Excel -> PDF dönüşümü
-- PDF -> Excel dönüşümü
-- PDF sıkıştırma
-- PDF şifreleme
+## Türkçe
 
-## PDF -> Excel Modları
+### Proje açıklaması
 
-- `Tablo koruma modu`: `pdfplumber` ile tablo hücre yapısını korumaya çalışır.
-- `Düz metin modu`: PDF içindeki seçilebilir metni sayfa ve satır bazlı Excel'e aktarır.
+NB PDF Tools; PDF birleştirme, sayfa ayırma, Word/Excel ile dönüşümler, sıkıştırma ve şifreleme gibi işlemleri kullanıcı dostu arayüzlerle sunar. Masaüstü sürümü yerel Python motoru üzerinde çalışır; web sürümü FastAPI tabanlı PDF servisi, Node.js kimlik API’si ve React arayüzünden oluşur.
 
-Not: Taranmış PDF'lerde, çok karmaşık düzenlerde veya çizgisel olmayan tablolarda tablo koruma modu birebir sonuç vermeyebilir.
+### Özellikler
 
-## Sistem Gereksinimleri
+**PDF ve belge işlemleri**
 
-- Windows 10 veya üzeri
-- Python 3.13+
-- `pip`
-- Tesseract OCR
-- Poppler
-- Microsoft Word
-  - `Word -> PDF` dönüşümü için gerekir
+- PDF birleştirme  
+- PDF sayfa ayıklama (tek veya ayrı dosyalar)  
+- PDF → Word  
+- Word → PDF  
+- Excel → PDF  
+- PDF → Excel (tablo koruma / düz metin yaklaşımları)  
+- PDF sıkıştırma  
+- PDF şifreleme  
 
-## Kurulum
+**Web sürümü (ek)**
 
-1. Depoyu klonlayın veya indirin.
-2. Bağımlılıkları kurun:
+- Çok dilli arayüz ve landing deneyimi  
+- E-posta ile kayıt / giriş, e-posta doğrulama  
+- İsteğe bağlı Google ile oturum  
+- Plan özeti, kullanım ve plan değiştirme (geliştirme odaklı akış)  
+- İletişim formu ve dosya günlüğü (kimlik API)  
 
-```bash
-python -m pip install -r requirements.txt
-```
+**Masaüstü (ek)**
 
-3. Harici araçları doğrulayın:
+- Yerel dosya seçimi ve ilerleme diyalogları  
+- İsteğe bağlı destek sohbeti (harici HTTP API ile yapılandırılır; ayrıntı için `support_config.example.json`)
 
-- Tesseract kurulu olmalı
-- Poppler dosyaları proje içindeki beklenen konumda olmalı
-- Microsoft Word gerekiyorsa sistemde kurulu olmalı
+### Ekran görüntüleri
 
-## Çalıştırma
+| Web — çalışma alanı önizlemesi | Web — birleştirme önizlemesi |
+|--------------------------------|------------------------------|
+| ![Web ana önizleme](web/frontend/public/app-preview-main.png) | ![Web birleştirme önizlemesi](web/frontend/public/app-preview-merge.png) |
 
-```bash
-python -m src
-```
+**Masaüstü:** Üretim ekran görüntülerini `docs/screenshots/` veya `release/screenshots/` altına ekleyebilir; yukarıdaki tabloya yeni satır veya görsel bağlantıları ekleyebilirsiniz.
 
-Alternatif:
+### Teknolojiler
 
-```bash
-python src/main.py
-```
+| Katman | Araçlar |
+|--------|---------|
+| Masaüstü | Python 3.11+, CustomTkinter, PyPDF2, pikepdf, Pillow, Tesseract / Poppler (ortamınıza göre), isteğe bağlı Microsoft Office |
+| Web arayüzü | React, TypeScript, Vite, Tailwind CSS |
+| PDF web API | Python, FastAPI, Uvicorn; mevcut `src/pdf_engine` motorunun yeniden kullanımı |
+| Kimlik / SaaS API | Node.js, Express, Prisma, SQLite (geliştirme), JWT, Nodemailer |
+| Geliştirme orkestrasyonu | npm, `concurrently` (kök `npm run dev`) |
 
-## Kullanım Senaryoları
+### Kurulum (kısa)
 
-- Birden fazla PDF dosyasını tek dosyada birleştirme
-- PDF içinden belirli sayfaları ayrı çıkarma
-- Hazır PDF tablolarını Excel'e aktarma
-- Word veya Excel belgelerini PDF'e dönüştürme
-- PDF boyutunu azaltma
-- PDF dosyalarını parola ile koruma
+1. Depoyu klonlayın.  
+2. **Web (önerilen tek komut):** kökte `npm run install-all`, ardından `web/api/.env` ve `web/frontend/.env` dosyalarını `.env.example` dosyalarından oluşturup doldurun; `npm run prisma:push` ile veritabanını hazırlayın; `npm run dev` ile üç servisi birlikte başlatın.  
+3. **Masaüstü:** `python -m pip install -r requirements.txt` ve harici bağımlılıklar (Tesseract, Poppler, Word/Excel) — ayrıntılar için `SETUP_NOTES.txt`.  
+4. Ayrıntılı adımlar: **[SETUP.md](SETUP.md)**, birlikte çalıştırma: **[CALISTIRMA.md](CALISTIRMA.md)**, web mimarisi: **[web/README.md](web/README.md)**.
 
-## Kurumsal destek (WhatsApp bot arka ucu)
+### Kullanım
 
-Ana ekrandaki **İLETİŞİM** düğmesi, uygulama içi sohbet penceresi açar. Sohbet, sizin barındırdığınız **HTTP destek API** üzerinden çalışır; bu API genelde Meta WhatsApp Cloud API ile konuşur.
+- **Web:** Tarayıcıda `http://localhost:5173` (kökten `npm run dev` ile). PDF istekleri `localhost:8000`, oturum API’si `localhost:4000` üzerindedir.  
+- **Masaüstü:** Proje kökünde `python -m src`.  
+- **Masaüstü .exe derleme:** [docs/MASAUSTU_BUILD.md](docs/MASAUSTU_BUILD.md)  
+- **Üretim önizlemesi (web):** Kökte `npm run build:all` sonrası `npm run start` (önce `.env` ve derleme çıktılarının hazır olduğundan emin olun).
 
-Yapılandırma:
+---
 
-1. `support_config.example.json` dosyasını `support_config.json` olarak kopyalayın ve `api_base_url` ile isteğe bağlı `api_key` alanlarını doldurun.
-2. İsteğe bağlı ortam değişkenleri: `NB_SUPPORT_API_BASE_URL`, `NB_SUPPORT_API_KEY`, `NB_SUPPORT_API_PREFIX`.
+## English
 
-Beklenen uçlar (kök yola göre):
+### Overview
 
-- `POST /sessions`
-- `POST /sessions/{id}/messages` (gövde: `{"text": "..."}`)
-- `GET /sessions/{id}/messages` (isteğe bağlı `?since=...`)
-- `POST /sessions/{id}/handoff`
+NB PDF Tools is a document toolkit for merging, splitting, converting, compressing, and securing PDFs, plus Word/Excel workflows. It ships as a **Windows desktop app** (Python) and a **web stack** (FastAPI PDF service, Node.js auth API, React UI).
 
-## Proje Yapısı
+### Features
 
-```text
-NB_PDF_Tools/
-  README.md
-  support_config.example.json
-  requirements.txt
-  pyproject.toml
-  CHANGELOG.md
-  LICENSE
-  release/
-    GITHUB_RELEASE.md
-    RELEASE_CHECKLIST.md
-    SCREENSHOTS.md
-    screenshots/
-  src/
-    __main__.py
-    main.py
-    pdf_engine.py
-    modules/
-    tests/
-```
+- Merge PDFs, extract pages, convert PDF ↔ Word/Excel, compress and encrypt PDFs  
+- Web: localized UI, email auth & verification, optional Google sign-in, subscription-style plans (dev-oriented), contact form  
+- Desktop: local file workflows, optional support chat via your own HTTP API (`support_config.example.json`)
 
-## Teknik Yapı
+### Screenshots
 
-- `src/main.py`: ana pencere ve menü yönetimi
-- `src/pdf_engine.py`: dönüşüm ve PDF işleme mantığı
-- `src/modules/`: her özellik için ayrı pencere ve ortak dialog bileşenleri
-- `src/tests/test_pdf_engine.py`: temel `unittest` kapsamı
+| Web workspace (preview) | Web merge (preview) |
+|-------------------------|---------------------|
+| ![Web main preview](web/frontend/public/app-preview-main.png) | ![Web merge preview](web/frontend/public/app-preview-merge.png) |
 
-## Release Hazırlığı
+Add desktop captures under `docs/screenshots/` or `release/screenshots/` and link them here if needed.
 
-GitHub release için hazır dosyalar:
+### Tech stack
 
-- `release/GITHUB_RELEASE.md`
-- `release/RELEASE_CHECKLIST.md`
-- `release/SCREENSHOTS.md`
+Python / CustomTkinter / PyPDF2 / pikepdf (desktop); React / TypeScript / Vite / Tailwind (frontend); FastAPI (PDF API); Node / Express / Prisma (auth API); root `npm run dev` runs all three dev processes via `concurrently`.
 
-## Lisans
+### Quick setup
 
-Bu proje `MIT License` ile lisanslanmıştır. Ayrıntı için `LICENSE` dosyasına bakın.
+1. Clone the repo.  
+2. **Web:** From the repo root run `npm run install-all`, copy `web/api/.env.example` → `web/api/.env` and `web/frontend/.env.example` → `web/frontend/.env`, run `npm run prisma:push`, then `npm run dev`.  
+3. **Desktop:** `pip install -r requirements.txt` and follow **SETUP_NOTES.txt** for Tesseract, Poppler, and Office.  
+4. More detail: **SETUP.md**, run scripts: **CALISTIRMA.md**, web architecture: **web/README.md**.
+
+### Usage
+
+- **Web:** Open `http://localhost:5173` after `npm run dev` from the repository root.  
+- **Desktop:** `python -m src` from the repository root.  
+- **Desktop .exe build (Turkish guide):** [docs/MASAUSTU_BUILD.md](docs/MASAUSTU_BUILD.md)  
+- **Web production-style run:** `npm run build:all` then `npm run start` from the root.
+
+---
+
+## Lisans / License
+
+Bu proje **MIT License** ile lisanslanmıştır. Ayrıntılar için [LICENSE](LICENSE) dosyasına bakın.  
+This project is licensed under the **MIT License** — see [LICENSE](LICENSE).

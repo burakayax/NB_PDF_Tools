@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  FREE
+  PRO
+  BUSINESS
+}
+
+enum Language {
+  tr
+  en
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum AuthProvider {
+  local
+  google
+}
+
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  passwordHash String?
+  authProvider AuthProvider   @default(local)
+  role         UserRole       @default(USER)
+  isVerified   Boolean        @default(false)
+  verifiedAt   DateTime?
+  plan         Plan           @default(FREE)
+  preferredLanguage Language  @default(en)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  refreshTokens RefreshToken[]
+  dailyUsages  DailyUsage[]
+  verificationTokens EmailVerificationToken[]
+  pageViews    PageView[]
+  clientErrorLogs ClientErrorLog[]
+  desktopDevices DesktopDevice[]
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model DailyUsage {
+  id              String   @id @default(cuid())
+  usageDate       String
+  operationsCount Int      @default(0)
+  lastFeatureKey  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, usageDate])
+  @@index([userId])
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PageView {
+  id        String   @id @default(cuid())
+  view      String
+  path      String
+  sessionId String
+  language  Language?
+  referrer  String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([view])
+  @@index([userId])
+}
+
+model ClientErrorLog {
+  id        String   @id @default(cuid())
+  level     String
+  message   String
+  source    String?
+  stack     String?
+  url       String?
+  userAgent String?
+  language  Language?
+  createdAt DateTime @default(now())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([level])
+  @@index([userId])
+}
+
+model DesktopDevice {
+  id         String   @id @default(cuid())
+  deviceHash String
+  firstSeenAt DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  blockedAt  DateTime?
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceHash])
+  @@index([userId])
+}

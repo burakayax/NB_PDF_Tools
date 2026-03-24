@@ -4,6 +4,7 @@ import os
 import threading
 from queue import Queue, Empty
 
+from modules.i18n import t
 from modules.progress_dialog import ProgressDialog
 from modules.ui_theme import badge_colors, theme
 
@@ -11,15 +12,16 @@ from modules.ui_theme import badge_colors, theme
 class ExcelToPdfWindow(ctk.CTkToplevel):
     """EXCEL -> PDF: .xlsx/.xlsm vb. (Windows'ta Excel ile, yoksa reportlab yedek)."""
 
-    def __init__(self, master, ortalama_func, engine, success_dialog_class):
+    def __init__(self, master, ortalama_func, engine, success_dialog_class, access_controller=None):
         super().__init__(master)
         self.ui = theme()
         self.ortalama_func = ortalama_func
         self.pdf_engine = engine
         self.success_dialog = success_dialog_class
+        self.access_controller = access_controller
         self.selected_file = None
 
-        self.title("PaperFlow - Excel'den PDF'e")
+        self.title(t("excel_to_pdf.window_title"))
         self.ortalama_func(self, 600, 540)
         self.grab_set()
         self.configure(fg_color=self.ui["bg"])
@@ -28,7 +30,7 @@ class ExcelToPdfWindow(ctk.CTkToplevel):
         header_frame.pack(fill="x", side="top")
         ctk.CTkLabel(
             header_frame,
-            text="▤ EXCEL -> PDF",
+            text=t("excel_to_pdf.header"),
             font=self.ui["title_font"],
             text_color="white",
         ).pack(pady=15)
@@ -44,7 +46,7 @@ class ExcelToPdfWindow(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             self.main_card,
-            text="Desteklenen biçimler: .xlsx ve .xlsm",
+            text=t("excel_to_pdf.supported"),
             font=self.ui["small_font"],
             text_color=self.ui["muted"],
         ).pack(pady=(12, 4), padx=20)
@@ -56,7 +58,7 @@ class ExcelToPdfWindow(ctk.CTkToplevel):
 
         self.btn_convert = ctk.CTkButton(
             self,
-            text="PDF OLARAK KAYDET",
+            text=t("excel_to_pdf.run"),
             font=("Segoe UI Semibold", 16, "bold"),
             height=50,
             fg_color=self.ui["accent"],
@@ -74,14 +76,14 @@ class ExcelToPdfWindow(ctk.CTkToplevel):
         ctk.CTkLabel(self.content_frame, text="▤", font=("Segoe UI Symbol", 56)).pack()
         ctk.CTkLabel(
             self.content_frame,
-            text="İşleme başlamak için Excel dosyasını seçin.",
+            text=t("excel_to_pdf.empty"),
             font=("Segoe UI Semibold", 14, "bold"),
             text_color=self.ui["muted"],
         ).pack(pady=10)
 
         ctk.CTkButton(
             self.content_frame,
-            text="Dosya Seç",
+            text=t("app.select_file"),
             width=120,
             fg_color=self.ui["accent"],
             hover_color=self.ui["accent_hover"],
@@ -94,7 +96,7 @@ class ExcelToPdfWindow(ctk.CTkToplevel):
             filetypes=[
                 ("Excel", "*.xlsx *.xlsm *.xltx *.xltm"),
                 ("Excel (.xlsx)", "*.xlsx"),
-                ("Excel makro (.xlsm)", "*.xlsm"),
+                ("Excel Macro (.xlsm)", "*.xlsm"),
             ],
         )
         if file:
@@ -116,13 +118,13 @@ class ExcelToPdfWindow(ctk.CTkToplevel):
         )
         f_box.pack(pady=20, padx=20, fill="x")
 
-        ctk.CTkLabel(f_box, text="Seçilen Dosya", font=("Segoe UI", 11), text_color=self.ui["accent"]).pack(pady=(10, 0))
+        ctk.CTkLabel(f_box, text=t("app.selected_file"), font=("Segoe UI", 11), text_color=self.ui["accent"]).pack(pady=(10, 0))
         ctk.CTkLabel(f_box, text=fname, font=("Segoe UI Semibold", 13, "bold"), text_color=self.ui["text"]).pack(pady=10)
 
         badge = badge_colors("neutral")
         ctk.CTkLabel(
             f_box,
-            text="  Excel Belgesi  ",
+            text=t("excel_to_pdf.excel_file"),
             font=self.ui["badge_font"],
             text_color=badge["text"],
             fg_color=badge["fg"],
@@ -131,11 +133,12 @@ class ExcelToPdfWindow(ctk.CTkToplevel):
 
         ctk.CTkButton(
             f_box,
-            text="Değiştir",
+            text=t("app.change"),
             width=80,
             height=25,
-            fg_color=self.ui["panel"],
+            fg_color=self.ui["panel_soft"],
             hover_color=self.ui["border"],
+            text_color=self.ui["text"],
             command=self.select_file,
         ).pack(pady=(0, 10))
 
@@ -144,7 +147,7 @@ class ExcelToPdfWindow(ctk.CTkToplevel):
     def run_conversion(self):
         save_path = filedialog.asksaveasfilename(
             parent=self,
-            title="PDF olarak kaydet",
+            title=t("excel_to_pdf.save_title"),
             defaultextension=".pdf",
             filetypes=[("PDF", "*.pdf")],
         )
@@ -155,8 +158,8 @@ class ExcelToPdfWindow(ctk.CTkToplevel):
         q = Queue()
         finished = {"value": False}
 
-        progress_dialog = ProgressDialog(self, self.ortalama_func, total_count=2, title="Excel -> PDF")
-        progress_dialog.update_progress(0, 2, "Başlanıyor...")
+        progress_dialog = ProgressDialog(self, self.ortalama_func, total_count=2, title=t("excel_to_pdf.progress_title"))
+        progress_dialog.update_progress(0, 2, t("progress.starting"))
 
         def progress_cb(current: int, total: int, where_text: str):
             q.put(("progress", current, total, where_text))
@@ -164,6 +167,8 @@ class ExcelToPdfWindow(ctk.CTkToplevel):
 
         def worker():
             try:
+                if self.access_controller:
+                    self.access_controller.authorize_operation("excel-to-pdf", [self.selected_file])
                 self.pdf_engine.excel_to_pdf(self.selected_file, save_path, progress_callback=progress_cb)
                 q.put(("done", save_path))
             except Exception as e:
@@ -188,7 +193,7 @@ class ExcelToPdfWindow(ctk.CTkToplevel):
                     elif kind == "error":
                         finished["value"] = True
                         progress_dialog.destroy()
-                        messagebox.showerror("Hata", f"❌ {msg[1]}")
+                        messagebox.showerror(t("app.error"), str(msg[1]))
                         self.btn_convert.configure(state="normal", fg_color=self.ui["accent"])
                         return
             except Empty:

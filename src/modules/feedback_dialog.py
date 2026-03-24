@@ -12,6 +12,7 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
+from modules.i18n import t
 from modules.support_api_client import SupportApiClient, SupportApiError
 from modules.support_config import load_support_config
 from modules.ui_theme import theme
@@ -65,7 +66,7 @@ class FeedbackDialog(ctk.CTkToplevel):
         self._poll_after_id = None
         self._poll_ms = 2500
 
-        self.title("Destek — WhatsApp Bot")
+        self.title(t("feedback.window_title"))
         self.ortalama_func(self, 660, 620)
         self.grab_set()
         self.configure(fg_color=self.ui["bg"])
@@ -75,7 +76,7 @@ class FeedbackDialog(ctk.CTkToplevel):
         header.pack(fill="x", side="top")
         ctk.CTkLabel(
             header,
-            text="Kurumsal Destek",
+            text=t("feedback.header"),
             font=self.ui["title_font"],
             text_color="white",
         ).pack(side="left", padx=18, pady=12)
@@ -114,7 +115,7 @@ class FeedbackDialog(ctk.CTkToplevel):
             w.destroy()
         ctk.CTkLabel(
             self.info_frame,
-            text="Destek sunucusuna bağlanılıyor…",
+            text=t("feedback.connecting"),
             font=self.ui["body_font"],
             text_color=self.ui["muted"],
             wraplength=560,
@@ -132,7 +133,7 @@ class FeedbackDialog(ctk.CTkToplevel):
         )
         ctk.CTkLabel(
             self.info_frame,
-            text="Destek API adresi tanımlı değil",
+            text=t("feedback.config_missing"),
             font=self.ui["subtitle_font"],
             text_color=self.ui["text"],
         ).pack(anchor="w", padx=22, pady=(24, 8))
@@ -146,7 +147,7 @@ class FeedbackDialog(ctk.CTkToplevel):
         ).pack(anchor="w", padx=22, pady=(0, 16))
         ctk.CTkButton(
             self.info_frame,
-            text="Kapat",
+            text=t("feedback.close"),
             width=120,
             fg_color=self.ui["panel_alt"],
             hover_color=self.ui["border"],
@@ -158,7 +159,7 @@ class FeedbackDialog(ctk.CTkToplevel):
             w.destroy()
         ctk.CTkLabel(
             self.info_frame,
-            text="Bağlantı kurulamadı",
+            text=t("feedback.connection_failed"),
             font=self.ui["subtitle_font"],
             text_color=self.ui["danger"],
         ).pack(anchor="w", padx=22, pady=(24, 8))
@@ -172,14 +173,14 @@ class FeedbackDialog(ctk.CTkToplevel):
         ).pack(anchor="w", padx=22, pady=(0, 16))
         ctk.CTkButton(
             self.info_frame,
-            text="Yeniden Dene",
+            text=t("feedback.retry"),
             fg_color=self.ui["accent"],
             hover_color=self.ui["accent_hover"],
             command=self._retry_bootstrap,
         ).pack(pady=(0, 8))
         ctk.CTkButton(
             self.info_frame,
-            text="Kapat",
+            text=t("feedback.close"),
             width=120,
             fg_color=self.ui["panel_alt"],
             hover_color=self.ui["border"],
@@ -221,7 +222,7 @@ class FeedbackDialog(ctk.CTkToplevel):
 
         self.entry = ctk.CTkEntry(
             input_row,
-            placeholder_text="Mesajınızı yazın…",
+            placeholder_text=t("feedback.message_placeholder"),
             fg_color=self.ui["panel_alt"],
             border_color=self.ui["border"],
             text_color=self.ui["text"],
@@ -231,7 +232,7 @@ class FeedbackDialog(ctk.CTkToplevel):
 
         self.btn_send = ctk.CTkButton(
             input_row,
-            text="Gönder",
+            text=t("feedback.send"),
             width=88,
             fg_color=self.ui["accent"],
             hover_color=self.ui["accent_hover"],
@@ -245,7 +246,7 @@ class FeedbackDialog(ctk.CTkToplevel):
 
         self.btn_handoff = ctk.CTkButton(
             btn_row,
-            text="Destek İste",
+            text=t("feedback.handoff"),
             fg_color=self.ui["warning"],
             hover_color="#d69531",
             command=self._handoff_clicked,
@@ -254,7 +255,7 @@ class FeedbackDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             btn_row,
-            text="Kapat",
+            text=t("feedback.close"),
             fg_color=self.ui["panel_alt"],
             hover_color=self.ui["border"],
             command=self._on_close,
@@ -326,24 +327,24 @@ class FeedbackDialog(ctk.CTkToplevel):
             self._poll_ms = float(cfg.get("poll_interval_seconds") or 2.5) * 1000
             self.info_frame.pack_forget()
             self.chat_frame.pack(fill="both", expand=True)
-            self._set_status("Bağlı")
-            self._append_local_notice("Oturum açıldı. Sorunuzu yazabilirsiniz.")
+            self._set_status("Online")
+            self._append_local_notice("Session started. You can type your question." if t("feedback.send") == "Send" else "Oturum açıldı. Sorunuzu yazabilirsiniz.")
             self._schedule_poll()
         elif kind == "messages":
             for m in item[1]:
                 self._ingest_server_message(m)
         elif kind == "send_err":
-            messagebox.showerror("Gönderim", item[1])
+            messagebox.showerror(t("feedback.send_error"), item[1])
         elif kind == "handoff_err":
-            messagebox.showerror("Destek", item[1])
+            messagebox.showerror(t("feedback.support_error"), item[1])
         elif kind == "handoff_ok":
             self._handoff_done = True
             self.btn_handoff.configure(state="disabled")
             self.handoff_banner.configure(
-                text="  Talebiniz operatöre iletildi. Kısa süre içinde yanıtlanacaktır.  "
+                text=t("feedback.handoff_done")
             )
             self.handoff_banner.pack(fill="x", padx=16, pady=(0, 8))
-            self._append_local_notice("Destek talebi oluşturuldu.")
+            self._append_local_notice("Support request created." if t("feedback.send") == "Send" else "Destek talebi oluşturuldu.")
         elif kind == "poll_done":
             self._handle_poll_done()
 
@@ -440,7 +441,7 @@ class FeedbackDialog(ctk.CTkToplevel):
         if not text:
             return
         if not self._session_id:
-            messagebox.showwarning("Destek", "Oturum hazır değil.")
+            messagebox.showwarning(t("feedback.support_error"), t("feedback.session_not_ready"))
             return
         self.entry.delete(0, "end")
         self._add_bubble("user", text)

@@ -1,6 +1,7 @@
 import customtkinter as ctk
 import time
 
+from modules.i18n import t
 from modules.ui_theme import theme
 
 
@@ -24,7 +25,7 @@ class ProgressDialog(ctk.CTkToplevel):
     Not: UI methodlari sadece ana thread'de cagrilmali.
     """
 
-    def __init__(self, master, ortalama_func, total_count: int, title: str = "İşlem Yapiliyor"):
+    def __init__(self, master, ortalama_func, total_count: int, title: str | None = None):
         super().__init__(master)
         ui = theme()
 
@@ -32,7 +33,7 @@ class ProgressDialog(ctk.CTkToplevel):
         self.total_count = max(1, int(total_count))
         self.start_time = time.time()
 
-        self.title(title)
+        self.title(title or t("progress.default_title"))
         self.ortalama_func(self, 520, 320)
         self.grab_set()
         self.after(100, self.lift)
@@ -40,13 +41,13 @@ class ProgressDialog(ctk.CTkToplevel):
 
         header = ctk.CTkFrame(self, fg_color=ui["accent"], height=60, corner_radius=0)
         header.pack(fill="x", side="top")
-        ctk.CTkLabel(header, text="◌ İlerleme", font=ui["title_font"], text_color="white").pack(pady=10)
+        ctk.CTkLabel(header, text=t("progress.header"), font=ui["title_font"], text_color="white").pack(pady=10)
 
         self.card = ctk.CTkFrame(self, fg_color=ui["panel"], corner_radius=18, border_width=1, border_color=ui["border"])
         self.card.pack(fill="both", expand=True, padx=18, pady=18)
 
         self.status_label = ctk.CTkLabel(
-            self.card, text="Başlanıyor...", font=("Segoe UI Semibold", 16, "bold"), text_color=ui["text"], wraplength=480
+            self.card, text=t("progress.starting"), font=("Segoe UI Semibold", 16, "bold"), text_color=ui["text"], wraplength=480
         )
         self.status_label.pack(pady=(18, 6), padx=16)
 
@@ -62,7 +63,7 @@ class ProgressDialog(ctk.CTkToplevel):
         self.percent_label = ctk.CTkLabel(row, text="%0", font=ui["subtitle_font"], text_color=ui["muted"])
         self.percent_label.pack(side="left")
 
-        self.eta_label = ctk.CTkLabel(row, text="Kalan: --", font=ui["subtitle_font"], text_color=ui["muted"])
+        self.eta_label = ctk.CTkLabel(row, text=t("progress.remaining_unknown"), font=ui["subtitle_font"], text_color=ui["muted"])
         self.eta_label.pack(side="right")
 
         self.path_label = ctk.CTkLabel(
@@ -97,13 +98,14 @@ class ProgressDialog(ctk.CTkToplevel):
         if where_text:
             self._last_where_text = where_text
             self.path_label.configure(text=where_text)
-        self.status_label.configure(text=f"İşlem: {current}/{total}")
+        self.status_label.configure(text=t("progress.status", current=current, total=total))
 
     def _start_progress_loop(self):
         self._tick_animation()
 
     def _tick_animation(self):
-        self._display_ratio += (self._target_ratio - self._display_ratio) * 0.22
+        # Daha sık küçük adımlarla akıtınca çubuk takılmadan ilerliyormuş hissi verir.
+        self._display_ratio += (self._target_ratio - self._display_ratio) * 0.28
         if abs(self._target_ratio - self._display_ratio) < 0.002:
             self._display_ratio = self._target_ratio
 
@@ -113,16 +115,16 @@ class ProgressDialog(ctk.CTkToplevel):
 
         elapsed = time.time() - self.start_time
         if self._display_ratio <= 0.001 or elapsed < 0.5:
-            eta_text = "Kalan: --"
+            eta_text = t("progress.remaining_unknown")
         else:
             remaining = max(0, (1.0 - self._display_ratio) * elapsed / self._display_ratio)
-            eta_text = f"Kalan: {_format_seconds(remaining)}"
+            eta_text = t("progress.remaining", time=_format_seconds(remaining))
 
         if eta_text != self._last_eta:
             self.eta_label.configure(text=eta_text)
             self._last_eta = eta_text
 
-        self._tick_after_id = self.after(120, self._tick_animation)
+        self._tick_after_id = self.after(75, self._tick_animation)
 
     def destroy(self):
         if self._tick_after_id is not None:

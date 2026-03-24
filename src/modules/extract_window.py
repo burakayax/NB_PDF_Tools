@@ -2,23 +2,24 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import os
 
-from modules.output_security_dialog import OutputSecurityDialog
+from modules.i18n import t
 from modules.pdf_password_dialog import PdfPasswordDialog
 from modules.ui_theme import badge_colors, theme
 
 
 class ExtractWindow(ctk.CTkToplevel):
-    def __init__(self, master, ortalama_func, engine, success_dialog_class):
+    def __init__(self, master, ortalama_func, engine, success_dialog_class, access_controller=None):
         super().__init__(master)
         self.ortalama_func = ortalama_func
         self.pdf_engine = engine
         self.success_dialog = success_dialog_class
+        self.access_controller = access_controller
         self.ui = theme()
         self.selected_file = None
         self.total_pages = 0
         self.selected_password = None
 
-        self.title("PaperFlow - Sayfa Ayıklama")
+        self.title(t("extract.window_title"))
         self.ortalama_func(self, 620, 760)
         self.grab_set()
         self.configure(fg_color=self.ui["bg"])
@@ -26,7 +27,7 @@ class ExtractWindow(ctk.CTkToplevel):
         # 1. ÜST BAŞLIK
         header_frame = ctk.CTkFrame(self, fg_color=self.ui["accent"], height=60, corner_radius=0)
         header_frame.pack(fill="x", side="top")
-        ctk.CTkLabel(header_frame, text="✂ SAYFA AYIKLAMA İSTASYONU", font=self.ui["title_font"],
+        ctk.CTkLabel(header_frame, text=t("extract.header"), font=self.ui["title_font"],
                      text_color="white").pack(pady=15)
 
         # 2. PROFESYONEL DOSYA GÖRÜNÜM ALANI (BİRLEŞTİRME EKRANI STİLİ)
@@ -41,17 +42,17 @@ class ExtractWindow(ctk.CTkToplevel):
         self.lbl_file_icon = ctk.CTkLabel(self.inner_content, text="◫", font=("Segoe UI Symbol", 40), text_color=self.ui["muted"])
         self.lbl_file_icon.pack()
 
-        self.lbl_file_name = ctk.CTkLabel(self.inner_content, text="Henüz bir dosya seçilmedi",
+        self.lbl_file_name = ctk.CTkLabel(self.inner_content, text=t("extract.empty_file"),
                                           font=("Segoe UI Semibold", 13, "bold"), text_color=self.ui["muted"])
         self.lbl_file_name.pack(pady=(5, 0))
 
         self.lbl_file_details = ctk.CTkLabel(self.inner_content,
-                                             text="İşleme başlamak için bir PDF dosyası seçin.",
+                                             text=t("extract.empty_detail"),
                                              font=self.ui["body_font"], text_color=self.ui["muted"])
         self.lbl_file_details.pack()
 
         # Dosya Seç Butonu (Kartın hemen altında veya içinde)
-        self.btn_select = ctk.CTkButton(self.file_card, text="DOSYA SEÇ", font=self.ui["subtitle_font"],
+        self.btn_select = ctk.CTkButton(self.file_card, text=t("extract.select_file"), font=self.ui["subtitle_font"],
                                         fg_color=self.ui["accent"], hover_color=self.ui["accent_hover"], height=32, width=120,
                                         command=self.select_file)
         self.btn_select.pack(pady=(0, 15))
@@ -61,16 +62,16 @@ class ExtractWindow(ctk.CTkToplevel):
         self.main_container.pack(fill="x", padx=40)
 
         # Kaydetme Modu
-        ctk.CTkLabel(self.main_container, text="Kayıt Modu", font=self.ui["subtitle_font"], text_color=self.ui["warning"]).pack(
+        ctk.CTkLabel(self.main_container, text=t("extract.save_mode"), font=self.ui["subtitle_font"], text_color=self.ui["warning"]).pack(
             anchor="w")
         self.segment_mode = ctk.CTkSegmentedButton(self.main_container,
-                                                   values=["Tek PDF'de Birleştir", "Ayrı Ayrı Kaydet"],
+                                                   values=[t("extract.mode_single"), t("extract.mode_separate")],
                                                    command=lambda _value: self.update_mode_info())
-        self.segment_mode.set("Tek PDF'de Birleştir")
+        self.segment_mode.set(t("extract.mode_single"))
         self.segment_mode.pack(fill="x", pady=(5, 15))
         self.mode_info = ctk.CTkLabel(
             self.main_container,
-            text="Seçilen sayfalar tek bir yeni PDF dosyası olarak kaydedilir.",
+            text=t("extract.mode_single_info"),
             font=self.ui["small_font"],
             text_color=self.ui["muted"],
             justify="left",
@@ -79,14 +80,14 @@ class ExtractWindow(ctk.CTkToplevel):
         self.mode_info.pack(anchor="w", pady=(0, 10))
 
         # Sayfa Girişi
-        ctk.CTkLabel(self.main_container, text="Sayfa Numaraları (Örn: 1, 3, 5)",
+        ctk.CTkLabel(self.main_container, text=t("extract.page_label"),
                      font=self.ui["subtitle_font"], text_color=self.ui["text"]).pack(fill="x")
 
         self.entry_var = ctk.StringVar()
         self.entry_var.trace_add("write", self.validate_inputs)
 
         self.ent_page = ctk.CTkEntry(self.main_container, height=45,
-                                     placeholder_text="Önce dosya seçmelisiniz...",
+                                     placeholder_text=t("extract.page_placeholder_disabled"),
                                      font=("Segoe UI Semibold", 16, "bold"), justify="center",
                                      border_color=self.ui["border"], fg_color=self.ui["panel_alt"], text_color=self.ui["text"],
                                      textvariable=self.entry_var, state="disabled")
@@ -96,19 +97,19 @@ class ExtractWindow(ctk.CTkToplevel):
         self.lbl_warning.pack(pady=5)
 
         # 4. İŞLEM BUTONU (Profesyonel Mavi)
-        self.btn_run = ctk.CTkButton(self, text="İŞLEMİ BAŞLAT", font=("Segoe UI Semibold", 18, "bold"), height=56,
+        self.btn_run = ctk.CTkButton(self, text=t("extract.run"), font=("Segoe UI Semibold", 18, "bold"), height=56,
                                      fg_color=self.ui["panel_alt"], hover_color=self.ui["border"], text_color=self.ui["button_text"],
                                      state="disabled", command=self.run_extract)
         self.btn_run.pack(pady=(10, 20), padx=40, fill="x")
 
     def update_mode_info(self):
-        if self.segment_mode.get() == "Tek PDF'de Birleştir":
-            self.mode_info.configure(text="Seçilen sayfalar tek bir yeni PDF dosyası olarak kaydedilir.")
+        if self.segment_mode.get() == t("extract.mode_single"):
+            self.mode_info.configure(text=t("extract.mode_single_info"))
         else:
-            self.mode_info.configure(text="Seçilen her sayfa ayrı PDF dosyası olarak hedef klasöre kaydedilir.")
+            self.mode_info.configure(text=t("extract.mode_separate_info"))
 
     def select_file(self):
-        file = filedialog.askopenfilename(parent=self, filetypes=[("PDF Dosyaları", "*.pdf")])
+        file = filedialog.askopenfilename(parent=self, filetypes=[("PDF Files", "*.pdf")])
         if file:
             try:
                 password = None
@@ -120,7 +121,7 @@ class ExtractWindow(ctk.CTkToplevel):
                         try:
                             if hasattr(self.pdf_engine, "validate_pdf_password") and self.pdf_engine.validate_pdf_password(file, value):
                                 return True
-                            return "Girilen PDF şifresi hatalı."
+                            return t("pdf_password.invalid_password")
                         except Exception as e:
                             return str(e)
 
@@ -152,7 +153,7 @@ class ExtractWindow(ctk.CTkToplevel):
                 self.file_card.configure(border_color=self.ui["success"])
                 self.lbl_file_icon.configure(text="◫", text_color=self.ui["success"])
                 self.lbl_file_name.configure(text=filename, text_color=self.ui["text"])
-                status_text = "Şifreli PDF | Durum: Hazır" if is_encrypted else "Durum: Hazır"
+                status_text = t("extract.ready_status_encrypted") if is_encrypted else t("extract.ready_status")
                 badge = badge_colors("warning" if is_encrypted else "success")
                 self.lbl_file_details.configure(
                     text=f"  Toplam: {self.total_pages} Sayfa | {status_text}  ",
@@ -160,18 +161,18 @@ class ExtractWindow(ctk.CTkToplevel):
                     fg_color=badge["fg"],
                     corner_radius=10,
                 )
-                self.btn_select.configure(text="DOSYAYI DEĞİŞTİR", fg_color=self.ui["panel_alt"], hover_color=self.ui["border"])
+                self.btn_select.configure(text=t("extract.change_file"), fg_color=self.ui["panel_alt"], hover_color=self.ui["border"])
 
                 # Giriş alanını aktif et
-                self.ent_page.configure(state="normal", placeholder_text="Numaraları buraya yazın...",
+                self.ent_page.configure(state="normal", placeholder_text=t("extract.page_placeholder_active"),
                                         border_color=self.ui["accent"], fg_color=self.ui["panel_alt"], text_color=self.ui["text"])
                 self.validate_inputs()
             except Exception as e:
                 self.selected_password = None
                 if "şifreli" in str(e).lower() or "şifre" in str(e).lower():
-                    messagebox.showwarning("Şifreli PDF", str(e))
+                    messagebox.showwarning(t("extract.encrypted_title"), str(e))
                 else:
-                    messagebox.showerror("Hata", f"Dosya okunurken bir hata oluştu:\n{e}")
+                    messagebox.showerror(t("app.error"), t("extract.file_read_error", error=e))
         self.lift()
 
     def validate_inputs(self, *args):
@@ -194,7 +195,7 @@ class ExtractWindow(ctk.CTkToplevel):
                 if p.isdigit():
                     p_num = int(p)
                     if p_num == 0 or p_num > self.total_pages:
-                        self.lbl_warning.configure(text=f"Geçersiz sayfa: Dosya {self.total_pages} sayfa içeriyor.")
+                        self.lbl_warning.configure(text=t("extract.invalid_page", total=self.total_pages))
                         self.btn_run.configure(state="disabled", fg_color=self.ui["panel_alt"])
                         self.ent_page.configure(border_color=self.ui["danger"])
                         return
@@ -211,18 +212,12 @@ class ExtractWindow(ctk.CTkToplevel):
             pages_list = sorted(list(set([int(p.strip()) for p in pages_text.split(',') if p.strip().isdigit()])))
             save_mode = self.segment_mode.get()
 
-            security_dialog = OutputSecurityDialog(self, self.ortalama_func)
-            self.wait_window(security_dialog)
-            if not security_dialog.result:
-                self.lift()
-                return
-
-            output_password = security_dialog.result["password"] if security_dialog.result["encrypt"] else None
-
-            if save_mode == "Tek PDF'de Birleştir":
-                save_path = filedialog.asksaveasfilename(parent=self, title="PDF'i Kaydet", defaultextension=".pdf",
+            if save_mode == t("extract.mode_single"):
+                save_path = filedialog.asksaveasfilename(parent=self, title=t("extract.save_title"), defaultextension=".pdf",
                                                          filetypes=[("PDF", "*.pdf")])
                 if save_path:
+                    if self.access_controller:
+                        self.access_controller.authorize_operation("split", [self.selected_file])
                     # Eğer engine'de extract_and_merge_pages varsa onu çağır, yoksa extract_pages kullan
                     if hasattr(self.pdf_engine, 'extract_and_merge_pages'):
                         self.pdf_engine.extract_and_merge_pages(self.selected_file, save_path, pages_list)
@@ -233,13 +228,14 @@ class ExtractWindow(ctk.CTkToplevel):
                             pages_list,
                             save_path,
                             password=self.selected_password,
-                            output_password=output_password,
                         )
                     self.destroy()
                     self.success_dialog(self.master, save_path, self.ortalama_func)
             else:
-                folder_path = filedialog.askdirectory(parent=self, title="Kaydedilecek Klasörü Seçin")
+                folder_path = filedialog.askdirectory(parent=self, title=t("extract.folder_title"))
                 if folder_path:
+                    if self.access_controller:
+                        self.access_controller.authorize_operation("split", [self.selected_file])
                     if hasattr(self.pdf_engine, 'extract_and_save_separate_pages'):
                         self.pdf_engine.extract_and_save_separate_pages(self.selected_file, folder_path, pages_list)
                     else:
@@ -249,9 +245,8 @@ class ExtractWindow(ctk.CTkToplevel):
                             pages_list,
                             folder_path,
                             password=self.selected_password,
-                            output_password=output_password,
                         )
                     self.destroy()
                     self.success_dialog(self.master, os.path.abspath(folder_path), self.ortalama_func)
         except Exception as e:
-            messagebox.showerror("Hata", str(e))
+            messagebox.showerror(t("app.error"), str(e))

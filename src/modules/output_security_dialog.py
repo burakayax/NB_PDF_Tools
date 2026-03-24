@@ -1,5 +1,6 @@
 import customtkinter as ctk
 
+from modules.i18n import t
 from modules.ui_theme import badge_colors, theme
 
 
@@ -12,7 +13,7 @@ class OutputSecurityDialog(ctk.CTkToplevel):
         self.result = None
         self.choice_var = ctk.StringVar(value="plain")
 
-        self.title("Çıktı Güvenliği")
+        self.title(t("output_security.title"))
         self.ortalama_func(self, 560, 360)
         self.grab_set()
         self.resizable(False, False)
@@ -22,7 +23,7 @@ class OutputSecurityDialog(ctk.CTkToplevel):
         header.pack(fill="x", side="top")
         ctk.CTkLabel(
             header,
-            text="Çıktı Güvenliği",
+            text=t("output_security.header"),
             font=self.ui["title_font"],
             text_color="white",
         ).pack(pady=12)
@@ -32,7 +33,7 @@ class OutputSecurityDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             body,
-            text="Ayıklanan PDF çıktısını nasıl kaydetmek istiyorsunuz?",
+            text=t("output_security.question"),
             font=("Segoe UI Semibold", 13, "bold"),
             text_color=self.ui["text"],
             justify="center",
@@ -41,7 +42,7 @@ class OutputSecurityDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             body,
-            text="  İsterseniz çıktı şifresiz kaydedilir, isterseniz yeni bir parola ile korunur.  ",
+            text=t("output_security.detail"),
             font=self.ui["body_font"],
             text_color=info_badge["text"],
             fg_color=info_badge["fg"],
@@ -50,15 +51,15 @@ class OutputSecurityDialog(ctk.CTkToplevel):
 
         self.segmented = ctk.CTkSegmentedButton(
             body,
-            values=["Şifresiz Kaydet", "Şifreli Kaydet"],
+            values=[t("output_security.plain"), t("output_security.encrypted")],
             command=self._on_mode_change,
         )
         self.segmented.pack(fill="x", pady=(18, 12))
-        self.segmented.set("Şifresiz Kaydet")
+        self.segmented.set(t("output_security.plain"))
 
         self.password_entry = ctk.CTkEntry(
             body,
-            placeholder_text="Yeni PDF şifresi",
+            placeholder_text=t("output_security.placeholder"),
             show="*",
             border_color=self.ui["border"],
             fg_color=self.ui["panel_alt"],
@@ -81,21 +82,21 @@ class OutputSecurityDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             button_row,
-            text="İptal",
+            text=t("app.cancel"),
             fg_color=self.ui["panel_alt"],
             hover_color=self.ui["border"],
             command=self._cancel,
         ).pack(side="left", expand=True, fill="x", padx=(0, 6))
         ctk.CTkButton(
             button_row,
-            text="Kaydet",
+            text=t("app.save"),
             fg_color=self.ui["accent"],
             hover_color=self.ui["accent_hover"],
             command=self._submit,
         ).pack(side="left", expand=True, fill="x", padx=(6, 0))
 
     def _on_mode_change(self, value):
-        encrypted = value == "Şifreli Kaydet"
+        encrypted = value == t("output_security.encrypted")
         self.password_entry.configure(state="normal" if encrypted else "disabled")
         if encrypted:
             self.after(50, self.password_entry.focus_set)
@@ -104,10 +105,10 @@ class OutputSecurityDialog(ctk.CTkToplevel):
         self._clear_warning()
 
     def _submit(self):
-        encrypted = self.segmented.get() == "Şifreli Kaydet"
+        encrypted = self.segmented.get() == t("output_security.encrypted")
         password = (self.password_entry.get() or "").strip()
         if encrypted and not password:
-            self.warning_label.configure(text="Şifreli kayıt için bir parola girin.")
+            self.warning_label.configure(text=t("output_security.missing_password"))
             self.after(50, self.password_entry.focus_set)
             return
         self.result = {"encrypt": encrypted, "password": password if encrypted else None}

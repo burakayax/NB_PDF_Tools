@@ -4,6 +4,7 @@ import os
 import threading
 from queue import Queue, Empty
 
+from modules.i18n import t
 from modules.progress_dialog import ProgressDialog
 from modules.pdf_password_dialog import PdfPasswordDialog
 from modules.ui_theme import badge_colors, theme
@@ -12,17 +13,18 @@ from modules.ui_theme import badge_colors, theme
 class EncryptPdfWindow(ctk.CTkToplevel):
     """PDF şifreleme (açmak için kullanıcı parolası)."""
 
-    def __init__(self, master, ortalama_func, engine, success_dialog_class):
+    def __init__(self, master, ortalama_func, engine, success_dialog_class, access_controller=None):
         super().__init__(master)
         self.ui = theme()
         self.ortalama_func = ortalama_func
         self.pdf_engine = engine
         self.success_dialog = success_dialog_class
+        self.access_controller = access_controller
         self.selected_file = None
         self.selected_password = None
         self.selected_is_encrypted = False
 
-        self.title("PaperFlow - PDF Şifrele")
+        self.title(t("encrypt.window_title"))
         self.ortalama_func(self, 620, 700)
         self.grab_set()
         self.configure(fg_color=self.ui["bg"])
@@ -31,7 +33,7 @@ class EncryptPdfWindow(ctk.CTkToplevel):
         header_frame.pack(fill="x", side="top")
         ctk.CTkLabel(
             header_frame,
-            text="◇ PDF ŞİFRELE",
+            text=t("encrypt.header"),
             font=self.ui["title_font"],
             text_color="white",
         ).pack(pady=15)
@@ -53,10 +55,10 @@ class EncryptPdfWindow(ctk.CTkToplevel):
         pwd_frame = ctk.CTkFrame(self.main_card, fg_color="transparent")
         pwd_frame.pack(fill="x", padx=24, pady=(0, 8))
 
-        ctk.CTkLabel(pwd_frame, text="Açma Şifresi", font=self.ui["subtitle_font"], text_color=self.ui["text"]).pack(anchor="w")
+        ctk.CTkLabel(pwd_frame, text=t("encrypt.open_password"), font=self.ui["subtitle_font"], text_color=self.ui["text"]).pack(anchor="w")
         self.entry_user = ctk.CTkEntry(
             pwd_frame,
-            placeholder_text="Parola",
+            placeholder_text=t("encrypt.password_placeholder"),
             show="*",
             width=400,
             fg_color=self.ui["panel_alt"],
@@ -66,49 +68,16 @@ class EncryptPdfWindow(ctk.CTkToplevel):
         self.entry_user.pack(fill="x", pady=(4, 12))
         ctk.CTkLabel(
             pwd_frame,
-            text="Bu parola belgeyi açmak için kullanılır ve dosyayı görüntüleyecek kişilerle paylaşılmalıdır.",
+            text=t("encrypt.password_detail"),
             font=self.ui["small_font"],
             text_color=self.ui["muted"],
             justify="left",
             wraplength=500,
-        ).pack(anchor="w", pady=(0, 12))
-
-        ctk.CTkLabel(
-            pwd_frame,
-            text="Sahip şifresi (isteğe bağlı; boşsa açma şifresi kullanılır):",
-            font=self.ui["body_font"],
-            text_color=self.ui["text"],
-        ).pack(anchor="w")
-        self.entry_owner = ctk.CTkEntry(
-            pwd_frame,
-            placeholder_text="İsteğe bağlı",
-            show="*",
-            width=400,
-            fg_color=self.ui["panel_alt"],
-            border_color=self.ui["border"],
-            text_color=self.ui["text"],
-        )
-        self.entry_owner.pack(fill="x", pady=(4, 8))
-        ctk.CTkLabel(
-            pwd_frame,
-            text="Sahiplik şifresi belge yönetimi ve yetki kontrolü içindir; genellikle yalnızca dosya sahibinde kalır.",
-            font=self.ui["small_font"],
-            text_color=self.ui["muted"],
-            justify="left",
-            wraplength=500,
-        ).pack(anchor="w", pady=(0, 4))
-        ctk.CTkLabel(
-            pwd_frame,
-            text="Bu sürümün odağı, belgeyi parola ile güvenli biçimde açılabilir hale getirmektir.",
-            font=self.ui["small_font"],
-            text_color=self.ui["muted"],
-            justify="left",
-            wraplength=500,
-        ).pack(anchor="w")
+        ).pack(anchor="w", pady=(0, 10))
 
         self.btn_run = ctk.CTkButton(
             self,
-            text="ŞİFRELİ PDF KAYDET",
+            text=t("encrypt.run"),
             font=("Segoe UI Semibold", 16, "bold"),
             height=50,
             fg_color=self.ui["accent"],
@@ -126,14 +95,14 @@ class EncryptPdfWindow(ctk.CTkToplevel):
         ctk.CTkLabel(self.content_frame, text="◇", font=("Segoe UI Symbol", 48)).pack()
         ctk.CTkLabel(
             self.content_frame,
-            text="İşleme başlamak için PDF dosyasını seçin.",
+            text=t("encrypt.empty"),
             font=("Segoe UI Semibold", 14, "bold"),
             text_color=self.ui["muted"],
         ).pack(pady=10)
 
         ctk.CTkButton(
             self.content_frame,
-            text="Dosya Seç",
+            text=t("app.select_file"),
             width=120,
             fg_color=self.ui["accent"],
             hover_color=self.ui["accent_hover"],
@@ -153,7 +122,7 @@ class EncryptPdfWindow(ctk.CTkToplevel):
                         try:
                             if hasattr(self.pdf_engine, "validate_pdf_password") and self.pdf_engine.validate_pdf_password(file, value):
                                 return True
-                            return "Girilen PDF şifresi hatalı."
+                            return t("pdf_password.invalid_password")
                         except Exception as e:
                             return str(e)
 
@@ -173,7 +142,7 @@ class EncryptPdfWindow(ctk.CTkToplevel):
                 self.selected_is_encrypted = is_encrypted
                 self.update_ui()
             except Exception as e:
-                messagebox.showerror("Hata", str(e))
+                messagebox.showerror(t("app.error"), str(e))
         self.lift()
 
     def update_ui(self):
@@ -190,13 +159,13 @@ class EncryptPdfWindow(ctk.CTkToplevel):
         )
         f_box.pack(pady=12, padx=10, fill="x")
 
-        ctk.CTkLabel(f_box, text="Seçilen Dosya", font=self.ui["small_font"], text_color=self.ui["accent"]).pack(pady=(12, 0))
+        ctk.CTkLabel(f_box, text=t("app.selected_file"), font=self.ui["small_font"], text_color=self.ui["accent"]).pack(pady=(12, 0))
         ctk.CTkLabel(f_box, text=fname, font=("Segoe UI Semibold", 13, "bold"), text_color=self.ui["text"]).pack(pady=10)
         if self.selected_is_encrypted:
             badge = badge_colors("warning")
             ctk.CTkLabel(
                 f_box,
-                text="  Şifreli PDF | Kaynak şifresi doğrulandı  ",
+                text=t("encrypt.source_verified"),
                 font=self.ui["badge_font"],
                 text_color=badge["text"],
                 fg_color=badge["fg"],
@@ -205,11 +174,12 @@ class EncryptPdfWindow(ctk.CTkToplevel):
 
         ctk.CTkButton(
             f_box,
-            text="Değiştir",
+            text=t("app.change"),
             width=90,
             height=28,
-            fg_color=self.ui["panel"],
+            fg_color=self.ui["panel_soft"],
             hover_color=self.ui["border"],
+            text_color=self.ui["text"],
             command=self.select_file,
         ).pack(pady=(0, 10))
 
@@ -218,15 +188,14 @@ class EncryptPdfWindow(ctk.CTkToplevel):
     def run_encrypt(self):
         user_pwd = (self.entry_user.get() or "").strip()
         if not user_pwd:
-            messagebox.showwarning("PaperFlow", "Lütfen açma şifresi girin.")
+            messagebox.showwarning(t("app.warning"), t("encrypt.missing_password"))
             return
 
-        owner_raw = (self.entry_owner.get() or "").strip()
-        owner_pwd = owner_raw if owner_raw else None
+        owner_pwd = None
 
         save_path = filedialog.asksaveasfilename(
             parent=self,
-            title="Şifreli PDF'i kaydet",
+            title=t("encrypt.save_title"),
             defaultextension=".pdf",
             filetypes=[("PDF", "*.pdf")],
         )
@@ -237,8 +206,8 @@ class EncryptPdfWindow(ctk.CTkToplevel):
         q = Queue()
         finished = {"value": False}
 
-        progress_dialog = ProgressDialog(self, self.ortalama_func, total_count=2, title="PDF Şifrele")
-        progress_dialog.update_progress(0, 2, "Başlanıyor...")
+        progress_dialog = ProgressDialog(self, self.ortalama_func, total_count=2, title=t("encrypt.progress_title"))
+        progress_dialog.update_progress(0, 2, t("progress.starting"))
 
         def progress_cb(current: int, total: int, where_text: str):
             q.put(("progress", current, total, where_text))
@@ -246,6 +215,8 @@ class EncryptPdfWindow(ctk.CTkToplevel):
 
         def worker():
             try:
+                if self.access_controller:
+                    self.access_controller.authorize_operation("encrypt", [self.selected_file])
                 self.pdf_engine.encrypt_pdf(
                     self.selected_file,
                     save_path,
@@ -277,7 +248,7 @@ class EncryptPdfWindow(ctk.CTkToplevel):
                     elif kind == "error":
                         finished["value"] = True
                         progress_dialog.destroy()
-                        messagebox.showerror("Hata", str(msg[1]))
+                        messagebox.showerror(t("app.error"), str(msg[1]))
                         self.btn_run.configure(state="normal", fg_color=self.ui["accent"])
                         return
             except Empty:

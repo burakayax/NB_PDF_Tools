@@ -1,0 +1,6 @@
+{
+  "api_base_url": "http://localhost:4000/api",
+  "web_app_url": "http://localhost:5173",
+  "register_url": "http://localhost:5173?view=register",
+  "upgrade_url": "http://localhost:5173#pricing"
+}

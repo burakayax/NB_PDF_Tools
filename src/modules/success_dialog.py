@@ -1,6 +1,7 @@
 import customtkinter as ctk
 import os
 
+from modules.i18n import t
 from modules.ui_theme import theme
 
 
@@ -12,7 +13,7 @@ class SuccessDialog(ctk.CTkToplevel):
         self.target_path = os.path.abspath(path)
         self.ortalama_func = ortalama_func
 
-        self.title("İşlem Başarılı")
+        self.title(t("success.title"))
         self.ortalama_func(self, 480, 320)
         self.grab_set()
         self.after(100, self.lift)
@@ -20,7 +21,7 @@ class SuccessDialog(ctk.CTkToplevel):
 
         header = ctk.CTkFrame(self, fg_color=self.ui["accent"], height=58, corner_radius=0)
         header.pack(fill="x", side="top")
-        ctk.CTkLabel(header, text="● İşlem Tamamlandı", font=self.ui["title_font"], text_color="white").pack(pady=12)
+        ctk.CTkLabel(header, text=t("success.header"), font=self.ui["title_font"], text_color="white").pack(pady=12)
 
         card = ctk.CTkFrame(
             self,
@@ -31,7 +32,7 @@ class SuccessDialog(ctk.CTkToplevel):
         )
         card.pack(fill="both", expand=True, padx=22, pady=18)
 
-        ctk.CTkLabel(card, text="Çıktı hazır.", font=("Segoe UI Semibold", 20, "bold"), text_color=self.ui["text"]).pack(pady=(18, 4))
+        ctk.CTkLabel(card, text=t("success.ready"), font=("Segoe UI Semibold", 20, "bold"), text_color=self.ui["text"]).pack(pady=(18, 4))
 
         # Kullanıcıya hangi konumun işlem gördüğünü gösterelim
         display_path = os.path.basename(self.target_path) if os.path.isfile(self.target_path) else self.target_path
@@ -40,34 +41,46 @@ class SuccessDialog(ctk.CTkToplevel):
         btn_frame = ctk.CTkFrame(card, fg_color="transparent")
         btn_frame.pack(pady=(8, 14), padx=14, fill="x")
 
-        # 1. DOSYAYI VEYA KLASÖRÜ AÇ
-        # Eğer yolda tek bir PDF varsa PDF'i açar, klasörse klasörü açar
+        # Dosya üretildiyse hem dosya hem klasör açılabilir; klasör üretildiyse tek aksiyon klasörü açmaktır.
         btn_text = self._get_open_button_text()
-        ctk.CTkButton(btn_frame, text=btn_text, fg_color=self.ui["accent"], hover_color=self.ui["accent_hover"],
-                      command=self.open_target).grid(row=0, column=0, padx=5, sticky="ew")
+        ctk.CTkButton(
+            btn_frame,
+            text=btn_text,
+            fg_color=self.ui["accent"],
+            hover_color=self.ui["accent_hover"],
+            command=self.open_target,
+        ).grid(row=0, column=0, padx=5, sticky="ew")
 
-        # 2. KLASÖRÜ GÖSTER (Her zaman klasörü açar)
-        ctk.CTkButton(btn_frame, text="KLASÖRÜ GÖSTER", fg_color=self.ui["warning"], hover_color="#d69531",
-                      command=self.open_folder).grid(row=0, column=1, padx=5, sticky="ew")
+        if os.path.isfile(self.target_path):
+            ctk.CTkButton(
+                btn_frame,
+                text=t("success.open_folder"),
+                fg_color=self.ui["panel_soft"],
+                hover_color=self.ui["border"],
+                text_color=self.ui["text"],
+                command=self.open_folder,
+            ).grid(row=0, column=1, padx=5, sticky="ew")
 
         # 3. BİTTİ
-        ctk.CTkButton(card, text="BİTTİ", fg_color=self.ui["panel_alt"], hover_color=self.ui["border"], width=120,
+        ctk.CTkButton(card, text=t("app.done"), fg_color=self.ui["panel_alt"], hover_color=self.ui["border"], width=120,
                       command=self.destroy).pack(pady=(4, 18))
 
-        btn_frame.grid_columnconfigure((0, 1), weight=1)
+        btn_frame.grid_columnconfigure(0, weight=1)
+        if os.path.isfile(self.target_path):
+            btn_frame.grid_columnconfigure(1, weight=1)
 
     def _get_open_button_text(self):
         if not os.path.isfile(self.target_path):
-            return "KLASÖRÜ AÇ"
+            return t("success.open_folder")
 
         ext = os.path.splitext(self.target_path)[1].lower()
         if ext == ".pdf":
-            return "PDF'İ AÇ"
+            return t("success.open_pdf")
         if ext in (".xlsx", ".xlsm", ".xltx", ".xltm", ".xls"):
-            return "EXCEL'İ AÇ"
+            return t("success.open_excel")
         if ext in (".docx", ".doc"):
-            return "WORD'Ü AÇ"
-        return "DOSYAYI AÇ"
+            return t("success.open_word")
+        return t("success.open_file")
 
     def open_target(self):
         """Dosyaysa ilişkili uygulamayı, klasörse gezgini açar."""

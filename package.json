@@ -1,0 +1,20 @@
+{
+  "name": "nb-pdf-tools",
+  "private": true,
+  "version": "0.1.0",
+  "description": "NB PDF Tools — kök betiklerle web (PDF API + kimlik API + Vite) birlikte çalıştırılır.",
+  "//_turkce_aciklama": "JSON standart olarak yorum satırı içermez; tüm betik açıklamaları kökteki CALISTIRMA.md dosyasındadır.",
+  "scripts": {
+    "postinstall": "npm install --prefix web/api --no-fund --no-audit && npm install --prefix web/frontend --no-fund --no-audit",
+    "predev": "node scripts/ensure-dev-prereqs.mjs",
+    "install-all": "npm install && npm install --prefix web/api && npm install --prefix web/frontend && node scripts/install-python-web.mjs && npm run prisma:generate --prefix web/api",
+    "dev": "concurrently -n pdf,api,ui -c blue,green,magenta \"node scripts/run-pdf-api.mjs\" \"npm run dev --prefix web/api\" \"npm run dev --prefix web/frontend\"",
+    "prestart": "node scripts/ensure-dev-prereqs.mjs",
+    "start": "concurrently -n pdf,api,ui -c blue,green,magenta \"node scripts/run-pdf-api.mjs --prod\" \"npm run start --prefix web/api\" \"npm run preview --prefix web/frontend -- --host 127.0.0.1\"",
+    "build:all": "npm run build --prefix web/api && npm run build --prefix web/frontend",
+    "prisma:push": "npm run prisma:push --prefix web/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

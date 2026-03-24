@@ -1,0 +1,84 @@
+NB PDF TOOLS - GEREKLI KURULUM NOTLARI
+
+Bu projeyi farkli bir bilgisayarda calistirirken sadece kodu tasimak yetmez.
+Asagidaki Python kutuphaneleri ve harici programlar eksiksiz kurulmalidir.
+
+1. PYTHON
+- Python 3.11 veya daha guncel bir surum onerilir.
+- Sanal ortam kullanilmasi tavsiye edilir.
+
+2. PYTHON KUTUPHANELERI
+- customtkinter==5.2.2
+- darkdetect==0.8.0
+- Deprecated==1.3.1
+- lxml==6.0.2
+- packaging==26.0
+- pikepdf==10.5.1
+- pillow==12.1.1
+- pypdf==6.9.1
+- wrapt==2.1.2
+- pytesseract
+- pdf2image
+- python-docx
+- PyPDF2
+- docx2pdf
+- pywin32
+- openpyxl
+- reportlab
+- pdfplumber
+- pycryptodome
+- pdf2docx
+
+Kurulum:
+python -m pip install -r requirements.txt
+
+3. HARICI PROGRAMLAR
+- Microsoft Word
+  Word -> PDF donusumu icin gerekir.
+  PDF -> Word tarafinda da duzen kontrolu yaparken ciktiyi test etmek icin faydalidir.
+
+- Microsoft Excel
+  Excel -> PDF donusumunun en iyi sonuc vermesi icin gerekir.
+
+- Tesseract OCR
+  Kurulum yolu varsayilan olarak su sekilde bekleniyor:
+  C:\Program Files\Tesseract-OCR\tesseract.exe
+
+- Poppler for Windows
+  pdf2image kullaniminda gerekir.
+  Projede su klasor bekleniyor:
+  Library\bin
+
+4. WINDOWS OZEL NOTLARI
+- Word/Excel otomasyonu icin Office uygulamalari tam kurulmus olmalidir.
+- Bazi sistemlerde pywin32 sonrasi terminalden su komut gerekebilir:
+  python -m pywin32_postinstall -install
+
+5. KONTROL LISTESI
+- requirements.txt yuklendi mi?
+- Word kurulu mu?
+- Excel kurulu mu?
+- Tesseract yolu dogru mu?
+- Poppler dosyalari Library\bin klasorunde mi?
+- PDF dosyalari baskasi tarafindan acik mi?
+
+6. GELISTIRMEYE DEVAM EDERKEN
+- Ana calisma klasoru: src/
+- PDF motoru: src/pdf_engine.py
+- Arayuz pencereleri: src/modules/
+- Ana pencere: src/main.py
+- Tema ve renkler: src/modules/ui_theme.py
+
+7. TAVSIYE
+- Yeni bilgisayarda once su sirayla test yap:
+  1) PDF Birlestir
+  2) PDF Ayir
+  3) Word -> PDF
+  4) PDF -> Word
+  5) PDF -> Excel
+  6) PDF Sikistir
+  7) PDF Sifrele
+
+8. MASAUSTU .EXE DERLEME (OZET)
+- Windows'ta .exe uretmek icin PyInstaller ornegi ve cikti konumu (dist klasoru):
+  docs/MASAUSTU_BUILD.md

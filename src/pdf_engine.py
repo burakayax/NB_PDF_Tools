@@ -26,7 +26,9 @@ _TESSERACT_CONFIG = r"--oem 3 --psm 3"
 
 
 def _open_pdf_reader(pdf_path: str, password: Optional[str] = None, context: str = "Bu işlem") -> PyPDF2.PdfReader:
-    """Open a PDF reader and decrypt it when a password is provided."""
+    """PDF okuyucu oluşturur; parola verilmişse şifre çözümü yapar.
+    Tüm sayfa işlemleri ortak açılış ve hata mesajı üretmek için buradan geçer.
+    Parola politikası gevşetilirse şifreli dosyalar sessizce başarısız olabilir."""
     try:
         reader = PyPDF2.PdfReader(pdf_path)
         if reader.is_encrypted:
@@ -49,7 +51,9 @@ def _open_pdf_reader(pdf_path: str, password: Optional[str] = None, context: str
 
 
 def _apply_output_pdf_password(output_path: str, output_password: Optional[str]) -> None:
-    """Apply a viewer-friendly password to an already-written PDF."""
+    """Yazılmış PDF çıktısına görüntüleyici parolası uygular (pikepdf ile).
+    Parola boşsa dosyaya dokunmaz; şifreleme modülü akışını sadeleştirir.
+    pikepdf yoksa veya dosya kilitliyse çağıran kullanıcıya anlamlı hata göstermelidir."""
     if not output_password:
         return
     try:
@@ -82,7 +86,9 @@ def _apply_output_pdf_password(output_path: str, output_password: Optional[str])
 
 
 def is_pdf_encrypted(pdf_path: str) -> bool:
-    """Return True if the given PDF is encrypted."""
+    """Verilen PDF şifreliyse True döndürür.
+    Arayüzde parola alanını göstermek için hızlı kontrol sağlar.
+    Dosya bozuksa veya okunamazsa istisna yükseltilir."""
     try:
         with open(pdf_path, "rb") as fh:
             reader = PyPDF2.PdfReader(fh)
@@ -92,7 +98,9 @@ def is_pdf_encrypted(pdf_path: str) -> bool:
 
 
 def validate_pdf_password(pdf_path: str, password: str) -> bool:
-    """Return True when the given password can decrypt the PDF."""
+    """Parola PDF'i açabiliyorsa True döndürür; şifresiz dosyada her zaman True.
+    Şifreli dosyada yanlış parola False üretir.
+    Okuma hatalarında açıklamalı istisna fırlatılır."""
     try:
         reader = PyPDF2.PdfReader(pdf_path)
         if not reader.is_encrypted:
@@ -103,7 +111,9 @@ def validate_pdf_password(pdf_path: str, password: str) -> bool:
 
 
 def get_num_pages(pdf_path: str, password: Optional[str] = None) -> int:
-    """Return number of pages in the given PDF."""
+    """PDF içindeki sayfa sayısını döndürür; şifreliyse parola ile açar.
+    Bölme ve önizleme akışları sayfa sınırı bilmek zorundadır.
+    Parola eksik veya hatalıysa _open_pdf_reader üzerinden anlamlı hata verilir."""
     try:
         reader = _open_pdf_reader(pdf_path, password=password, context="Sayfa bilgisi okuma")
         return len(reader.pages)
@@ -134,7 +144,7 @@ def _word_to_pdf_win32com(docx_path: str, pdf_path: str) -> None:
         doc_abs = os.path.abspath(docx_path)
         out_abs = os.path.abspath(pdf_path)
         doc = word.Documents.Open(doc_abs, ReadOnly=True)
-        # wdExportFormatPDF = 17
+        # Word sabiti: wdExportFormatPDF = 17 (sabit sayı COM API ile uyumludur).
         doc.ExportAsFixedFormat(OutputFileName=out_abs, ExportFormat=17, OpenAfterExport=False)
         doc.Close(SaveChanges=False)
     finally:
@@ -231,8 +241,9 @@ def word_to_pdf(docx_path: str, pdf_path: str, progress_callback=None) -> bool:
 
 def pdf_to_word(pdf_path: str, docx_path: str, progress_callback=None, password: Optional[str] = None) -> bool:
     """
-    Önce yapı koruyan PDF -> DOCX dönüşümü dener.
-    Başarısız olursa OCR tabanlı yedek yola düşer.
+    PDF'i düzenlenebilir DOCX olarak dönüştürmeye çalışır.
+    Bu akışta görsel tabanlı OCR yedeği bilinçli olarak kapalıdır;
+    kullanıcı yalnızca düzenlenebilir Word çıktısı istemektedir.
     """
     try:
         if is_pdf_encrypted(pdf_path) and not password:
@@ -256,60 +267,17 @@ def pdf_to_word(pdf_path: str, docx_path: str, progress_callback=None, password:
                 if progress_callback:
                     progress_callback(3, 3, "Word kaydediliyor...")
                 return True
-        except Exception:
-            # Yapısal dönüşüm başarısızsa OCR yedeğine düş.
-            pass
+        except Exception as structural_error:
+            raise Exception(
+                "Bu PDF düzenlenebilir Word olarak dönüştürülemedi. "
+                "Belge taranmış görsel yapıda olabilir veya sayfa düzeni desteklenen sınırların dışında olabilir.\n\n"
+                f"Teknik ayrıntı: {structural_error}"
+            ) from structural_error
 
-        if progress_callback:
-            progress_callback(1, 3, "OCR yedek modu başlatılıyor...")
-
-        pages = convert_from_path(pdf_path, 300, poppler_path=poppler_bin_path, userpw=password)
-        total_pages = max(1, len(pages))
-
-        doc = Document()
-
-        # Sayfa kenar boşluklarını daralt
-        for section in doc.sections:
-            section.left_margin = Pt(30)
-            section.right_margin = Pt(30)
-            section.top_margin = Pt(30)
-            section.bottom_margin = Pt(30)
-
-        for i, page in enumerate(pages):
-            # Taranmis (scan) PDF'lerde OCR kalitesini arttirmak icin basit on isleme:
-            # - griye cevir
-            # - otomatik kontrast
-            # - cok kucuk sayfalarda kucuk ölçek büyütme
-            if page.mode != "L":
-                page_proc = page.convert("L")
-            else:
-                page_proc = page.copy()
-
-            page_proc = ImageOps.autocontrast(page_proc)
-            if page_proc.width < 1600:
-                scale = 1.25
-                new_w = int(page_proc.width * scale)
-                new_h = int(page_proc.height * scale)
-                page_proc = page_proc.resize((new_w, new_h), resample=Image.Resampling.LANCZOS)
-
-            data = _run_tesseract_image_to_data(page_proc)
-
-            for block in _ocr_data_to_layout_blocks(data, page_proc.width):
-                _append_layout_block_to_document(doc, block)
-
-            if progress_callback:
-                progress_callback(i + 2, total_pages + 2, where_text=f"OCR: Sayfa {i + 1}/{total_pages}")
-
-            if i < len(pages) - 1:
-                doc.add_page_break()
-
-        doc.save(docx_path)
-        if progress_callback:
-            progress_callback(total_pages + 2, total_pages + 2, where_text="Word kaydediliyor...")
-        return True
+        raise Exception("Word dosyası oluşturulamadı.")
 
     except Exception as e:
-        raise Exception(f"Gelişmiş OCR Hatası: {e}")
+        raise Exception(f"PDF -> Word Hatası: {e}")
 
 
 def _safe_int(v, default=0) -> int:
@@ -816,35 +784,46 @@ def _append_layout_block_to_document(doc: Document, block: Dict[str, Any]) -> No
 # --- 2. PDF BİRLEŞTİRME ---
 def merge_pdfs(pdf_list: List[str], output_path: str, progress_callback=None, passwords: Optional[Dict[str, str]] = None) -> bool:
     """
-    Merge multiple PDFs into a single output.
+    Birden fazla PDF dosyasını tek çıktıda birleştirir.
 
-    progress_callback signature (optional):
+    İsteğe bağlı progress_callback çağrı biçimi:
         progress_callback(current: int, total: int, where_text: str) -> bool|None
-    If it returns False, the operation is cancelled.
+    False dönerse birleştirme iptal edilir.
     """
-    merger = None
     try:
-        merger = PyPDF2.PdfMerger()
-        total = len(pdf_list)
-        for idx, pdf in enumerate(pdf_list, start=1):
+        writer = PyPDF2.PdfWriter()
+        readers = []
+        total_pages = 0
+
+        # Önce toplam sayfa sayısını toplayıp ilerleme çubuğunu dosya yerine sayfa bazlı akıtıyoruz.
+        for pdf in pdf_list:
             if not os.path.isfile(pdf):
                 raise FileNotFoundError(f"Birleştirilecek dosya bulunamadı: {pdf}")
-            password = (passwords or {}).get(pdf)
-            reader = _open_pdf_reader(pdf, password=password, context="PDF birleştirme")
+            reader = _open_pdf_reader(pdf, password=(passwords or {}).get(pdf), context="PDF birleştirme")
+            readers.append((pdf, reader))
+            total_pages += len(reader.pages)
 
-            where = os.path.basename(pdf)
-            if progress_callback:
-                res = progress_callback(idx, max(1, total), where)
-                if res is False:
-                    raise Exception("İşlem iptal edildi.")
-
-            merger.append(reader)
+        current_page = 0
+        total = max(1, total_pages + 1)
+        for pdf, reader in readers:
+            base_name = os.path.basename(pdf)
+            page_count = len(reader.pages)
+            for page_idx, page in enumerate(reader.pages, start=1):
+                current_page += 1
+                writer.add_page(page)
+                if progress_callback:
+                    res = progress_callback(
+                        current_page,
+                        total,
+                        f"{base_name} | Sayfa {page_idx}/{page_count}",
+                    )
+                    if res is False:
+                        raise Exception("İşlem iptal edildi.")
 
         if progress_callback:
-            # Yazı aşamasını göstermek için son aşama (output yazılıyor)
-            progress_callback(max(1, total), max(1, total), "PDF yazılıyor...")
-        merger.write(output_path)
-        merger.close()
+            progress_callback(total, total, "PDF yazılıyor...")
+        with open(output_path, "wb") as out_file:
+            writer.write(out_file)
         return True
     except Exception as e:
         err_text = str(e)
@@ -854,12 +833,6 @@ def merge_pdfs(pdf_list: List[str], output_path: str, progress_callback=None, pa
                 "python -m pip install pycryptodome"
             ) from e
         raise Exception(f"Birleştirme Hatası: {e}")
-    finally:
-        if merger is not None:
-            try:
-                merger.close()
-            except Exception:
-                pass
 
 
 # --- 3. SAYFA AYIKLA (tek PDF olarak) ---
@@ -871,14 +844,15 @@ def extract_pages(
     output_password: Optional[str] = None,
 ) -> bool:
     """
-    Extract given pages (1-indexed list) from pdf_path and write to output_path as a single PDF.
-    Raises ValueError for invalid page numbers and Exception for other failures.
+    pdf_path içinden verilen sayfaları (1 tabanlı liste) alır ve tek PDF olarak output_path'e yazar.
+    Geçersiz sayfa numaralarında ValueError, diğer hatalarda Exception yükseltilir.
+    Çıktı parolası isteniyorsa yazım sonrası _apply_output_pdf_password uygulanır.
     """
     try:
         reader = _open_pdf_reader(pdf_path, password=password, context="Sayfa ayıklama")
         num_pages = len(reader.pages)
 
-        # Validate pages (1-indexed expected)
+        # Sayfa numaralarını doğrular (1 tabanlı indeks beklenir).
         normalized = []
         for p in pages:
             if not isinstance(p, int):
@@ -909,8 +883,9 @@ def extract_pages_separate(
     output_password: Optional[str] = None,
 ) -> List[str]:
     """
-    Extract given pages (1-indexed) and save each as a separate PDF in output_folder.
-    Returns list of output file paths. Raises exceptions on error.
+    Verilen sayfaları (1 tabanlı) ayırır; her birini output_folder içinde ayrı PDF olarak kaydeder.
+    Oluşan dosya yollarının listesini döndürür; hata durumunda istisna fırlatır.
+    Klasör yoksa FileNotFoundError ile erken çıkış yapılır.
     """
     try:
         if not os.path.isdir(output_folder):
@@ -957,6 +932,8 @@ def _pdf_tables_to_excel(pdf_path: str, xlsx_path: str, progress_callback=None, 
     try:
         import pdfplumber
         from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+        from openpyxl.utils import get_column_letter
     except ImportError as e:
         raise Exception(
             "Tablo koruma modu için 'pdfplumber' ve 'openpyxl' gerekli: python -m pip install pdfplumber openpyxl"
@@ -971,12 +948,40 @@ def _pdf_tables_to_excel(pdf_path: str, xlsx_path: str, progress_callback=None, 
             raise Exception(f"PDF -> Excel için şifre gerekli: {os.path.basename(pdf_path)}")
         with pdfplumber.open(pdf_path, password=password) as pdf:
             total_pages = len(pdf.pages)
+            border = Border(
+                left=Side(style="thin", color="D7DEE8"),
+                right=Side(style="thin", color="D7DEE8"),
+                top=Side(style="thin", color="D7DEE8"),
+                bottom=Side(style="thin", color="D7DEE8"),
+            )
+            title_fill = PatternFill("solid", fgColor="1F4E78")
+            header_fill = PatternFill("solid", fgColor="DCE6F1")
             for i, page in enumerate(pdf.pages, start=1):
                 if progress_callback:
                     progress_callback(i, max(1, total_pages), f"Tablo aranıyor: Sayfa {i}/{total_pages}")
 
                 ws = wb.create_sheet(_sanitize_sheet_title(f"Sayfa {i}"))
-                tables = page.extract_tables() or []
+                ws.sheet_view.showGridLines = False
+                ws.freeze_panes = "A2"
+
+                tables = page.extract_tables(
+                    table_settings={
+                        "vertical_strategy": "lines",
+                        "horizontal_strategy": "lines",
+                        "snap_tolerance": 4,
+                        "join_tolerance": 4,
+                        "intersection_tolerance": 6,
+                    }
+                ) or []
+                if not tables:
+                    tables = page.extract_tables(
+                        table_settings={
+                            "vertical_strategy": "text",
+                            "horizontal_strategy": "text",
+                            "text_x_tolerance": 2,
+                            "text_y_tolerance": 2,
+                        }
+                    ) or []
                 current_row = 1
 
                 cleaned_tables = []
@@ -991,14 +996,27 @@ def _pdf_tables_to_excel(pdf_path: str, xlsx_path: str, progress_callback=None, 
 
                 if cleaned_tables:
                     for table_index, table_rows in enumerate(cleaned_tables, start=1):
-                        ws.cell(row=current_row, column=1, value=f"Tablo {table_index}")
+                        title_cell = ws.cell(row=current_row, column=1, value=f"Tablo {table_index}")
+                        title_cell.font = Font(bold=True, color="FFFFFF")
+                        title_cell.fill = title_fill
+                        title_cell.alignment = Alignment(horizontal="left", vertical="center")
                         current_row += 1
                         max_cols = max(len(r) for r in table_rows)
-                        for row in table_rows:
+                        col_max = [0] * max_cols
+                        for row_offset, row in enumerate(table_rows, start=0):
                             padded = row + [""] * (max_cols - len(row))
                             for col_index, value in enumerate(padded, start=1):
-                                ws.cell(row=current_row, column=col_index, value=value)
+                                cell = ws.cell(row=current_row, column=col_index, value=value)
+                                cell.border = border
+                                cell.alignment = Alignment(vertical="center", horizontal="left", wrap_text=True)
+                                if row_offset == 0:
+                                    cell.font = Font(bold=True)
+                                    cell.fill = header_fill
+                                col_max[col_index - 1] = max(col_max[col_index - 1], len(str(value or "")))
+                            ws.row_dimensions[current_row].height = 22
                             current_row += 1
+                        for col_index, length in enumerate(col_max, start=1):
+                            ws.column_dimensions[get_column_letter(col_index)].width = min(40, max(12, length + 2))
                         current_row += 2
                 else:
                     text = (page.extract_text() or "").strip()
@@ -1219,18 +1237,33 @@ def compress_pdf(input_path: str, output_path: str, progress_callback=None, pass
             progress_callback(0, 2, "PDF yeniden paketleniyor...")
         if is_pdf_encrypted(input_path) and not password:
             raise Exception(f"PDF sıkıştırma için şifre gerekli: {os.path.basename(input_path)}")
+        target_path = output_path
+        temp_output_path = None
+        if os.path.abspath(input_path) == os.path.abspath(output_path):
+            fd, temp_output_path = tempfile.mkstemp(suffix=".pdf", dir=os.path.dirname(output_path) or None)
+            os.close(fd)
+            target_path = temp_output_path
         with pikepdf.open(input_path, password=password) as pdf:
             pdf.save(
-                output_path,
+                target_path,
                 compress_streams=True,
                 recompress_flate=True,
                 object_stream_mode=pikepdf.ObjectStreamMode.generate,
+                linearize=True,
             )
+        if temp_output_path:
+            os.replace(temp_output_path, output_path)
         if progress_callback:
             progress_callback(2, 2, "Tamamlandı")
         return True
     except Exception as e:
         raise Exception(f"PDF Sıkıştırma Hatası: {e}")
+    finally:
+        if "temp_output_path" in locals() and temp_output_path and os.path.exists(temp_output_path):
+            try:
+                os.remove(temp_output_path)
+            except Exception:
+                pass
 
 
 # --- 8. PDF ŞİFRELEME ---
@@ -1257,9 +1290,15 @@ def encrypt_pdf(
         owner = owner_password if owner_password else user_password
         if is_pdf_encrypted(input_path) and not input_password:
             raise Exception(f"PDF şifreleme için kaynak dosya şifresi gerekli: {os.path.basename(input_path)}")
+        target_path = output_path
+        temp_output_path = None
+        if os.path.abspath(input_path) == os.path.abspath(output_path):
+            fd, temp_output_path = tempfile.mkstemp(suffix=".pdf", dir=os.path.dirname(output_path) or None)
+            os.close(fd)
+            target_path = temp_output_path
         with pikepdf.open(input_path, password=input_password) as pdf:
             pdf.save(
-                output_path,
+                target_path,
                 encryption=pikepdf.Encryption(
                     user=user_password,
                     owner=owner,
@@ -1267,8 +1306,16 @@ def encrypt_pdf(
                     allow=pikepdf.Permissions(extract=False),
                 ),
             )
+        if temp_output_path:
+            os.replace(temp_output_path, output_path)
         if progress_callback:
             progress_callback(2, 2, "Tamamlandı")
         return True
     except Exception as e:
         raise Exception(f"PDF Şifreleme Hatası: {e}")
+    finally:
+        if "temp_output_path" in locals() and temp_output_path and os.path.exists(temp_output_path):
+            try:
+                os.remove(temp_output_path)
+            except Exception:
+                pass
