@@ -1,7 +1,7 @@
 // Web uygulamasının kök bileşeni: karşılama, kimlik, yasal sayfalar ve PDF araçları görünümlerini tek state ile yönetir.
 // Oturum, abonelik ve dosya yükleme durumunun modüller arasında paylaşılması için tek React ağacında toplanır.
 // Bu bileşen parçalanırsa üst düzey hook ve görünüm geçişleri yeniden kablolanmak zorunda kalır.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createMergeJob,
   downloadFromApi,
@@ -11,8 +11,10 @@ import {
   inspectPdf,
   type MergeJobStatus,
 } from "./api";
+import { submitContactForm } from "./api/contact";
 import { CookieNotice } from "./components/common/CookieNotice";
 import { AuthPage } from "./components/auth/AuthPage";
+import { LoginSuccessPage } from "./components/auth/LoginSuccessPage";
 import { LandingPage } from "./components/landing/LandingPage";
 import { LegalPage } from "./components/legal/LegalPage";
 import { changePlan, fetchPlans, fetchSubscriptionSummary, recordUsage, type FeatureKey, type PlanDefinition, type SubscriptionSummary } from "./api/subscription";
@@ -257,7 +259,18 @@ function getTrackedPath(view: AppView) {
 
 function App() {
   const { language, setLanguage, detectInitialLanguage } = usePreferredLanguage();
-  const { user, accessToken, isAuthenticated, isRestoring, login, logout, register, updatePreferredLanguage } = useAuthSession();
+  const {
+    user,
+    accessToken,
+    isAuthenticated,
+    isRestoring,
+    login,
+    logout,
+    register,
+    updatePreferredLanguage,
+    completeOAuthLogin,
+    clearSession,
+  } = useAuthSession();
   const { hasConsent, isReady: isCookieConsentReady, acceptConsent } = useCookieConsent();
   const [view, setView] = useState<AppView>("landing");
   const [legalBackView, setLegalBackView] = useState<NonLegalView>("landing");
@@ -266,6 +279,7 @@ function App() {
   const [submitting, setSubmitting] = useState(false);
   const [authSubmitting, setAuthSubmitting] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [registrationSuccessBanner, setRegistrationSuccessBanner] = useState<string | null>(null);
   const [plans, setPlans] = useState<PlanDefinition[]>([]);
   const [subscriptionSummary, setSubscriptionSummary] = useState<SubscriptionSummary | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
@@ -280,10 +294,24 @@ function App() {
   const [mergeJob, setMergeJob] = useState<MergeJobStatus | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactMessage, setContactMessage] = useState("");
+  const [contactWebsite, setContactWebsite] = useState("");
+  const [contactError, setContactError] = useState("");
+  const [contactSuccess, setContactSuccess] = useState("");
+  const [contactSubmitting, setContactSubmitting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const inspectRunRef = useRef(0);
   const toastTimerRef = useRef<number | null>(null);
+
+  const navigateToDashboardAfterOAuth = useCallback(() => {
+    setSelectedFeatureId("split");
+    setView("web");
+    window.history.replaceState({}, "", "/?view=web");
+  }, []);
 
   const selectedFeature = useMemo(
     () => features.find((feature) => feature.id === selectedFeatureId) ?? features[0],
@@ -427,6 +455,12 @@ function App() {
       setView(requestedView);
     }
   }, []);
+
+  useEffect(() => {
+    if (view === "register") {
+      setRegistrationSuccessBanner(null);
+    }
+  }, [view]);
 
   useEffect(() => {
     void fetchPlans()
@@ -585,6 +619,68 @@ function App() {
     setView(target);
   }
 
+  function openContactModal() {
+    setContactError("");
+    setContactSuccess("");
+    setContactModalOpen(true);
+  }
+
+  function closeContactModal() {
+    setContactModalOpen(false);
+  }
+
+  async function handleContactModalSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setContactError("");
+    setContactSuccess("");
+
+    const tr = language === "tr";
+    if (!contactName.trim()) {
+      setContactError(tr ? "Ad soyad gerekli." : "Name is required.");
+      return;
+    }
+    if (contactName.trim().length < 2) {
+      setContactError(tr ? "Ad soyad en az 2 karakter olmalı." : "Name must be at least 2 characters.");
+      return;
+    }
+    if (!contactEmail.trim()) {
+      setContactError(tr ? "E-posta gerekli." : "Email is required.");
+      return;
+    }
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(contactEmail.trim())) {
+      setContactError(tr ? "Geçerli bir e-posta girin." : "Enter a valid email address.");
+      return;
+    }
+    if (!contactMessage.trim()) {
+      setContactError(tr ? "Mesaj gerekli." : "Message is required.");
+      return;
+    }
+    if (contactMessage.trim().length < 10) {
+      setContactError(tr ? "Mesaj en az 10 karakter olmalı." : "Message must be at least 10 characters.");
+      return;
+    }
+
+    try {
+      setContactSubmitting(true);
+      await submitContactForm({
+        name: contactName.trim(),
+        email: contactEmail.trim(),
+        message: contactMessage.trim(),
+        website: contactWebsite.trim(),
+      });
+      setContactSuccess(tr ? "Mesajınız başarıyla gönderildi" : "Your message has been sent successfully");
+      setContactName("");
+      setContactEmail("");
+      setContactMessage("");
+      setContactWebsite("");
+    } catch (error) {
+      setContactError(error instanceof Error ? error.message : tr ? "Gönderilemedi." : "Could not send.");
+    } finally {
+      setContactSubmitting(false);
+    }
+  }
+
   function closeLegalPage() {
     setView(legalBackView);
   }
@@ -602,7 +698,7 @@ function App() {
 
       if (view === "register") {
         const registerResult = await register(payload.email, payload.password, language);
-        showToast("success", "Doğrulama e-postası gönderildi", registerResult.message);
+        setRegistrationSuccessBanner(registerResult.message);
         setView("login");
         return;
       } else {
@@ -827,6 +923,19 @@ function App() {
     );
   }
 
+  const pathname = typeof window !== "undefined" ? window.location.pathname.replace(/\/$/, "") || "/" : "/";
+  const isLoginSuccessRoute = pathname === "/login-success";
+
+  if (isLoginSuccessRoute) {
+    return (
+      <LoginSuccessPage
+        completeOAuthLogin={completeOAuthLogin}
+        clearSession={clearSession}
+        onNavigateToDashboard={navigateToDashboardAfterOAuth}
+      />
+    );
+  }
+
   if (view === "landing") {
     return (
       <>
@@ -866,8 +975,11 @@ function App() {
           language={language}
           submitting={authSubmitting || isRestoring}
           serverError={authError}
+          registrationSuccessBanner={registrationSuccessBanner}
+          onDismissRegistrationSuccess={() => setRegistrationSuccessBanner(null)}
           onBack={() => {
             setAuthError("");
+            setRegistrationSuccessBanner(null);
             setView("landing");
           }}
           onModeChange={(nextMode) => {
@@ -922,8 +1034,98 @@ function App() {
     );
   }
 
+  const contactCopy =
+    language === "tr"
+      ? {
+          title: "İletişim",
+          name: "Ad soyad",
+          email: "E-posta",
+          message: "Mesaj",
+          submit: "Gönder",
+          submitting: "Gönderiliyor…",
+          close: "Kapat",
+        }
+      : {
+          title: "Contact",
+          name: "Name",
+          email: "Email",
+          message: "Message",
+          submit: "Send",
+          submitting: "Sending…",
+          close: "Close",
+        };
+
   return (
     <div className="app-shell">
+      {contactModalOpen ? (
+        <div
+          className="contact-modal-backdrop"
+          role="presentation"
+          onClick={closeContactModal}
+        >
+          <div
+            className="contact-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="contact-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="contact-modal__header">
+              <h2 id="contact-modal-title">{contactCopy.title}</h2>
+              <button type="button" className="contact-modal__close" onClick={closeContactModal} aria-label={contactCopy.close}>
+                ×
+              </button>
+            </div>
+            <form className="contact-modal__form" onSubmit={handleContactModalSubmit}>
+              <label className="field">
+                <span>{contactCopy.name}</span>
+                <input
+                  type="text"
+                  value={contactName}
+                  onChange={(event) => setContactName(event.target.value)}
+                  autoComplete="name"
+                  disabled={contactSubmitting}
+                />
+              </label>
+              <label className="field">
+                <span>{contactCopy.email}</span>
+                <input
+                  type="email"
+                  value={contactEmail}
+                  onChange={(event) => setContactEmail(event.target.value)}
+                  autoComplete="email"
+                  disabled={contactSubmitting}
+                />
+              </label>
+              <label className="field field--full">
+                <span>{contactCopy.message}</span>
+                <textarea
+                  value={contactMessage}
+                  onChange={(event) => setContactMessage(event.target.value)}
+                  rows={5}
+                  disabled={contactSubmitting}
+                />
+              </label>
+              <label className="contact-modal__honeypot" aria-hidden="true">
+                <span>Website</span>
+                <input
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={contactWebsite}
+                  onChange={(event) => setContactWebsite(event.target.value)}
+                />
+              </label>
+              {contactError ? <p className="field-error">{contactError}</p> : null}
+              {contactSuccess ? <p className="contact-modal__success">{contactSuccess}</p> : null}
+              <button className="primary-action" type="submit" disabled={contactSubmitting}>
+                {contactSubmitting ? contactCopy.submitting : contactCopy.submit}
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
       {toast ? (
         <div className={`toast toast--${toast.type}`}>
           <div className="toast__title">{toast.title}</div>
@@ -1288,7 +1490,9 @@ function App() {
           <button type="button" onClick={() => openLegalPage("privacy")}>
             {language === "tr" ? "GİZLİLİK POLİTİKASI" : "PRIVACY POLICY"}
           </button>
-          <a href="mailto:nbglobalstudio@gmail.com?subject=NB%20PDF%20TOOLS%20Web%20Destek">İLETİŞİM</a>
+          <button type="button" onClick={openContactModal}>
+            {language === "tr" ? "İLETİŞİM" : "CONTACT"}
+          </button>
         </div>
       </footer>
 

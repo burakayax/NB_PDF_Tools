@@ -75,13 +75,13 @@ export function LandingPage({
 
     try {
       setContactSubmitting(true);
-      const result = await submitContactForm({
+      await submitContactForm({
         name: contactName.trim(),
         email: contactEmail.trim(),
         message: contactMessage.trim(),
         website: contactWebsite.trim(),
       });
-      setContactSuccess(result.message || copy.contactSection.success);
+      setContactSuccess(copy.contactSection.success);
       setContactName("");
       setContactEmail("");
       setContactMessage("");
@@ -138,7 +138,7 @@ export function LandingPage({
               </div>
 
               <a
-                href="mailto:nbglobalstudio@gmail.com?subject=NB%20PDF%20TOOLS%20Support"
+                href="#contact"
                 className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:bg-white/5"
               >
                 {copy.navbar.contact}
@@ -401,7 +401,7 @@ export function LandingPage({
           </div>
         </section>
 
-        <section className="py-10">
+        <section id="contact" className="scroll-mt-8 py-10">
           <div className="grid gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.28em] text-sky-300">{copy.contactSection.kicker}</p>
@@ -420,7 +420,8 @@ export function LandingPage({
                     type="text"
                     value={contactName}
                     onChange={(event) => setContactName(event.target.value)}
-                    className="w-full rounded-xl border border-white/[0.08] bg-[#0f172a]/80 px-4 py-3.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none transition duration-200 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 hover:border-white/12"
+                    disabled={contactSubmitting}
+                    className="w-full rounded-xl border border-white/[0.08] bg-[#0f172a]/80 px-4 py-3.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none transition duration-200 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 hover:border-white/12 disabled:opacity-60"
                   />
                 </label>
 
@@ -430,7 +431,8 @@ export function LandingPage({
                     type="email"
                     value={contactEmail}
                     onChange={(event) => setContactEmail(event.target.value)}
-                    className="w-full rounded-xl border border-white/[0.08] bg-[#0f172a]/80 px-4 py-3.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none transition duration-200 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 hover:border-white/12"
+                    disabled={contactSubmitting}
+                    className="w-full rounded-xl border border-white/[0.08] bg-[#0f172a]/80 px-4 py-3.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none transition duration-200 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 hover:border-white/12 disabled:opacity-60"
                   />
                 </label>
 
@@ -440,7 +442,8 @@ export function LandingPage({
                     value={contactMessage}
                     onChange={(event) => setContactMessage(event.target.value)}
                     rows={6}
-                    className="w-full rounded-xl border border-white/[0.08] bg-[#0f172a]/80 px-4 py-3.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none transition duration-200 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 hover:border-white/12"
+                    disabled={contactSubmitting}
+                    className="w-full rounded-xl border border-white/[0.08] bg-[#0f172a]/80 px-4 py-3.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none transition duration-200 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 hover:border-white/12 disabled:opacity-60"
                   />
                 </label>
 
@@ -535,7 +538,7 @@ export function LandingPage({
               {language === "tr" ? "Gizlilik Politikası" : "Privacy Policy"}
             </button>
             <a
-              href="mailto:nbglobalstudio@gmail.com?subject=NB%20PDF%20TOOLS%20Support"
+              href="#contact"
               className="text-slate-200 transition hover:text-white"
             >
               {copy.footer.contact}

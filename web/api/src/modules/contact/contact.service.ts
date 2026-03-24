@@ -5,10 +5,6 @@ import { createContactEmailTemplate } from "./contact.email.js";
 import type { ContactRequestInput } from "./contact.schema.js";
 
 function looksLikeSpam(input: ContactRequestInput) {
-  if (input.website.trim()) {
-    return true;
-  }
-
   const urlCount = (input.message.match(/https?:\/\//gi) ?? []).length;
   if (urlCount > 2) {
     return true;
@@ -16,10 +12,6 @@ function looksLikeSpam(input: ContactRequestInput) {
 
   const repeatedCharMatch = input.message.match(/(.)\1{9,}/g);
   if (repeatedCharMatch?.length) {
-    return true;
-  }
-
-  if (input.message.trim().length < 10) {
     return true;
   }
 
@@ -37,20 +29,22 @@ export async function submitContactMessage(input: ContactRequestInput) {
     name: input.name,
     email: input.email,
     message: input.message,
-    submittedAt: new Date().toISOString(),
-    productName: "NB PDF TOOLS",
   });
 
-  await sendMail({
-    to: env.ADMIN_EMAIL,
-    replyTo: input.email,
-    subject: emailTemplate.subject,
-    html: emailTemplate.html,
-    text: emailTemplate.text,
-  });
+  try {
+    await sendMail({
+      to: env.CONTACT_TO_EMAIL,
+      replyTo: input.email,
+      subject: emailTemplate.subject,
+      html: emailTemplate.html,
+      text: emailTemplate.text,
+    });
+  } catch {
+    throw new HttpError(503, "Mesaj e-posta ile gönderilemedi. Lütfen daha sonra tekrar deneyin.");
+  }
 
   return {
     success: true,
-    message: "Your message has been sent successfully",
+    message: "Mesajınız başarıyla gönderildi.",
   };
 }

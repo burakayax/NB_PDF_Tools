@@ -1,6 +1,7 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
+import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 import { env } from "./config/env.js";
 import { logError } from "./lib/app-logger.js";
@@ -95,6 +96,83 @@ app.use((error: unknown, request: express.Request, response: express.Response, _
     return;
   }
 
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    logError({
+      category: "prisma",
+      message: error.message,
+      status: 400,
+      method: request.method,
+      path,
+      ip,
+      prismaCode: error.code,
+      meta: error.meta,
+    });
+    console.error("[prisma]", error.code, error.message, error.meta);
+
+    if (error.code === "P2002") {
+      const targets = (error.meta?.target as string[] | undefined) ?? [];
+      const label = targets.length ? targets.join(", ") : "field";
+      response.status(409).json({
+        message: `A record with this ${label} already exists.`,
+      });
+      return;
+    }
+
+    if (error.code === "P2021" || error.code === "P2010") {
+      response.status(503).json({
+        message:
+          env.NODE_ENV === "development"
+            ? `[${error.code}] ${error.message}`
+            : "Database schema is out of sync. From the web/api folder run: npx prisma db push && npx prisma generate",
+      });
+      return;
+    }
+
+    response.status(400).json({
+      message:
+        env.NODE_ENV === "development"
+          ? `[Prisma ${error.code}] ${error.message}`
+          : "Database request failed. If this persists, run prisma db push and restart the API.",
+    });
+    return;
+  }
+
+  if (error instanceof Prisma.PrismaClientValidationError) {
+    logError({
+      category: "prisma",
+      message: error.message,
+      status: 400,
+      method: request.method,
+      path,
+      ip,
+    });
+    console.error("[prisma] validation", error.message);
+    response.status(400).json({
+      message:
+        env.NODE_ENV === "development" ? error.message : "Invalid data sent to the server.",
+    });
+    return;
+  }
+
+  if (error instanceof Prisma.PrismaClientInitializationError) {
+    logError({
+      category: "prisma",
+      message: error.message,
+      status: 503,
+      method: request.method,
+      path,
+      ip,
+    });
+    console.error("[prisma] init", error.message);
+    response.status(503).json({
+      message:
+        env.NODE_ENV === "development"
+          ? error.message
+          : "Cannot connect to the database. Check DATABASE_URL in web/api/.env.",
+    });
+    return;
+  }
+
   const stack = error instanceof Error ? error.stack : undefined;
   logError({
     category: "unhandled",
@@ -106,5 +184,12 @@ app.use((error: unknown, request: express.Request, response: express.Response, _
     stack,
   });
   console.error(error);
+  if (env.NODE_ENV === "development") {
+    response.status(500).json({
+      message: error instanceof Error ? error.message : "An unexpected server error occurred.",
+      ...(error instanceof Error && stack ? { detail: stack.split("\n").slice(0, 6).join("\n") } : {}),
+    });
+    return;
+  }
   response.status(500).json({ message: "An unexpected server error occurred." });
 });

@@ -2,13 +2,22 @@ import nodemailer from "nodemailer";
 import { env } from "../config/env.js";
 import { logApiFailure } from "./app-logger.js";
 
-// Ortam değişkenlerindeki SMTP ayarlarıyla Nodemailer taşıyıcısını oluşturur (Gmail veya özel sunucu).
-// Doğrulama e-postası, iletişim formu ve bildirimlerin tek gönderim kanalıdır.
-// Kimlik bilgileri veya host/port yanlış olursa tüm e-posta akışı çalışmaz; hatalar app-logger üzerinden kaydedilir.
+/**
+ * Gmail (ve uyumlu SMTP) için Nodemailer taşıyıcısı.
+ *
+ * Kimlik: `EMAIL_USER` + `EMAIL_PASS` veya `SMTP_USER` + `SMTP_PASS` (env.ts birleştirir).
+ * Gmail’de `EMAIL_PASS` mutlaka hesap şifresi değil, Google hesabında oluşturulan
+ * 16 karakterlik Uygulama Şifresi olmalıdır (2 adımlı doğrulama açık → App passwords).
+ *
+ * Önerilen Gmail ayarı: host smtp.gmail.com, port 587, secure false (STARTTLS).
+ */
+const useStartTls = env.SMTP_PORT === 587 && !env.SMTP_SECURE;
+
 const transporter = nodemailer.createTransport({
   host: env.SMTP_HOST,
   port: env.SMTP_PORT,
   secure: env.SMTP_SECURE,
+  ...(useStartTls ? { requireTLS: true } : {}),
   auth: {
     user: env.SMTP_USER,
     pass: env.SMTP_PASS,

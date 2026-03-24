@@ -10,7 +10,14 @@ import {
   assertGoogleOAuthConfigured,
   exchangeGoogleAuthorizationCode,
   fetchGoogleProfile,
+  getGoogleRedirectUri,
 } from "./auth.google.js";
+import {
+  GOOGLE_OAUTH_LOG,
+  logGoogleCallbackQuery,
+  logGoogleOAuthRedirect,
+  maskRedirectUrlForLog,
+} from "./google-oauth.console.js";
 import {
   getUserById,
   loginUser,
@@ -47,6 +54,34 @@ function getOAuthStateCookieOptions() {
     path: "/api/auth",
     domain: env.COOKIE_DOMAIN || undefined,
   };
+}
+
+/** Google OAuth sonrası SPA yönlendirmeleri (JSON yok; yalnızca redirect). */
+function oauthFrontendRedirect(path: "login-success" | "login-error", query?: Record<string, string>) {
+  const base = env.OAUTH_FRONTEND_REDIRECT_ORIGIN.replace(/\/$/, "");
+  const url = new URL(`${base}/${path}`);
+  if (query) {
+    for (const [k, v] of Object.entries(query)) {
+      url.searchParams.set(k, v);
+    }
+  }
+  return url.toString();
+}
+
+/** Callback’te HttpError dışı (Prisma, vb.) hatalar için kullanıcıya güvenli kısa metin. */
+function userFacingOAuthCallbackError(error: unknown): string {
+  if (error instanceof HttpError) {
+    return error.message.slice(0, 500);
+  }
+  if (error instanceof Error) {
+    const prisma = error as Error & { code?: string; meta?: { target?: string[] } };
+    if (prisma.code === "P2002") {
+      return "This Google account may already be linked to another profile, or a unique field conflicted. Try another Google account or contact support.";
+    }
+    const msg = (error.message || "").trim() || error.name;
+    return msg.length > 450 ? `${msg.slice(0, 450)}…` : msg;
+  }
+  return "Google sign-in failed (unexpected error). Check the API terminal logs for details.";
 }
 
 function writeSession(response: Response, session: AuthSessionResult) {
@@ -97,7 +132,7 @@ function renderVerificationHtml(status: "success" | "error", title: string, deta
         </div>
         <p style="margin:18px 0 0;font-size:15px;line-height:1.8;color:#cbd5e1;">${detail}</p>
         <p style="margin:18px 0 0;font-size:14px;line-height:1.8;color:#94a3b8;">You can now return to the application and continue with your account flow.</p>
-        <a href="${env.FRONTEND_ORIGIN}" style="display:inline-block;margin-top:24px;padding:12px 18px;border-radius:14px;background:#1e293b;color:#f8fafc;text-decoration:none;font-weight:700;">
+        <a href="${env.FRONTEND_ORIGIN}/?view=login&email_verified=1" style="display:inline-block;margin-top:24px;padding:12px 18px;border-radius:14px;background:#1e293b;color:#f8fafc;text-decoration:none;font-weight:700;">
           Open NB PDF TOOLS
         </a>
       </div>
@@ -106,19 +141,49 @@ function renderVerificationHtml(status: "success" | "error", title: string, deta
 </html>`;
 }
 
+const registerBodySchema = authCredentialsSchema.extend({
+  preferredLanguage: preferredLanguageSchema.shape.preferredLanguage.optional(),
+});
+
 export async function registerController(request: Request, response: Response) {
-  authLog.info("POST /auth/register: body keys", {
+  const meta = clientRequestMeta(request);
+  authLog.info("POST /api/auth/register: body keys", {
     keys: request.body && typeof request.body === "object" ? Object.keys(request.body as object) : [],
   });
-  const parsed = authCredentialsSchema.extend({ preferredLanguage: preferredLanguageSchema.shape.preferredLanguage.optional() }).safeParse(request.body);
+  const parsed = registerBodySchema.safeParse(request.body);
   if (!parsed.success) {
-    authLog.warn("POST /auth/register: validation failed", { issues: parsed.error.issues.map((i) => i.message) });
+    authLog.warn("POST /api/auth/register: validation failed", { issues: parsed.error.issues.map((i) => i.message) });
+    logRegisterAttempt({
+      outcome: "failure",
+      email: typeof request.body === "object" && request.body && "email" in request.body ? String((request.body as { email?: unknown }).email) : null,
+      reason: "validation",
+      ...meta,
+    });
     throw new HttpError(400, parsed.error.issues[0]?.message ?? "Registration data is invalid.");
   }
 
-  const result = await registerUser(parsed.data);
-  authLog.info("POST /auth/register: created", { userId: result.user.id });
-  response.status(201).json(result);
+  try {
+    const result = await registerUser(parsed.data);
+    authLog.info("POST /api/auth/register: created", { userId: result.user.id });
+    logRegisterAttempt({
+      outcome: "success",
+      email: result.user.email,
+      userId: result.user.id,
+      ...meta,
+    });
+    response.status(201).json(result);
+  } catch (error) {
+    if (error instanceof HttpError) {
+      logRegisterAttempt({
+        outcome: "failure",
+        email: parsed.data.email,
+        httpStatus: error.statusCode,
+        reason: error.message,
+        ...meta,
+      });
+    }
+    throw error;
+  }
 }
 
 export async function loginController(request: Request, response: Response) {
@@ -211,7 +276,13 @@ export async function googleOAuthStartController(request: Request, response: Res
   } catch (error) {
     if (error instanceof HttpError) {
       logGoogleOAuth({ outcome: "failure", step: "start", reason: error.message, ...meta });
-      response.redirect(`${env.FRONTEND_ORIGIN}/?view=login&oauth_error=${encodeURIComponent(error.message)}`);
+      console.error(`${GOOGLE_OAUTH_LOG} start FAILED (not configured or misconfigured)`, {
+        message: error.message,
+        ...meta,
+      });
+      const failUrl = oauthFrontendRedirect("login-error", { reason: error.message });
+      logGoogleOAuthRedirect({ kind: "login-error", urlMasked: maskRedirectUrlForLog(failUrl) });
+      response.redirect(failUrl);
       return;
     }
     throw error;
@@ -219,26 +290,60 @@ export async function googleOAuthStartController(request: Request, response: Res
 
   const langParam = typeof request.query.lang === "string" ? request.query.lang : "";
   const preferredLanguage = langParam === "tr" ? "tr" : "en";
+  const desktopPortRaw = typeof request.query.desktop_port === "string" ? request.query.desktop_port.trim() : "";
+  let desktopLocalPort: number | null = null;
+  if (desktopPortRaw) {
+    const parsed = Number.parseInt(desktopPortRaw, 10);
+    if (!Number.isNaN(parsed) && parsed >= 1024 && parsed <= 65_535) {
+      desktopLocalPort = parsed;
+    }
+  }
   const state = createSecureToken(24);
-  response.cookie(OAUTH_STATE_COOKIE, `${state}|${preferredLanguage}`, getOAuthStateCookieOptions());
+  const oauthCookieValue =
+    desktopLocalPort !== null
+      ? `${state}|${preferredLanguage}|desktop|${desktopLocalPort}`
+      : `${state}|${preferredLanguage}`;
+  response.cookie(OAUTH_STATE_COOKIE, oauthCookieValue, getOAuthStateCookieOptions());
+  const authorizeUrl = buildGoogleAuthorizeUrl(state);
+  console.log(`${GOOGLE_OAUTH_LOG} start → redirect to Google accounts`, {
+    preferredLanguage,
+    redirectUri: getGoogleRedirectUri(),
+    statePreview: `${state.slice(0, 8)}…`,
+    authorizeUrlLength: authorizeUrl.length,
+  });
   authLog.info("GET /auth/google: redirect to Google", { preferredLanguage });
-  response.redirect(buildGoogleAuthorizeUrl(state));
+  response.redirect(authorizeUrl);
 }
 
 export async function googleOAuthCallbackController(request: Request, response: Response) {
   const meta = clientRequestMeta(request);
   const oauthErr = typeof request.query.error === "string" ? request.query.error : "";
+  const code = typeof request.query.code === "string" ? request.query.code : "";
+  const state = typeof request.query.state === "string" ? request.query.state : "";
+
+  logGoogleCallbackQuery({
+    hasError: Boolean(oauthErr),
+    error: oauthErr || undefined,
+    hasCode: Boolean(code),
+    hasState: Boolean(state),
+  });
+
   if (oauthErr) {
     response.clearCookie(OAUTH_STATE_COOKIE, getOAuthStateCookieOptions());
     const desc =
       typeof request.query.error_description === "string" ? request.query.error_description : oauthErr;
     logGoogleOAuth({ outcome: "failure", step: "callback", reason: desc.slice(0, 500), ...meta });
-    response.redirect(`${env.FRONTEND_ORIGIN}/?view=login&oauth_error=${encodeURIComponent(desc)}`);
+    console.error(`${GOOGLE_OAUTH_LOG} callback: Google returned error to redirect_uri`, {
+      error: oauthErr,
+      errorDescription: desc.slice(0, 500),
+      ...meta,
+    });
+    const url = oauthFrontendRedirect("login-error", { reason: desc.slice(0, 500) });
+    logGoogleOAuthRedirect({ kind: "login-error", urlMasked: maskRedirectUrlForLog(url) });
+    response.redirect(url);
     return;
   }
 
-  const code = typeof request.query.code === "string" ? request.query.code : "";
-  const state = typeof request.query.state === "string" ? request.query.state : "";
   if (!code || !state) {
     response.clearCookie(OAUTH_STATE_COOKIE, getOAuthStateCookieOptions());
     logGoogleOAuth({
@@ -247,9 +352,10 @@ export async function googleOAuthCallbackController(request: Request, response: 
       reason: "missing_code_or_state",
       ...meta,
     });
-    response.redirect(
-      `${env.FRONTEND_ORIGIN}/?view=login&oauth_error=${encodeURIComponent("Missing authorization response from Google.")}`,
-    );
+    console.error(`${GOOGLE_OAUTH_LOG} callback: missing code or state`, { ...meta });
+    const url = oauthFrontendRedirect("login-error", { reason: "Missing authorization response from Google." });
+    logGoogleOAuthRedirect({ kind: "login-error", urlMasked: maskRedirectUrlForLog(url) });
+    response.redirect(url);
     return;
   }
 
@@ -258,29 +364,52 @@ export async function googleOAuthCallbackController(request: Request, response: 
 
   if (!rawCookie) {
     logGoogleOAuth({ outcome: "failure", step: "callback", reason: "oauth_cookie_missing", ...meta });
-    response.redirect(
-      `${env.FRONTEND_ORIGIN}/?view=login&oauth_error=${encodeURIComponent("Sign-in session expired. Please try again.")}`,
-    );
+    console.error(`${GOOGLE_OAUTH_LOG} callback: OAuth state cookie missing (expired or blocked)`, { ...meta });
+    const url = oauthFrontendRedirect("login-error", { reason: "Sign-in session expired. Please try again." });
+    logGoogleOAuthRedirect({ kind: "login-error", urlMasked: maskRedirectUrlForLog(url) });
+    response.redirect(url);
     return;
   }
 
-  const pipeIdx = rawCookie.indexOf("|");
-  const expectedState = pipeIdx >= 0 ? rawCookie.slice(0, pipeIdx) : rawCookie;
-  const langPart = pipeIdx >= 0 ? rawCookie.slice(pipeIdx + 1) : "en";
+  const parts = rawCookie.split("|");
+  const expectedState = parts[0] ?? "";
+  const preferredLanguage = parts[1] === "tr" ? "tr" : "en";
+  let desktopLocalPort: number | null = null;
+  if (parts[2] === "desktop" && parts[3]) {
+    const parsed = Number.parseInt(parts[3], 10);
+    if (!Number.isNaN(parsed) && parsed >= 1024 && parsed <= 65_535) {
+      desktopLocalPort = parsed;
+    }
+  }
   if (!expectedState || state !== expectedState) {
     logGoogleOAuth({ outcome: "failure", step: "callback", reason: "state_mismatch", ...meta });
-    response.redirect(
-      `${env.FRONTEND_ORIGIN}/?view=login&oauth_error=${encodeURIComponent("Invalid sign-in state. Please try again.")}`,
-    );
+    console.error(`${GOOGLE_OAUTH_LOG} callback: state mismatch (possible CSRF or stale session)`, {
+      ...meta,
+    });
+    const url = oauthFrontendRedirect("login-error", { reason: "Invalid sign-in state. Please try again." });
+    logGoogleOAuthRedirect({ kind: "login-error", urlMasked: maskRedirectUrlForLog(url) });
+    response.redirect(url);
     return;
   }
 
-  const preferredLanguage = langPart === "tr" ? "tr" : "en";
-
   try {
+    console.log(`${GOOGLE_OAUTH_LOG} callback: exchanging authorization code for tokens`, {
+      codeLength: code.length,
+      statePreview: `${state.slice(0, 8)}…`,
+      preferredLanguage,
+    });
     const googleAccess = await exchangeGoogleAuthorizationCode(code);
+    console.log(`${GOOGLE_OAUTH_LOG} callback: fetching userinfo with access token`);
     const profile = await fetchGoogleProfile(googleAccess);
-    const session = await signInWithGoogle({ email: profile.email, preferredLanguage });
+
+    const session = await signInWithGoogle({
+      email: profile.email,
+      googleId: profile.googleId,
+      name: profile.name,
+      avatar: profile.avatar,
+      preferredLanguage,
+    });
+
     response.cookie(REFRESH_COOKIE_NAME, session.refreshToken, getCookieOptions());
     authLog.info("GET /auth/google/callback: session issued", { userId: session.user.id, email: session.user.email });
     logGoogleOAuth({
@@ -290,10 +419,31 @@ export async function googleOAuthCallbackController(request: Request, response: 
       userId: session.user.id,
       ...meta,
     });
-    response.redirect(`${env.FRONTEND_ORIGIN}/?view=web&oauth=complete`);
+
+    const redirectUrl =
+      desktopLocalPort !== null
+        ? `http://127.0.0.1:${desktopLocalPort}/oauth?token=${encodeURIComponent(session.accessToken)}`
+        : oauthFrontendRedirect("login-success", { token: session.accessToken });
+    console.log(`${GOOGLE_OAUTH_LOG} callback: issuing HTTP redirect`, {
+      redirectKind: desktopLocalPort !== null ? "desktop-localhost" : "login-success",
+      maskedUrl: maskRedirectUrlForLog(redirectUrl),
+    });
+    logGoogleOAuthRedirect({ kind: "login-success", urlMasked: maskRedirectUrlForLog(redirectUrl) });
+    response.redirect(redirectUrl);
   } catch (error) {
-    const message = error instanceof HttpError ? error.message : "Google sign-in failed.";
-    authLog.warn("GET /auth/google/callback: failed", { message });
+    const message = userFacingOAuthCallbackError(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    authLog.warn("GET /auth/google/callback: failed", {
+      message,
+      raw: error instanceof Error ? error.message : String(error),
+    });
+    console.error(`${GOOGLE_OAUTH_LOG} callback: unhandled failure`, {
+      userMessage: message,
+      httpStatus: error instanceof HttpError ? error.statusCode : undefined,
+      stack,
+      rawError: error instanceof Error ? error.message : String(error),
+      ...meta,
+    });
     logGoogleOAuth({
       outcome: "failure",
       step: "callback",
@@ -301,12 +451,15 @@ export async function googleOAuthCallbackController(request: Request, response: 
       httpStatus: error instanceof HttpError ? error.statusCode : undefined,
       ...meta,
     });
-    response.redirect(`${env.FRONTEND_ORIGIN}/?view=login&oauth_error=${encodeURIComponent(message)}`);
+    const url = oauthFrontendRedirect("login-error", { reason: message });
+    logGoogleOAuthRedirect({ kind: "login-error", urlMasked: maskRedirectUrlForLog(url) });
+    response.redirect(url);
   }
 }
 
 export async function verifyEmailController(request: Request, response: Response) {
   const token = typeof request.query.token === "string" ? request.query.token.trim() : "";
+  authLog.info("GET /verify-email", { hasToken: Boolean(token) });
   if (!token) {
     response.status(400).send(renderVerificationHtml("error", "Verification link is invalid", "The verification token is missing or malformed."));
     return;
@@ -314,7 +467,15 @@ export async function verifyEmailController(request: Request, response: Response
 
   try {
     const result = await verifyEmailToken(token);
-    response.status(200).send(renderVerificationHtml("success", "Email verified", `${result.email} is now verified. Your account has been activated successfully.`));
+    response
+      .status(200)
+      .send(
+        renderVerificationHtml(
+          "success",
+          "Email verified",
+          `${result.email} is now verified. You can sign in with your email and password.`,
+        ),
+      );
   } catch (error) {
     if (error instanceof HttpError) {
       response.status(error.statusCode).send(renderVerificationHtml("error", "Verification failed", error.message));

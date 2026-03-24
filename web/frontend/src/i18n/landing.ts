@@ -476,7 +476,7 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
       messageLabel: "Mesaj",
       submit: "Mesaj Gönder",
       submitting: "Gönderiliyor...",
-      success: "Mesajınız başarıyla gönderildi.",
+      success: "Mesajınız başarıyla gönderildi",
       errorFallback: "Mesajınız gönderilemedi.",
       validation: {
         nameRequired: "Lütfen adınızı girin.",

@@ -8,13 +8,16 @@ import { hashPassword, verifyPassword } from "../../lib/password.js";
 import { prisma } from "../../lib/prisma.js";
 import { isAdminUser } from "../../lib/user-role.js";
 import { ensureDesktopDeviceAccess } from "../device/device.service.js";
-import { createSecureToken, hashToken } from "../../lib/token.js";
+import { createUrlSafeToken, hashToken } from "../../lib/token.js";
 import { createAdminNotificationEmailTemplate, createVerificationEmailTemplate } from "./auth.email.js";
 import type { AuthCredentialsInput } from "./auth.schema.js";
+import { GOOGLE_OAUTH_LOG, logGoogleOAuthJwtIssued, previewSecret } from "./google-oauth.console.js";
 
 type PublicUser = {
   id: string;
   email: string;
+  name: string | null;
+  avatar: string | null;
   plan: Plan;
   role: UserRole;
   preferredLanguage: Language;
@@ -43,6 +46,8 @@ function toPublicUser(user: User): PublicUser {
   return {
     id: user.id,
     email: user.email,
+    name: user.name,
+    avatar: user.avatar,
     plan: user.plan,
     role: user.role,
     preferredLanguage: user.preferredLanguage,
@@ -81,14 +86,33 @@ async function createSession(user: User) {
   };
 }
 
-function createVerificationUrl(token: string) {
-  const verifyUrl = new URL("/verify-email", env.APP_BASE_URL);
-  verifyUrl.searchParams.set("token", token);
+function logGoogleOAuthSessionIssued(session: AuthSessionResult, flow: "google-login" | "google-register") {
+  logGoogleOAuthJwtIssued({
+    userId: session.user.id,
+    email: session.user.email,
+    accessTokenPreview: previewSecret(session.accessToken, 24),
+    accessTokenLength: session.accessToken.length,
+    refreshTokenPreview: previewSecret(session.refreshToken, 24),
+    refreshTokenLength: session.refreshToken.length,
+  });
+  console.log(`${GOOGLE_OAUTH_LOG} session ready`, {
+    flow,
+    userId: session.user.id,
+    email: session.user.email,
+    plan: session.user.plan,
+    role: session.user.role,
+  });
+}
+
+/** E-postadaki tıklanabilir bağlantı: {APP_BASE_URL}/api/auth/verify-email?token=... */
+export function buildEmailVerificationLink(rawToken: string) {
+  const verifyUrl = new URL("/api/auth/verify-email", env.APP_BASE_URL.replace(/\/$/, ""));
+  verifyUrl.searchParams.set("token", rawToken);
   return verifyUrl.toString();
 }
 
 async function createEmailVerificationToken(userId: string) {
-  const rawToken = createSecureToken(32);
+  const rawToken = createUrlSafeToken(32);
   const tokenHash = hashToken(rawToken);
   const expiresAt = new Date(Date.now() + env.EMAIL_VERIFICATION_TTL_HOURS * 60 * 60 * 1000);
 
@@ -104,7 +128,7 @@ async function createEmailVerificationToken(userId: string) {
 }
 
 async function sendVerificationEmail(user: User, rawToken: string) {
-  const verificationUrl = createVerificationUrl(rawToken);
+  const verificationUrl = buildEmailVerificationLink(rawToken);
   const emailTemplate = createVerificationEmailTemplate({
     verificationUrl,
     productName: "NB PDF TOOLS",
@@ -180,11 +204,15 @@ export async function registerUser(input: AuthCredentialsInput & { preferredLang
     data: {
       email: input.email,
       passwordHash,
+      authProvider: "local",
       role: "USER",
       isVerified: false,
       preferredLanguage: input.preferredLanguage ?? "en",
     },
   });
+
+  // İstenen teşhis çıktıları (kayıt ve e-posta akışı)
+  console.log("User created");
 
   authLog.info("register: user saved", {
     userId: user.id,
@@ -194,9 +222,20 @@ export async function registerUser(input: AuthCredentialsInput & { preferredLang
   });
 
   const rawToken = await createEmailVerificationToken(user.id);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { verificationToken: rawToken },
+  });
+
+  console.log("Verification email sending...");
   try {
     await sendVerificationEmail(user, rawToken);
+    console.log("Email sent successfully");
   } catch (error) {
+    console.error("Verification email failed — full error:", error);
+    if (error instanceof Error) {
+      console.error(error.stack);
+    }
     authLog.error("register: verification email failed, rolling back user", {
       userId: user.id,
       email: user.email,
@@ -324,14 +363,27 @@ export async function updatePreferredLanguage(userId: string, preferredLanguage:
   return toPublicUser(user);
 }
 
-export async function signInWithGoogle(params: { email: string; preferredLanguage: Language }): Promise<AuthSessionResult> {
+export async function signInWithGoogle(params: {
+  email: string;
+  googleId: string;
+  name: string | null;
+  avatar: string | null;
+  preferredLanguage: Language;
+}): Promise<AuthSessionResult> {
   const email = params.email.trim().toLowerCase();
+  const googleId = params.googleId.trim();
+  console.log(`${GOOGLE_OAUTH_LOG} signInWithGoogle: lookup`, { email, name: params.name ?? null, googleId });
+
   const existing = await prisma.user.findUnique({
     where: { email },
   });
 
   if (existing) {
     if (existing.authProvider !== "google") {
+      console.error(`${GOOGLE_OAUTH_LOG} signInWithGoogle ERROR: email already used by local account`, {
+        email,
+        existingAuthProvider: existing.authProvider,
+      });
       authLog.warn("google oauth rejected: email registered locally", { email });
       throw new HttpError(
         409,
@@ -339,21 +391,38 @@ export async function signInWithGoogle(params: { email: string; preferredLanguag
       );
     }
 
-    let user = existing;
-    if (!user.isVerified) {
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: { isVerified: true, verifiedAt: new Date() },
-      });
-    }
+    const user = await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        googleId,
+        name: params.name,
+        avatar: params.avatar,
+        ...(existing.isVerified
+          ? {}
+          : {
+              isVerified: true,
+              verifiedAt: new Date(),
+            }),
+      },
+    });
 
+    console.log(`${GOOGLE_OAUTH_LOG} user record updated (existing Google user)`, {
+      userId: user.id,
+      email: user.email,
+      googleId,
+    });
     authLog.info("google login: success", { userId: user.id, email: user.email });
-    return createSession(user);
+    const session = await createSession(user);
+    logGoogleOAuthSessionIssued(session, "google-login");
+    return session;
   }
 
   const user = await prisma.user.create({
     data: {
       email,
+      googleId,
+      name: params.name,
+      avatar: params.avatar,
       passwordHash: null,
       authProvider: "google",
       role: "USER",
@@ -363,18 +432,27 @@ export async function signInWithGoogle(params: { email: string; preferredLanguag
     },
   });
 
+  console.log(`${GOOGLE_OAUTH_LOG} user record created (new Google user)`, {
+    userId: user.id,
+    email: user.email,
+    googleId,
+    preferredLanguage: params.preferredLanguage,
+  });
   authLog.info("google register: user created", { userId: user.id, email: user.email });
 
   try {
     await sendAdminNotificationEmail(user);
   } catch (error) {
+    console.warn(`${GOOGLE_OAUTH_LOG} admin notification email failed (user kept)`, { userId: user.id, error: String(error) });
     authLog.warn("google register: admin notification email failed (user kept)", {
       userId: user.id,
       error: String(error),
     });
   }
 
-  return createSession(user);
+  const session = await createSession(user);
+  logGoogleOAuthSessionIssued(session, "google-register");
+  return session;
 }
 
 export async function verifyEmailToken(rawToken: string) {
@@ -396,6 +474,7 @@ export async function verifyEmailToken(rawToken: string) {
       data: {
         isVerified: true,
         verifiedAt: new Date(),
+        verificationToken: null,
       },
     }),
     prisma.emailVerificationToken.update({
@@ -405,6 +484,8 @@ export async function verifyEmailToken(rawToken: string) {
       },
     }),
   ]);
+
+  authLog.info("verify-email: success", { userId: tokenRecord.userId, email: tokenRecord.user.email });
 
   return {
     message: "Your email address has been verified successfully.",

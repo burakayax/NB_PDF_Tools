@@ -31,11 +31,17 @@ enum AuthProvider {
 model User {
   id           String         @id @default(cuid())
   email        String         @unique
+  name         String?
+  /// Google "sub" (OpenID); yalnızca Google ile kayıtlı kullanıcılar için dolu
+  googleId     String?        @unique
+  avatar       String?
   passwordHash String?
   authProvider AuthProvider   @default(local)
   role         UserRole       @default(USER)
   isVerified   Boolean        @default(false)
   verifiedAt   DateTime?
+  /// Kayıt sonrası e-posta doğrulama belirteci (düz metin); doğrulama sonrası null olur.
+  verificationToken String?
   plan         Plan           @default(FREE)
   preferredLanguage Language  @default(en)
   createdAt    DateTime       @default(now())

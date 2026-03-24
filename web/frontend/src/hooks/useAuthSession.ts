@@ -29,6 +29,13 @@ export function useAuthSession() {
     window.localStorage.removeItem(STORAGE_KEY);
   }, []);
 
+  const completeOAuthLogin = useCallback(async (rawToken: string) => {
+    const token = rawToken.trim();
+    const restoredUser = await fetchAuthenticatedUser(token);
+    persistSession(token, restoredUser);
+    return restoredUser;
+  }, [persistSession]);
+
   const restoreSession = useCallback(async () => {
     const storedToken = window.localStorage.getItem(STORAGE_KEY);
 
@@ -58,29 +65,34 @@ export function useAuthSession() {
 
     async function bootstrap() {
       const url = new URL(window.location.href);
-      const oauthComplete = url.searchParams.get("oauth") === "complete";
+      const path = url.pathname.replace(/\/$/, "") || "/";
 
-      if (oauthComplete) {
-        url.searchParams.delete("oauth");
-        const qs = url.searchParams.toString();
-        window.history.replaceState({}, "", `${url.pathname}${qs ? `?${qs}` : ""}${url.hash}`);
-
-        try {
-          const refreshed = await refreshAuthSession();
-          if (!cancelled && refreshed) {
-            persistSession(refreshed.accessToken, refreshed.user);
-          } else if (!cancelled) {
-            clearSession();
-          }
-        } catch {
-          if (!cancelled) {
-            clearSession();
-          }
-        } finally {
-          if (!cancelled) {
-            setIsRestoring(false);
-          }
+      // /login-success: sayfa bileşeni token'ı işler; burada oturum restore etme
+      if (path === "/login-success") {
+        if (import.meta.env.DEV) {
+          console.info("[auth] /login-success route — delegating to LoginSuccessPage");
         }
+        if (!cancelled) {
+          setIsRestoring(false);
+        }
+        return;
+      }
+
+      if (path === "/login-error") {
+        const reason = url.searchParams.get("reason");
+        const message = reason
+          ? (() => {
+              try {
+                return decodeURIComponent(reason.replace(/\+/g, " "));
+              } catch {
+                return reason;
+              }
+            })()
+          : "Google sign-in failed (no details). Typical causes: Google OAuth not configured in web/api/.env, or redirect URI in Google Cloud Console does not match http://localhost:4000/api/auth/google/callback (see APP_BASE_URL).";
+        if (import.meta.env.DEV) {
+          console.warn("[auth] /login-error", message);
+        }
+        window.location.replace(`${url.origin}/?view=login&oauth_error=${encodeURIComponent(message)}`);
         return;
       }
 
@@ -142,5 +154,7 @@ export function useAuthSession() {
     register,
     logout,
     updatePreferredLanguage,
+    completeOAuthLogin,
+    clearSession,
   };
 }

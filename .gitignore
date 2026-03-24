@@ -3,6 +3,11 @@
 .env.*
 !.env.example
 !**/.env.example
+*.pem
+*.p12
+secrets/
+**/desktop_auth_config.json
+support_config.json
 
 # --- Node ---
 node_modules/

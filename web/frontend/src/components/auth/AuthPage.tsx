@@ -10,6 +10,9 @@ type AuthPageProps = {
   language: Language;
   submitting: boolean;
   serverError: string;
+  /** Kayıt sonrası giriş sekmesinde gösterilen API başarı metni */
+  registrationSuccessBanner?: string | null;
+  onDismissRegistrationSuccess?: () => void;
   onBack: () => void;
   onModeChange: (mode: AuthMode) => void;
   onSubmit: (payload: { email: string; password: string }) => Promise<void>;
@@ -48,6 +51,8 @@ export function AuthPage({
   language,
   submitting,
   serverError,
+  registrationSuccessBanner,
+  onDismissRegistrationSuccess,
   onBack,
   onModeChange,
   onSubmit,
@@ -60,20 +65,29 @@ export function AuthPage({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [localError, setLocalError] = useState("");
   const [urlAuthError, setUrlAuthError] = useState("");
+  const [urlEmailVerifiedNotice, setUrlEmailVerifiedNotice] = useState(false);
 
   useEffect(() => {
     const url = new URL(window.location.href);
+    let changed = false;
     const err = url.searchParams.get("oauth_error");
-    if (!err) {
-      return;
+    if (err) {
+      try {
+        setUrlAuthError(decodeURIComponent(err.replace(/\+/g, " ")));
+      } catch {
+        setUrlAuthError(err);
+      }
+      url.searchParams.delete("oauth_error");
+      changed = true;
     }
-    url.searchParams.delete("oauth_error");
-    const qs = url.searchParams.toString();
-    window.history.replaceState({}, "", `${url.pathname}${qs ? `?${qs}` : ""}${url.hash}`);
-    try {
-      setUrlAuthError(decodeURIComponent(err.replace(/\+/g, " ")));
-    } catch {
-      setUrlAuthError(err);
+    if (url.searchParams.get("email_verified") === "1") {
+      setUrlEmailVerifiedNotice(true);
+      url.searchParams.delete("email_verified");
+      changed = true;
+    }
+    if (changed) {
+      const qs = url.searchParams.toString();
+      window.history.replaceState({}, "", `${url.pathname}${qs ? `?${qs}` : ""}${url.hash}`);
     }
   }, []);
 
@@ -162,6 +176,39 @@ export function AuthPage({
               {getAuthCopy(language, "register").screen.submit}
             </button>
           </div>
+
+          {mode === "login" && urlEmailVerifiedNotice ? (
+            <div className="mt-6 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.12] px-4 py-3 text-sm text-emerald-50">
+              <p>
+                <span className="font-semibold">{language === "tr" ? "E-posta doğrulandı. " : "Email verified. "}</span>
+                {language === "tr"
+                  ? "Artık e-posta adresiniz ve şifrenizle giriş yapabilirsiniz."
+                  : "You can now sign in with your email and password."}
+              </p>
+            </div>
+          ) : null}
+
+          {mode === "login" && registrationSuccessBanner ? (
+            <div className="mt-6 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.12] px-4 py-3 text-sm text-emerald-50">
+              <div className="flex items-start justify-between gap-3">
+                <p>
+                  <span className="font-semibold">
+                    {language === "tr" ? "Kayıt başarılı — " : "Registration successful — "}
+                  </span>
+                  {registrationSuccessBanner}
+                </p>
+                {onDismissRegistrationSuccess ? (
+                  <button
+                    type="button"
+                    onClick={onDismissRegistrationSuccess}
+                    className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-emerald-200/90 hover:bg-white/10"
+                  >
+                    {language === "tr" ? "Kapat" : "Dismiss"}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           {activeError ? (
             <div className="mt-6 rounded-xl border border-rose-500/20 bg-rose-500/[0.08] px-4 py-3 text-sm text-rose-100">

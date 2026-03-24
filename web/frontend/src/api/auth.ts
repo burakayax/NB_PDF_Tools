@@ -5,6 +5,8 @@ const SAAS_API_BASE = import.meta.env.VITE_SAAS_API_BASE ?? "http://localhost:40
 export type AuthUser = {
   id: string;
   email: string;
+  name?: string | null;
+  avatar?: string | null;
   plan: string;
   role?: "USER" | "ADMIN";
   preferredLanguage: Language;

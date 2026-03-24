@@ -1,5 +1,6 @@
 import { renderCorporateEmail } from "../../lib/email-layout.js";
-import { escapeHtml, escapeHtmlAttr } from "../../lib/email-html.js";
+import { escapeHtml } from "../../lib/email-html.js";
+import { renderBrandedVerificationEmailHtml } from "./verification-email-branded.js";
 
 type VerificationEmailTemplateInput = {
   verificationUrl: string;
@@ -18,40 +19,24 @@ export function createVerificationEmailTemplate({
   productName,
   expiresInHours,
 }: VerificationEmailTemplateInput) {
-  const subject = `Verify your email for ${productName}`;
-  const safeUrl = escapeHtmlAttr(verificationUrl);
+  const subject = "Email Doğrulama";
   const safeProduct = escapeHtml(productName);
 
-  const html = renderCorporateEmail({
-    eyebrow: "Email Verification",
-    title: "Verify your email address",
-    intro: `Welcome to ${safeProduct}. Please confirm your email to activate your account and continue securely.`,
-    bodyHtml: `
-      <p style="margin:0 0 18px;font-size:15px;line-height:1.8;color:#cbd5e1;">
-        Click the button below to verify your email address. For your security, this link will expire in ${expiresInHours} hours.
-      </p>
-      <div style="margin:28px 0;">
-        <a href="${safeUrl}" style="display:inline-block;padding:14px 22px;border-radius:14px;background:#38bdf8;color:#082f49;text-decoration:none;font-size:15px;font-weight:700;">
-          Verify Email
-        </a>
-      </div>
-      <p style="margin:0 0 12px;font-size:14px;line-height:1.8;color:#94a3b8;">
-        If the button does not work, copy and paste this link into your browser:
-      </p>
-      <p style="margin:0;padding:14px 16px;border:1px solid #334155;border-radius:14px;background:#0f172a;word-break:break-all;font-size:13px;line-height:1.8;color:#e2e8f0;">
-        ${escapeHtml(verificationUrl)}
-      </p>
-    `,
-    footerText: `This email was sent automatically by ${safeProduct}. If you did not create an account, you can safely ignore this message.`,
-    productName: safeProduct,
-  });
+  const html = renderBrandedVerificationEmailHtml(verificationUrl);
 
   const text = [
-    `Verify your email for ${productName}`,
+    "Email Doğrulama — NB PDF TOOLS",
     "",
-    `Please verify your email address to activate your account.`,
-    `Verification link: ${verificationUrl}`,
-    `This link expires in ${expiresInHours} hours.`,
+    "Email Adresinizi Doğrulayın",
+    "",
+    "NB PDF TOOLS hesabınızı aktifleştirmek için aşağıdaki bağlantıyı tarayıcıda açın:",
+    "",
+    verificationUrl,
+    "",
+    `Bu bağlantı ${expiresInHours} saat içinde sona erer.`,
+    "",
+    "Bu işlemi siz yapmadıysanız bu emaili dikkate almayabilirsiniz.",
+    `${safeProduct} © 2026`,
   ].join("\n");
 
   return {

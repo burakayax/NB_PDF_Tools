@@ -1,4 +1,7 @@
-const SAAS_API_BASE = import.meta.env.VITE_SAAS_API_BASE ?? "http://localhost:4000";
+/** Kimlik API kökü (örn. http://localhost:4000) — sonuna /api ekleme; istek yolu /api/contact olarak eklenir. */
+const SAAS_API_BASE = (import.meta.env.VITE_SAAS_API_BASE ?? "http://localhost:4000").replace(/\/$/, "");
+
+const CONTACT_PATH = "/api/contact";
 
 export type ContactPayload = {
   name: string;
@@ -30,7 +33,7 @@ export async function submitContactForm(payload: ContactPayload) {
     website: (payload.website ?? "").trim(),
   };
 
-  const response = await fetch(`${SAAS_API_BASE}/contact`, {
+  const response = await fetch(`${SAAS_API_BASE}${CONTACT_PATH}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

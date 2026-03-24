@@ -51,7 +51,7 @@ export function logGoogleOAuth(payload: {
 }
 
 export function logError(payload: {
-  category: "http" | "validation" | "unhandled";
+  category: "http" | "validation" | "unhandled" | "prisma";
   message: string;
   status?: number;
   method?: string;
@@ -59,6 +59,8 @@ export function logError(payload: {
   ip?: string;
   issues?: string[];
   stack?: string;
+  prismaCode?: string;
+  meta?: unknown;
 }): void {
   write("error", payload as Record<string, unknown>);
 }
