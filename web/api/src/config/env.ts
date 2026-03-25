@@ -43,8 +43,7 @@ const rawEnvSchema = z
     /** İletişim formu POST /api/contact bildirimlerinin alıcısı (varsayılan: nbglobalstudio@gmail.com). */
     CONTACT_TO_EMAIL: z.string().email().default("nbglobalstudio@gmail.com"),
     /**
-     * İlk sunucu açılışında tek seferlik ADMIN oluşturmak için (ikisi de dolu olmalı).
-     * Boş bırakılırsa varsayılan yönetici oluşturulmaz.
+     * İlk sunucu açılışında isteğe bağlı hesap (ikisi de dolu olmalı). Rol e-postaya göre (yalnızca nbglobalstudio@gmail.com → ADMIN).
      */
     BOOTSTRAP_ADMIN_EMAIL: z.string().optional().default(""),
     BOOTSTRAP_ADMIN_PASSWORD: z.string().optional().default(""),

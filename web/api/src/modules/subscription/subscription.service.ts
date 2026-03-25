@@ -85,7 +85,44 @@ export async function changeUserPlan(userId: string, plan: Plan) {
   };
 }
 
+/** Validates plan, feature entitlement, and daily quota without incrementing usage. Call before expensive work. */
+export async function assertSubscriptionAllowsOperation(userId: string, featureKey: FeatureKey) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new HttpError(404, "User account could not be found.");
+  }
+
+  if (isAdminUser(user)) {
+    return;
+  }
+
+  const plan = planDefinitions[user.plan];
+  if (!plan.allowedFeatures.includes(featureKey)) {
+    throw new HttpError(403, "Your current plan does not include this feature.");
+  }
+
+  const usageDate = todayKey();
+  const currentUsage = await prisma.dailyUsage.findUnique({
+    where: {
+      userId_usageDate: {
+        userId,
+        usageDate,
+      },
+    },
+  });
+
+  const usedToday = currentUsage?.operationsCount ?? 0;
+  if (plan.dailyLimit !== null && usedToday >= plan.dailyLimit) {
+    throw new HttpError(403, "Your daily usage limit has been reached. Please upgrade your plan.");
+  }
+}
+
 export async function recordUsage(userId: string, featureKey: FeatureKey) {
+  await assertSubscriptionAllowsOperation(userId, featureKey);
+
   const user = await prisma.user.findUnique({
     where: { id: userId },
   });
@@ -112,24 +149,7 @@ export async function recordUsage(userId: string, featureKey: FeatureKey) {
   }
 
   const plan = planDefinitions[user.plan];
-  if (!plan.allowedFeatures.includes(featureKey)) {
-    throw new HttpError(403, "Your current plan does not include this feature.");
-  }
-
   const usageDate = todayKey();
-  const currentUsage = await prisma.dailyUsage.findUnique({
-    where: {
-      userId_usageDate: {
-        userId,
-        usageDate,
-      },
-    },
-  });
-
-  const usedToday = currentUsage?.operationsCount ?? 0;
-  if (plan.dailyLimit !== null && usedToday >= plan.dailyLimit) {
-    throw new HttpError(403, "Your daily usage limit has been reached. Please upgrade your plan.");
-  }
 
   const nextUsage = await prisma.dailyUsage.upsert({
     where: {

@@ -67,10 +67,10 @@ class NBPDFApp(ctk.CTk):
             {"key": "split", "label_key": "main.feature_split", "icon": "📄"},
             {"key": "merge", "label_key": "main.feature_merge", "icon": "🗂"},
             {"key": "pdf-to-word", "label_key": "main.feature_pdf_to_word", "icon": "📝"},
+            {"key": "compress", "label_key": "main.feature_compress", "icon": "🗜"},
             {"key": "word-to-pdf", "label_key": "main.feature_word_to_pdf", "icon": "🧾"},
             {"key": "excel-to-pdf", "label_key": "main.feature_excel_to_pdf", "icon": "📊"},
             {"key": "pdf-to-excel", "label_key": "main.feature_pdf_to_excel", "icon": "📈"},
-            {"key": "compress", "label_key": "main.feature_compress", "icon": "🗜"},
             {"key": "encrypt", "label_key": "main.feature_encrypt", "icon": "🔒"},
         ]
 
@@ -982,7 +982,8 @@ class NBPDFApp(ctk.CTk):
 
         blocked = set(self.license_info.get("entitlements", {}).get("blockedFeatures", []))
         if feature_key in blocked:
-            self._show_upgrade_required()
+            if messagebox.askyesno(t("main.pro_feature_title"), t("main.pro_feature_body")):
+                self.open_upgrade_page()
             return
 
         if feature_key == "merge":

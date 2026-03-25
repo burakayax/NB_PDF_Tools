@@ -155,9 +155,9 @@ class MergeWindow(ctk.CTkToplevel):
         for path, w in self.widget_map.items():
             try:
                 if path == self.dragging_path:
-                    w.configure(fg_color="#375aeb", border_color="#ffd166")
+                    w.configure(fg_color="#375aeb", border_color="#ffd166", border_width=2)
                 else:
-                    w.configure(fg_color="#2a2a2a", border_color="#444")
+                    w.configure(fg_color="#2a2a2a", border_color="#444", border_width=1)
             except Exception:
                 pass
 

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import {
-  changePlanController,
+  assertFeatureController,
   currentSubscriptionController,
   listPlansController,
   recordUsageController,
@@ -12,5 +12,5 @@ export const subscriptionRouter = Router();
 
 subscriptionRouter.get("/plans", asyncHandler(listPlansController));
 subscriptionRouter.get("/current", requireAuth, asyncHandler(currentSubscriptionController));
-subscriptionRouter.post("/change-plan", requireAuth, asyncHandler(changePlanController));
+subscriptionRouter.post("/assert-feature", requireAuth, asyncHandler(assertFeatureController));
 subscriptionRouter.post("/record-usage", requireAuth, asyncHandler(recordUsageController));

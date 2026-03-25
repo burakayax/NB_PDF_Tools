@@ -1,3 +1,20 @@
 fastapi
 uvicorn
 python-multipart
+PyJWT>=2.8.0
+bcrypt>=4.1.0
+pydantic-settings>=2.0.0
+
+# PDF motoru (proje kökündeki src.pdf_engine): /api/pdf-to-word, sıkıştırma vb.
+pikepdf>=10
+pymupdf>=1.24
+pdf2docx>=0.5
+pypdf>=6
+python-docx
+Pillow
+lxml
+PyPDF2
+pdf2image
+openpyxl
+reportlab
+pdfplumber

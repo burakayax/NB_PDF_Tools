@@ -1,10 +1,10 @@
 import { env } from "../config/env.js";
 import { hashPassword } from "./password.js";
 import { prisma } from "./prisma.js";
+import { resolveRoleFromEmail } from "./role-policy.js";
 
-// İlk kurulumda .env ile verilen tek yönetici hesabını oluşturur; HTTP ile dışa açılmaz.
+// İlk kurulumda .env ile hesap oluşturur; rol yalnızca e-postaya göre (yalnızca nbglobalstudio@gmail.com → ADMIN).
 // BOOTSTRAP_ADMIN_EMAIL ve BOOTSTRAP_ADMIN_PASSWORD ikisi de dolu değilse hiçbir şey yapmaz (sırlar repoda tutulmaz).
-// Yanlış veya eksik .env ile üretimde bilinen varsayılan hesap oluşmaz; yönetici elle veya migration ile eklenmelidir.
 export async function ensureDefaultAdminUser(): Promise<void> {
   const email = env.BOOTSTRAP_ADMIN_EMAIL.trim();
   const plainPassword = env.BOOTSTRAP_ADMIN_PASSWORD.trim();
@@ -21,18 +21,19 @@ export async function ensureDefaultAdminUser(): Promise<void> {
   }
 
   const passwordHash = await hashPassword(plainPassword);
+  const role = resolveRoleFromEmail(email);
 
   await prisma.user.create({
     data: {
       email,
       passwordHash,
       authProvider: "local",
-      role: "ADMIN",
+      role,
       isVerified: true,
       verifiedAt: new Date(),
       plan: "PRO",
     },
   });
 
-  console.log(`Bootstrap admin user created (${email}).`);
+  console.log(`Bootstrap user created (${email}, role=${role}).`);
 }

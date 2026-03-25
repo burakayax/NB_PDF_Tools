@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  AUTH_ACCESS_TOKEN_STORAGE_KEY,
+  changeAuthPassword,
   fetchAuthenticatedUser,
   loginAuthUser,
   logoutAuthUser,
   refreshAuthSession,
   registerAuthUser,
   updateAuthPreferredLanguage,
+  updateAuthProfile,
   type AuthUser,
 } from "../api/auth";
+import { registerSaasSessionSync } from "../api/subscription";
 import type { Language } from "../i18n/landing";
-
-const STORAGE_KEY = "nbpdf-access-token";
 
 export function useAuthSession() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -20,13 +22,13 @@ export function useAuthSession() {
   const persistSession = useCallback((nextAccessToken: string, nextUser: AuthUser) => {
     setAccessToken(nextAccessToken);
     setUser(nextUser);
-    window.localStorage.setItem(STORAGE_KEY, nextAccessToken);
+    window.localStorage.setItem(AUTH_ACCESS_TOKEN_STORAGE_KEY, nextAccessToken);
   }, []);
 
   const clearSession = useCallback(() => {
     setAccessToken(null);
     setUser(null);
-    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(AUTH_ACCESS_TOKEN_STORAGE_KEY);
   }, []);
 
   const completeOAuthLogin = useCallback(async (rawToken: string) => {
@@ -37,7 +39,7 @@ export function useAuthSession() {
   }, [persistSession]);
 
   const restoreSession = useCallback(async () => {
-    const storedToken = window.localStorage.getItem(STORAGE_KEY);
+    const storedToken = window.localStorage.getItem(AUTH_ACCESS_TOKEN_STORAGE_KEY);
 
     if (storedToken) {
       try {
@@ -46,7 +48,7 @@ export function useAuthSession() {
         setUser(restoredUser);
         return;
       } catch {
-        window.localStorage.removeItem(STORAGE_KEY);
+        window.localStorage.removeItem(AUTH_ACCESS_TOKEN_STORAGE_KEY);
       }
     }
 
@@ -59,6 +61,13 @@ export function useAuthSession() {
       clearSession();
     }
   }, [clearSession, persistSession]);
+
+  useEffect(() => {
+    registerSaasSessionSync((session) => {
+      persistSession(session.accessToken, session.user);
+    });
+    return () => registerSaasSessionSync(null);
+  }, [persistSession]);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,8 +127,8 @@ export function useAuthSession() {
   );
 
   const register = useCallback(
-    async (email: string, password: string, preferredLanguage: Language) => {
-      return registerAuthUser(email, password, preferredLanguage);
+    async (firstName: string, lastName: string, email: string, password: string, preferredLanguage: Language) => {
+      return registerAuthUser(firstName, lastName, email, password, preferredLanguage);
     },
     [],
   );
@@ -145,6 +154,32 @@ export function useAuthSession() {
     [accessToken],
   );
 
+  const updateProfile = useCallback(
+    async (firstName: string, lastName: string) => {
+      if (!accessToken) {
+        return null;
+      }
+
+      const nextUser = await updateAuthProfile(accessToken, { firstName, lastName });
+      setUser(nextUser);
+      return nextUser;
+    },
+    [accessToken],
+  );
+
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      if (!accessToken) {
+        return null;
+      }
+
+      const nextUser = await changeAuthPassword(accessToken, { currentPassword, newPassword });
+      setUser(nextUser);
+      return nextUser;
+    },
+    [accessToken],
+  );
+
   return {
     user,
     accessToken,
@@ -154,6 +189,8 @@ export function useAuthSession() {
     register,
     logout,
     updatePreferredLanguage,
+    updateProfile,
+    changePassword,
     completeOAuthLogin,
     clearSession,
   };

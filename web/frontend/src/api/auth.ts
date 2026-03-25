@@ -2,9 +2,14 @@ import type { Language } from "../i18n/landing";
 
 const SAAS_API_BASE = import.meta.env.VITE_SAAS_API_BASE ?? "http://localhost:4000";
 
+/** useAuthSession ile aynı anahtar; yenileme sonrası güncel jetonu paylaşmak için dışa açık. */
+export const AUTH_ACCESS_TOKEN_STORAGE_KEY = "nbpdf-access-token";
+
 export type AuthUser = {
   id: string;
   email: string;
+  firstName?: string | null;
+  lastName?: string | null;
   name?: string | null;
   avatar?: string | null;
   plan: string;
@@ -26,6 +31,29 @@ export type RegisterResponse = {
   user: AuthUser;
 };
 
+function messageFromErrorPayload(payload: unknown, fallback: string): string {
+  if (!payload || typeof payload !== "object") {
+    return fallback;
+  }
+  const o = payload as Record<string, unknown>;
+  if (typeof o.message === "string" && o.message.trim()) {
+    return o.message;
+  }
+  if (typeof o.error === "string" && o.error.trim()) {
+    return o.error;
+  }
+  if (typeof o.detail === "string" && o.detail.trim()) {
+    return o.detail;
+  }
+  if (Array.isArray(o.detail) && o.detail.length > 0) {
+    const first = o.detail[0];
+    if (first && typeof first === "object" && "msg" in first && typeof (first as { msg: unknown }).msg === "string") {
+      return (first as { msg: string }).msg;
+    }
+  }
+  return fallback;
+}
+
 async function ensureOk(response: Response, defaultMessage: string) {
   if (response.ok) {
     return;
@@ -33,8 +61,8 @@ async function ensureOk(response: Response, defaultMessage: string) {
 
   const contentType = response.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
-    const payload = (await response.json()) as { message?: string; error?: string };
-    const message = payload.message || payload.error || defaultMessage;
+    const payload = await response.json();
+    const message = messageFromErrorPayload(payload, defaultMessage);
     if (import.meta.env.DEV) {
       console.warn("[auth] request failed", response.status, message);
     }
@@ -49,6 +77,8 @@ async function ensureOk(response: Response, defaultMessage: string) {
 }
 
 type RegisterPayload = {
+  firstName: string;
+  lastName: string;
   email: string;
   password: string;
   preferredLanguage: Language;
@@ -71,8 +101,16 @@ async function sendAuthRequest<T>(path: string, body?: RegisterPayload | Record<
   return response.json() as Promise<T>;
 }
 
-export async function registerAuthUser(email: string, password: string, preferredLanguage: Language) {
+export async function registerAuthUser(
+  firstName: string,
+  lastName: string,
+  email: string,
+  password: string,
+  preferredLanguage: Language,
+) {
   const payload: RegisterPayload = {
+    firstName: firstName.trim(),
+    lastName: lastName.trim(),
     email: email.trim().toLowerCase(),
     password,
     preferredLanguage,
@@ -123,6 +161,44 @@ export async function fetchAuthenticatedUser(accessToken: string) {
 export function getGoogleOAuthStartUrl(language: Language) {
   const lang = language === "tr" ? "tr" : "en";
   return `${SAAS_API_BASE}/api/auth/google?lang=${lang}`;
+}
+
+export async function updateAuthProfile(accessToken: string, body: { firstName: string; lastName: string }) {
+  const response = await fetch(`${SAAS_API_BASE}/api/auth/profile`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+    body: JSON.stringify({
+      firstName: body.firstName.trim(),
+      lastName: body.lastName.trim(),
+    }),
+  });
+
+  await ensureOk(response, "Profile could not be updated.");
+  const payload = (await response.json()) as { user: AuthUser };
+  return payload.user;
+}
+
+export async function changeAuthPassword(accessToken: string, body: { currentPassword: string; newPassword: string }) {
+  const response = await fetch(`${SAAS_API_BASE}/api/auth/change-password`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+    body: JSON.stringify({
+      current_password: body.currentPassword,
+      new_password: body.newPassword,
+    }),
+  });
+
+  await ensureOk(response, "Password could not be changed.");
+  const payload = (await response.json()) as { user: AuthUser; message?: string };
+  return payload.user;
 }
 
 export async function updateAuthPreferredLanguage(accessToken: string, preferredLanguage: Language) {

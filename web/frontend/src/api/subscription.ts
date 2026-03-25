@@ -1,4 +1,40 @@
+import { AUTH_ACCESS_TOKEN_STORAGE_KEY, refreshAuthSession, type AuthUser } from "./auth";
+
 const SAAS_API_BASE = import.meta.env.VITE_SAAS_API_BASE ?? "http://localhost:4000";
+
+type SaasSessionSync = (session: { accessToken: string; user: AuthUser }) => void;
+
+let saasSessionSync: SaasSessionSync | null = null;
+
+/** React oturumu; 401 sonrası yenilemede yeni jeton state + localStorage’a yazılır. */
+export function registerSaasSessionSync(fn: SaasSessionSync | null) {
+  saasSessionSync = fn;
+}
+
+function readLatestAccessToken(fallback: string): string {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+  return window.localStorage.getItem(AUTH_ACCESS_TOKEN_STORAGE_KEY) ?? fallback;
+}
+
+async function saasAuthorizedFetch(initialToken: string, run: (token: string) => Promise<Response>): Promise<Response> {
+  let response = await run(initialToken);
+  if (response.status !== 401 || !saasSessionSync) {
+    return response;
+  }
+  try {
+    const refreshed = await refreshAuthSession();
+    if (!refreshed?.accessToken) {
+      return response;
+    }
+    saasSessionSync({ accessToken: refreshed.accessToken, user: refreshed.user });
+    const token = readLatestAccessToken(refreshed.accessToken);
+    return await run(token);
+  } catch {
+    return response;
+  }
+}
 
 export type PlanName = "FREE" | "PRO" | "BUSINESS";
 export type FeatureKey =
@@ -62,34 +98,43 @@ export async function fetchPlans() {
 }
 
 export async function fetchSubscriptionSummary(accessToken: string) {
-  const response = await fetch(`${SAAS_API_BASE}/api/subscription/current`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-    credentials: "include",
-  });
+  const token = readLatestAccessToken(accessToken);
+  const response = await saasAuthorizedFetch(token, (t) =>
+    fetch(`${SAAS_API_BASE}/api/subscription/current`, {
+      headers: {
+        Authorization: `Bearer ${t}`,
+      },
+      credentials: "include",
+    }),
+  );
   await ensureOk(response, "Subscription summary could not be loaded.");
   return response.json() as Promise<SubscriptionSummary>;
 }
 
-export async function changePlan(accessToken: string, plan: PlanName) {
-  const response = await fetch(`${SAAS_API_BASE}/api/subscription/change-plan`, {
-    method: "POST",
-    headers: createHeaders(accessToken),
-    credentials: "include",
-    body: JSON.stringify({ plan }),
-  });
-  await ensureOk(response, "Plan could not be updated.");
-  return response.json() as Promise<{ plan: PlanDefinition }>;
+/** Server-side plan and quota check before running a PDF operation (does not consume quota). */
+export async function assertFeatureBeforeAction(accessToken: string, featureKey: FeatureKey) {
+  const token = readLatestAccessToken(accessToken);
+  const response = await saasAuthorizedFetch(token, (t) =>
+    fetch(`${SAAS_API_BASE}/api/subscription/assert-feature`, {
+      method: "POST",
+      headers: createHeaders(t),
+      credentials: "include",
+      body: JSON.stringify({ featureKey }),
+    }),
+  );
+  await ensureOk(response, "This action is not allowed on your current plan.");
 }
 
 export async function recordUsage(accessToken: string, featureKey: FeatureKey) {
-  const response = await fetch(`${SAAS_API_BASE}/api/subscription/record-usage`, {
-    method: "POST",
-    headers: createHeaders(accessToken),
-    credentials: "include",
-    body: JSON.stringify({ featureKey }),
-  });
+  const token = readLatestAccessToken(accessToken);
+  const response = await saasAuthorizedFetch(token, (t) =>
+    fetch(`${SAAS_API_BASE}/api/subscription/record-usage`, {
+      method: "POST",
+      headers: createHeaders(t),
+      credentials: "include",
+      body: JSON.stringify({ featureKey }),
+    }),
+  );
   await ensureOk(response, "Usage could not be recorded.");
   return response.json() as Promise<{ usageDate: string; operationsCount: number; remainingToday: number | null }>;
 }

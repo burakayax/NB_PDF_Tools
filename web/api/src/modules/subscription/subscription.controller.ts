@@ -1,7 +1,12 @@
 import type { Request, Response } from "express";
 import { HttpError } from "../../lib/http-error.js";
-import { changePlanSchema, recordUsageSchema } from "./subscription.schema.js";
-import { changeUserPlan, getSubscriptionSummary, listPlans, recordUsage } from "./subscription.service.js";
+import { recordUsageSchema } from "./subscription.schema.js";
+import {
+  assertSubscriptionAllowsOperation,
+  getSubscriptionSummary,
+  listPlans,
+  recordUsage,
+} from "./subscription.service.js";
 
 function requireUserId(request: Request) {
   const userId = request.authUser?.id;
@@ -23,15 +28,15 @@ export async function currentSubscriptionController(request: Request, response: 
   response.json(summary);
 }
 
-export async function changePlanController(request: Request, response: Response) {
+export async function assertFeatureController(request: Request, response: Response) {
   const userId = requireUserId(request);
-  const parsed = changePlanSchema.safeParse(request.body);
+  const parsed = recordUsageSchema.safeParse(request.body);
   if (!parsed.success) {
-    throw new HttpError(400, parsed.error.issues[0]?.message ?? "Plan request is invalid.");
+    throw new HttpError(400, parsed.error.issues[0]?.message ?? "Feature check request is invalid.");
   }
 
-  const result = await changeUserPlan(userId, parsed.data.plan);
-  response.json(result);
+  await assertSubscriptionAllowsOperation(userId, parsed.data.featureKey);
+  response.status(204).send();
 }
 
 export async function recordUsageController(request: Request, response: Response) {

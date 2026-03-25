@@ -36,6 +36,7 @@ type LandingTranslation = {
     login: string;
     register: string;
     openWorkspace: string;
+    signedInFallback: string;
   };
   hero: {
     audience: string[];
@@ -118,6 +119,7 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
       login: "Login",
       register: "Register",
       openWorkspace: "Open Workspace",
+      signedInFallback: "Signed in",
     },
     hero: {
       audience: ["Office teams", "Tender departments", "Administrative staff", "Operations leads"],
@@ -308,6 +310,7 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
       login: "Giriş Yap",
       register: "Kayıt Ol",
       openWorkspace: "Çalışma Alanını Aç",
+      signedInFallback: "Giriş yapıldı",
     },
     hero: {
       audience: ["Ofis ekipleri", "İhale birimleri", "İdari personel", "Operasyon yöneticileri"],

@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 
 from app.core.operations import (
     cleanup_and_raise,
@@ -51,18 +52,34 @@ async def merge_pdfs(
 
     workdir = create_workdir()
     try:
-        saved_paths = []
-        passwords = {}
-        for upload in files:
-            saved = await save_upload(upload, workdir)
+        saved_paths: list[Path] = []
+        for idx, upload in enumerate(files):
+            # Aynı dosya adıyla birden fazla PDF gelince üst üste yazılmasın; sıra korunur.
+            orig_name = Path(upload.filename or "upload.pdf").name
+            unique_name = f"{idx:04d}__{orig_name}"
+            saved = await save_upload(upload, workdir, filename=unique_name)
             saved_paths.append(saved)
+
+        passwords: dict[str, str] = {}
         if passwords_json.strip():
             import json
 
             resolved = json.loads(passwords_json)
-            if isinstance(resolved, dict):
+            if isinstance(resolved, list):
+                for i, saved in enumerate(saved_paths):
+                    if i < len(resolved) and str(resolved[i] or "").strip():
+                        passwords[str(saved)] = str(resolved[i]).strip()
+            elif isinstance(resolved, dict):
                 for saved in saved_paths:
-                    password = str(resolved.get(saved.name, "") or "").strip()
+                    name = saved.name
+                    orig_suffix = name.split("__", 1)[-1] if "__" in name else name
+                    password = str(resolved.get(name, "") or resolved.get(orig_suffix, "") or "").strip()
+                    if not password:
+                        for key, val in resolved.items():
+                            key_name = Path(str(key)).name
+                            if key_name == name or str(key) == name or key_name == orig_suffix or str(key) == orig_suffix:
+                                password = str(val or "").strip()
+                                break
                     if password:
                         passwords[str(saved)] = password
 
@@ -80,24 +97,45 @@ def job_status(job_id: str):
 
 @router.get("/jobs/{job_id}/download")
 def download_job_output(job_id: str, background_tasks: BackgroundTasks):
-    output_path, output_name, workdir = get_job_download(job_id)
+    """İndirme yanıtı gönderildikten sonra cleanup_job tek seferde job kaydını ve temp klasörü siler.
+
+    download_response ile çift cleanup_path tetiklenmesi (özellikle Windows’ta) akışı bozabiliyordu.
+    """
+    output_path, output_name, _workdir = get_job_download(job_id)
     background_tasks.add_task(cleanup_job, job_id)
-    return download_response(output_path, output_name, "application/pdf", background_tasks, workdir)
+    return FileResponse(
+        path=str(output_path),
+        filename=output_name,
+        media_type="application/pdf",
+    )
 
 
 @router.post("/inspect-pdf")
-async def inspect_pdf(file: UploadFile = File(...)):
+async def inspect_pdf(
+    file: UploadFile = File(...),
+    password: str = Form(default=""),
+):
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
         encrypted = engine.is_pdf_encrypted(str(saved_file))
+        pwd = password.strip() or None
         page_count = None
-        if not encrypted:
-            page_count = engine.get_num_pages(str(saved_file))
+        inspect_error = None
+        # Şifreli PDF + parola yok: sayfa sayısı alınamaz; bu beklenen durum, hata sayma.
+        if encrypted and not pwd:
+            pass
+        else:
+            try:
+                page_count = engine.get_num_pages(str(saved_file), password=pwd)
+            except Exception as exc:
+                page_count = None
+                inspect_error = str(exc)
         return {
             "filename": file.filename,
             "encrypted": encrypted,
             "page_count": page_count,
+            "inspect_error": inspect_error,
         }
     except Exception as error:
         cleanup_and_raise(workdir, error)
@@ -120,8 +158,11 @@ async def split_pdf(
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
-        pages = parse_pages_text(pages_text)
         password = password.strip() or None
+        if engine.is_pdf_encrypted(str(saved_file)) and not password:
+            raise HTTPException(status_code=400, detail="Şifreli PDF için kaynak parolası gerekli.")
+        max_pages = engine.get_num_pages(str(saved_file), password=password)
+        pages = parse_pages_text(pages_text, max_page=max_pages)
 
         if mode == "single":
             output_name = format_split_single_filename(file.filename or saved_file.name, pages)
@@ -156,26 +197,13 @@ async def pdf_to_word(
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
-        # Web sürümünde fotoğraf gibi görünen Word çıktılar yerine yalnızca düzenlenebilir içerik hedeflenir.
-        reader = engine._open_pdf_reader(str(saved_file), password=password.strip() or None, context="PDF -> Word")
-        text_chars = 0
-        for page in reader.pages[:5]:
-            try:
-                text_chars += len((page.extract_text() or "").strip())
-            except Exception:
-                pass
-        if text_chars < 20:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Bu PDF taranmış veya görsel tabanlı görünüyor. Web sürümü yalnızca düzenlenebilir Word çıktısı üretir; "
-                    "görsel sayfaları fotoğraf olarak aktaran bir çıktı hazırlamaz."
-                ),
-            )
+        pwd = password.strip() or None
+        if engine.is_pdf_encrypted(str(saved_file)) and not pwd:
+            raise HTTPException(status_code=400, detail="Şifreli PDF için kaynak parolası gerekli.")
 
         output_name = format_derived_filename(file.filename or saved_file.name, "Word", "docx")
         output_path = workdir / output_name
-        engine.pdf_to_word(str(saved_file), str(output_path), password=password.strip() or None)
+        engine.pdf_to_word(str(saved_file), str(output_path), password=pwd)
         return download_response(
             output_path,
             output_path.name,

@@ -7,6 +7,32 @@ from modules.pdf_password_dialog import PdfPasswordDialog
 from modules.ui_theme import badge_colors, theme
 
 
+def _parse_pages_selection(input_text: str):
+    """Web API ile uyumlu sayfa listesi: virgülle ayrılmış sayılar ve tireli aralıklar (1 tabanlı)."""
+    raw = input_text.replace(" ", "").strip()
+    if not raw:
+        return None, "empty"
+    pages: set[int] = set()
+    for token in raw.split(","):
+        if not token:
+            continue
+        if "-" in token:
+            start_raw, end_raw = token.split("-", 1)
+            if not start_raw.isdigit() or not end_raw.isdigit():
+                return None, "format"
+            start, end = int(start_raw), int(end_raw)
+            if start > end:
+                return None, "format"
+            pages.update(range(start, end + 1))
+        else:
+            if not token.isdigit():
+                return None, "format"
+            pages.add(int(token))
+    if not pages:
+        return None, "empty"
+    return sorted(pages), None
+
+
 class ExtractWindow(ctk.CTkToplevel):
     def __init__(self, master, ortalama_func, engine, success_dialog_class, access_controller=None):
         super().__init__(master)
@@ -177,39 +203,50 @@ class ExtractWindow(ctk.CTkToplevel):
 
     def validate_inputs(self, *args):
         raw_text = self.entry_var.get()
-        filtered_text = "".join([c for c in raw_text if c.isdigit() or c in ", "])
+        allowed = "0123456789,- "
+        filtered_text = "".join(c for c in raw_text if c in allowed)
         if raw_text != filtered_text:
             self.entry_var.set(filtered_text)
             return
 
-        input_text = filtered_text.replace(' ', '')
+        input_text = filtered_text.replace(" ", "").strip()
         self.lbl_warning.configure(text="")
 
         if not self.selected_file or not input_text:
             self.btn_run.configure(state="disabled", fg_color=self.ui["panel_alt"])
             return
 
-        try:
-            parts = [p for p in input_text.split(',') if p]
-            for p in parts:
-                if p.isdigit():
-                    p_num = int(p)
-                    if p_num == 0 or p_num > self.total_pages:
-                        self.lbl_warning.configure(text=t("extract.invalid_page", total=self.total_pages))
-                        self.btn_run.configure(state="disabled", fg_color=self.ui["panel_alt"])
-                        self.ent_page.configure(border_color=self.ui["danger"])
-                        return
+        pages, err = _parse_pages_selection(input_text)
+        if err == "format":
+            self.lbl_warning.configure(text=t("extract.invalid_format"))
+            self.btn_run.configure(state="disabled", fg_color=self.ui["panel_alt"])
+            self.ent_page.configure(border_color=self.ui["danger"])
+            return
+        if err == "empty" or not pages:
+            self.btn_run.configure(state="disabled", fg_color=self.ui["panel_alt"])
+            return
 
-            self.btn_run.configure(state="normal", fg_color=self.ui["accent"], text_color=self.ui["button_text"])
-            self.ent_page.configure(border_color=self.ui["success"])
+        for p_num in pages:
+            if p_num < 1 or p_num > self.total_pages:
+                self.lbl_warning.configure(text=t("extract.invalid_page", total=self.total_pages))
+                self.btn_run.configure(state="disabled", fg_color=self.ui["panel_alt"])
+                self.ent_page.configure(border_color=self.ui["danger"])
+                return
 
-        except Exception:
-            self.btn_run.configure(state="disabled")
+        self.btn_run.configure(state="normal", fg_color=self.ui["accent"], text_color=self.ui["button_text"])
+        self.ent_page.configure(border_color=self.ui["success"])
 
     def run_extract(self):
         try:
-            pages_text = self.ent_page.get()
-            pages_list = sorted(list(set([int(p.strip()) for p in pages_text.split(',') if p.strip().isdigit()])))
+            pages_text = self.ent_page.get().replace(" ", "").strip()
+            pages_list, err = _parse_pages_selection(pages_text)
+            if err or not pages_list:
+                messagebox.showwarning(t("app.warning"), t("extract.invalid_format"))
+                return
+            for p in pages_list:
+                if p < 1 or p > self.total_pages:
+                    messagebox.showwarning(t("app.warning"), t("extract.invalid_page", total=self.total_pages))
+                    return
             save_mode = self.segment_mode.get()
 
             if save_mode == t("extract.mode_single"):

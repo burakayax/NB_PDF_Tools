@@ -241,9 +241,8 @@ def word_to_pdf(docx_path: str, pdf_path: str, progress_callback=None) -> bool:
 
 def pdf_to_word(pdf_path: str, docx_path: str, progress_callback=None, password: Optional[str] = None) -> bool:
     """
-    PDF'i düzenlenebilir DOCX olarak dönüştürmeye çalışır.
-    Bu akışta görsel tabanlı OCR yedeği bilinçli olarak kapalıdır;
-    kullanıcı yalnızca düzenlenebilir Word çıktısı istemektedir.
+    PDF'i düzenlenebilir DOCX olarak dönüştürür (pdf2docx, önce ocr=0).
+    Yapısal dönüşüm başarısız olursa ocr=1 yedeklenir; kurulu pdf2docx sürümü OCR desteklemiyorsa taranmış PDF'ler başarısız olabilir.
     """
     try:
         if is_pdf_encrypted(pdf_path) and not password:
@@ -254,25 +253,47 @@ def pdf_to_word(pdf_path: str, docx_path: str, progress_callback=None, password:
 
         try:
             from pdf2docx import Converter
+        except ImportError as e:
+            raise Exception("pdf2docx yüklü değil.") from e
 
+        def _run_convert(use_ocr: int) -> None:
             converter = Converter(pdf_path, password=password)
             try:
                 if progress_callback:
-                    progress_callback(1, 3, "Sayfa düzeni korunarak Word oluşturuluyor...")
-                converter.convert(docx_path)
+                    msg = (
+                        "Taranmış sayfalar için OCR ile Word oluşturuluyor..."
+                        if use_ocr
+                        else "Sayfa düzeni korunarak Word oluşturuluyor..."
+                    )
+                    progress_callback(1, 3, msg)
+                if os.path.isfile(docx_path):
+                    try:
+                        os.remove(docx_path)
+                    except OSError:
+                        pass
+                converter.convert(docx_path, ocr=use_ocr)
             finally:
                 converter.close()
 
-            if os.path.isfile(docx_path):
-                if progress_callback:
-                    progress_callback(3, 3, "Word kaydediliyor...")
-                return True
+        # pdf2docx'in ocr=1 yolu birçok sürümde henüz yok; az metinli PDF'lerde önce ocr=1 çağrılırsa dönüşüm düşüyor.
+        # Her zaman önce yapısal dönüşüm (ocr=0) denenir.
+        try:
+            _run_convert(0)
         except Exception as structural_error:
-            raise Exception(
-                "Bu PDF düzenlenebilir Word olarak dönüştürülemedi. "
-                "Belge taranmış görsel yapıda olabilir veya sayfa düzeni desteklenen sınırların dışında olabilir.\n\n"
-                f"Teknik ayrıntı: {structural_error}"
-            ) from structural_error
+            try:
+                _run_convert(1)
+            except Exception:
+                raise Exception(
+                    "Bu PDF düzenlenebilir Word olarak dönüştürülemedi. "
+                    "Belge taranmış görsel yapıda olabilir veya sayfa düzeni desteklenmiyor; "
+                    "kurulu pdf2docx sürümünüzde OCR yolu yoksa taranmış PDF'ler desteklenmeyebilir.\n\n"
+                    f"Teknik ayrıntı: {structural_error}"
+                ) from structural_error
+
+        if os.path.isfile(docx_path):
+            if progress_callback:
+                progress_callback(3, 3, "Word kaydediliyor...")
+            return True
 
         raise Exception("Word dosyası oluşturulamadı.")
 
@@ -1237,22 +1258,67 @@ def compress_pdf(input_path: str, output_path: str, progress_callback=None, pass
             progress_callback(0, 2, "PDF yeniden paketleniyor...")
         if is_pdf_encrypted(input_path) and not password:
             raise Exception(f"PDF sıkıştırma için şifre gerekli: {os.path.basename(input_path)}")
+        # pikepdf yeni sürümlerde password=None desteklenmez; boş dize kullanılmalı.
+        open_password = (password or "").strip()
         target_path = output_path
         temp_output_path = None
         if os.path.abspath(input_path) == os.path.abspath(output_path):
             fd, temp_output_path = tempfile.mkstemp(suffix=".pdf", dir=os.path.dirname(output_path) or None)
             os.close(fd)
             target_path = temp_output_path
-        with pikepdf.open(input_path, password=password) as pdf:
+        with pikepdf.open(input_path, password=open_password) as pdf:
             pdf.save(
                 target_path,
                 compress_streams=True,
                 recompress_flate=True,
                 object_stream_mode=pikepdf.ObjectStreamMode.generate,
                 linearize=True,
+                stream_decode_level=pikepdf.StreamDecodeLevel.all,
             )
         if temp_output_path:
             os.replace(temp_output_path, output_path)
+        # İkinci geçiş: PyMuPDF ile gömülü görselleri ve akışları yeniden sıkıştırır (genelde daha küçük dosya).
+        try:
+            import fitz
+
+            out_dir = os.path.dirname(output_path) or None
+            fd, tmp_mupdf = tempfile.mkstemp(suffix=".pdf", dir=out_dir)
+            os.close(fd)
+            try:
+                doc = fitz.open(output_path)
+                try:
+                    doc.save(
+                        tmp_mupdf,
+                        garbage=4,
+                        clean=True,
+                        deflate=True,
+                        deflate_images=True,
+                        deflate_fonts=True,
+                        linear=True,
+                        use_objstms=1,
+                    )
+                finally:
+                    doc.close()
+                old_sz = os.path.getsize(output_path)
+                new_sz = os.path.getsize(tmp_mupdf)
+                if new_sz < old_sz:
+                    os.replace(tmp_mupdf, output_path)
+                else:
+                    try:
+                        os.remove(tmp_mupdf)
+                    except OSError:
+                        pass
+            except Exception:
+                if os.path.isfile(tmp_mupdf):
+                    try:
+                        os.remove(tmp_mupdf)
+                    except OSError:
+                        pass
+        except ImportError:
+            pass
+        except Exception:
+            # pikepdf çıktısı yine de kullanılabilir
+            pass
         if progress_callback:
             progress_callback(2, 2, "Tamamlandı")
         return True
@@ -1290,13 +1356,14 @@ def encrypt_pdf(
         owner = owner_password if owner_password else user_password
         if is_pdf_encrypted(input_path) and not input_password:
             raise Exception(f"PDF şifreleme için kaynak dosya şifresi gerekli: {os.path.basename(input_path)}")
+        open_password = (input_password or "").strip()
         target_path = output_path
         temp_output_path = None
         if os.path.abspath(input_path) == os.path.abspath(output_path):
             fd, temp_output_path = tempfile.mkstemp(suffix=".pdf", dir=os.path.dirname(output_path) or None)
             os.close(fd)
             target_path = temp_output_path
-        with pikepdf.open(input_path, password=input_password) as pdf:
+        with pikepdf.open(input_path, password=open_password) as pdf:
             pdf.save(
                 target_path,
                 encryption=pikepdf.Encryption(

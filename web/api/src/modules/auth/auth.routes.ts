@@ -2,6 +2,7 @@ import { Router } from "express";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import {
+  changePasswordController,
   googleOAuthCallbackController,
   googleOAuthStartController,
   loginController,
@@ -10,6 +11,8 @@ import {
   refreshController,
   registerController,
   updatePreferredLanguageController,
+  changePasswordPostController,
+  updateProfileController,
   verifyEmailController,
 } from "./auth.controller.js";
 
@@ -24,3 +27,7 @@ authRouter.post("/logout", asyncHandler(logoutController));
 authRouter.get("/me", requireAuth, asyncHandler(meController));
 authRouter.get("/verify-email", asyncHandler(verifyEmailController));
 authRouter.patch("/preferences/language", requireAuth, asyncHandler(updatePreferredLanguageController));
+authRouter.patch("/profile", requireAuth, asyncHandler(updateProfileController));
+authRouter.patch("/password", requireAuth, asyncHandler(changePasswordController));
+/** JWT zorunlu: requireAuth Bearer token dogrular, request.authUser (sub) doldurur. */
+authRouter.post("/change-password", requireAuth, asyncHandler(changePasswordPostController));

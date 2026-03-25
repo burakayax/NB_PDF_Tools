@@ -86,7 +86,7 @@ def download_response(
     return FileResponse(path=path, filename=filename, media_type=media_type)
 
 
-def parse_pages_text(pages_text: str) -> list[int]:
+def parse_pages_text(pages_text: str, max_page: int | None = None) -> list[int]:
     """Masaüstü uygulamadaki mantığı biraz geliştirip aralıkları da destekler."""
     raw = (pages_text or "").strip()
     if not raw:
@@ -113,7 +113,16 @@ def parse_pages_text(pages_text: str) -> list[int]:
 
     if not pages:
         raise HTTPException(status_code=400, detail="İşlenecek geçerli sayfa bulunamadı.")
-    return sorted(pages)
+    ordered = sorted(pages)
+    if max_page is not None and max_page > 0:
+        too_high = [p for p in ordered if p > max_page]
+        if too_high:
+            raise HTTPException(
+                status_code=400,
+                detail=f"PDF yalnızca {max_page} sayfa içeriyor; geçersiz: {', '.join(str(p) for p in too_high[:5])}"
+                + (" …" if len(too_high) > 5 else ""),
+            )
+    return ordered
 
 
 def parse_merge_passwords(raw_text: str, uploaded_files: Iterable[UploadFile]) -> dict[str, str]:
@@ -160,7 +169,8 @@ def format_split_single_filename(source_name: str, pages: list[int]) -> str:
     """Tek PDF cikti adini secilen sayfalari acikca gosterecek sekilde uretir."""
     stem = get_safe_stem(source_name)
     page_label = "-".join(str(page) for page in pages)
-    return f"{stem}({page_label}. Sayfalar).pdf"
+    label_word = "Sayfa" if len(pages) == 1 else "Sayfalar"
+    return f"{stem}({page_label}. {label_word}).pdf"
 
 
 def format_split_page_filename(source_name: str, page_number: int) -> str:
@@ -173,7 +183,8 @@ def format_split_zip_filename(source_name: str, pages: list[int]) -> str:
     """Ayrı sayfalar zip dosyası için seçilen sayfaları da içeren ad üretir."""
     stem = get_safe_stem(source_name)
     page_label = "-".join(str(page) for page in pages)
-    return f"{stem}({page_label}. Sayfalar).zip"
+    label_word = "Sayfa" if len(pages) == 1 else "Sayfalar"
+    return f"{stem}({page_label}. {label_word}).zip"
 
 
 def format_derived_filename(source_name: str, suffix: str, extension: str) -> str:

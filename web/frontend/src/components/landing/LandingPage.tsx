@@ -9,7 +9,8 @@ type LandingPageProps = {
   windowsDownloadUrl: string;
   onUseWebApp: () => void;
   isAuthenticated: boolean;
-  authEmail?: string;
+  /** Giriş yapılmışsa: "Merhaba, Ahmet" / "Hello, Alex" (yalnızca ad). */
+  authGreeting?: string;
   onLogin: () => void;
   onRegister: () => void;
   onOpenTerms: () => void;
@@ -22,7 +23,7 @@ export function LandingPage({
   windowsDownloadUrl,
   onUseWebApp,
   isAuthenticated,
-  authEmail,
+  authGreeting,
   onLogin,
   onRegister,
   onOpenTerms,
@@ -94,19 +95,19 @@ export function LandingPage({
   }
 
   return (
-    <div className="min-h-screen overflow-hidden bg-[#0f172a] font-sans text-slate-100 antialiased">
+    <div className="min-h-screen overflow-hidden bg-nb-bg font-sans text-nb-text antialiased">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[min(720px,85vh)] bg-[radial-gradient(ellipse_90%_60%_at_50%_-10%,rgba(37,99,235,0.22),transparent_52%),radial-gradient(circle_at_85%_15%,rgba(56,189,248,0.08),transparent_35%)]" />
 
       <main className="relative mx-auto flex w-full max-w-7xl flex-col px-6 pb-16 pt-8 sm:px-8 lg:px-12">
-        <section className="mb-12 rounded-[28px] border border-white/[0.07] bg-white/[0.035] px-5 py-5 shadow-[0_32px_80px_-12px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.04)_inset] backdrop-blur-md xl:px-8">
+        <section className="mb-12 rounded-[28px] border border-white/[0.08] bg-gradient-to-br from-white/[0.06] to-white/[0.02] px-5 py-5 shadow-[0_32px_80px_-12px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.05)_inset] backdrop-blur-md xl:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-blue-500/25 bg-blue-500/10 shadow-[0_0_48px_rgba(37,99,235,0.2)]">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-blue-400/30 bg-gradient-to-br from-blue-500/20 to-slate-900/40 shadow-[0_0_48px_rgba(37,99,235,0.25)]">
                 <img src="/nb_pdf_tools_icon.png" alt="NB PDF TOOLS" className="h-8 w-8 rounded-xl object-cover" />
               </div>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.34em] text-sky-200/80">NB Global Studio</p>
-                <h1 className="text-lg font-semibold tracking-[0.18em] text-white">{copy.navbar.productLabel}</h1>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.38em] text-sky-200/75">NB Global Studio</p>
+                <h1 className="text-lg font-semibold tracking-[0.14em] text-white">{copy.navbar.productLabel}</h1>
               </div>
             </div>
 
@@ -146,7 +147,9 @@ export function LandingPage({
 
               {isAuthenticated ? (
                 <>
-                  <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300">{authEmail}</span>
+                  <span className="max-w-[min(280px,calc(100vw-12rem))] truncate rounded-full border border-white/12 bg-white/[0.07] px-4 py-2 text-sm font-medium text-slate-100">
+                    {authGreeting ?? copy.navbar.signedInFallback}
+                  </span>
                   <button
                     type="button"
                     onClick={onUseWebApp}
@@ -200,7 +203,7 @@ export function LandingPage({
               <button
                 type="button"
                 onClick={onUseWebApp}
-                className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-blue-600 px-7 text-base font-semibold text-white shadow-[0_20px_50px_-10px_rgba(37,99,235,0.5)] transition duration-300 hover:-translate-y-0.5 hover:bg-blue-500"
+                className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-7 text-base font-semibold text-white shadow-[0_20px_50px_-10px_rgba(37,99,235,0.5)] transition duration-300 ease-out hover:-translate-y-0.5 hover:brightness-110"
               >
                 {copy.hero.primaryCta}
               </button>
@@ -234,7 +237,7 @@ export function LandingPage({
             <div className="absolute -right-12 bottom-0 hidden h-44 w-44 rounded-full bg-indigo-400/10 blur-3xl lg:block" />
 
             <div className="relative rounded-[32px] border border-white/[0.08] bg-slate-900/70 p-4 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.65),0_0_0_1px_rgba(255,255,255,0.04)_inset] backdrop-blur-xl">
-              <div className="rounded-[28px] border border-white/[0.06] bg-gradient-to-b from-slate-900/95 via-[#0f172a] to-[#0c1424] p-3">
+              <div className="rounded-[28px] border border-white/[0.06] bg-gradient-to-b from-nb-panel/95 via-nb-bg to-nb-bg-soft p-3">
                 <img
                   src="/app-preview-main.png"
                   alt="NB PDF TOOLS product preview"
@@ -271,7 +274,7 @@ export function LandingPage({
             {copy.features.items.map((item) => (
               <article
                 key={item.title}
-                className="group rounded-[28px] border border-white/10 bg-white/[0.045] p-7 transition duration-300 hover:-translate-y-1 hover:border-slate-400/60 hover:bg-white/[0.07]"
+                className="group rounded-[28px] border border-white/10 bg-white/[0.045] p-7 transition duration-300 ease-out hover:-translate-y-1 hover:border-nb-primary/35 hover:bg-white/[0.07] hover:shadow-[0_20px_50px_-20px_rgba(37,99,235,0.2)]"
               >
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-blue-500/20 bg-blue-500/10">
                   <LandingIcon kind={item.icon} />
@@ -314,7 +317,7 @@ export function LandingPage({
             {copy.screenshots.items.map((shot, index) => (
               <article
                 key={shot.title}
-                className={`group rounded-[30px] border border-white/10 bg-white/[0.045] p-4 transition duration-300 hover:-translate-y-1 hover:border-slate-400/60 ${
+                className={`group rounded-[30px] border border-white/10 bg-white/[0.045] p-4 transition duration-300 ease-out hover:-translate-y-1 hover:border-nb-primary/35 hover:shadow-[0_20px_50px_-20px_rgba(37,99,235,0.18)] ${
                   index === 0 ? "md:col-span-2" : ""
                 }`}
               >
@@ -421,7 +424,7 @@ export function LandingPage({
                     value={contactName}
                     onChange={(event) => setContactName(event.target.value)}
                     disabled={contactSubmitting}
-                    className="w-full rounded-xl border border-white/[0.08] bg-[#0f172a]/80 px-4 py-3.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none transition duration-200 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 hover:border-white/12 disabled:opacity-60"
+                    className="w-full rounded-xl border border-white/[0.08] bg-nb-bg-soft/90 px-4 py-3.5 text-nb-text shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none transition duration-200 ease-out focus:border-nb-primary/50 focus:ring-2 focus:ring-nb-primary/15 hover:border-white/12 disabled:opacity-60"
                   />
                 </label>
 
@@ -432,7 +435,7 @@ export function LandingPage({
                     value={contactEmail}
                     onChange={(event) => setContactEmail(event.target.value)}
                     disabled={contactSubmitting}
-                    className="w-full rounded-xl border border-white/[0.08] bg-[#0f172a]/80 px-4 py-3.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none transition duration-200 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 hover:border-white/12 disabled:opacity-60"
+                    className="w-full rounded-xl border border-white/[0.08] bg-nb-bg-soft/90 px-4 py-3.5 text-nb-text shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none transition duration-200 ease-out focus:border-nb-primary/50 focus:ring-2 focus:ring-nb-primary/15 hover:border-white/12 disabled:opacity-60"
                   />
                 </label>
 
@@ -443,7 +446,7 @@ export function LandingPage({
                     onChange={(event) => setContactMessage(event.target.value)}
                     rows={6}
                     disabled={contactSubmitting}
-                    className="w-full rounded-xl border border-white/[0.08] bg-[#0f172a]/80 px-4 py-3.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none transition duration-200 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 hover:border-white/12 disabled:opacity-60"
+                    className="w-full rounded-xl border border-white/[0.08] bg-nb-bg-soft/90 px-4 py-3.5 text-nb-text shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none transition duration-200 ease-out focus:border-nb-primary/50 focus:ring-2 focus:ring-nb-primary/15 hover:border-white/12 disabled:opacity-60"
                   />
                 </label>
 
@@ -471,7 +474,7 @@ export function LandingPage({
                 <button
                   type="submit"
                   disabled={contactSubmitting}
-                  className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-sky-500 px-7 text-base font-semibold text-slate-950 transition hover:-translate-y-0.5 hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-300"
+                  className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-7 text-base font-semibold text-white shadow-[0_16px_40px_-12px_rgba(37,99,235,0.45)] transition duration-300 ease-out hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {contactSubmitting ? copy.contactSection.submitting : copy.contactSection.submit}
                 </button>
@@ -514,7 +517,7 @@ export function LandingPage({
         </section>
       </main>
 
-      <footer className="relative border-t border-white/[0.06] bg-[#0c1424]/95">
+      <footer className="relative border-t border-white/[0.06] bg-nb-bg-soft/95">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-6 py-8 text-sm text-slate-400 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-12">
           <div>
             <p className="font-semibold tracking-[0.18em] text-slate-200">NB PDF TOOLS</p>

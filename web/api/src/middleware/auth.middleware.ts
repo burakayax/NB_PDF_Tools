@@ -1,9 +1,11 @@
 import type { UserRole } from "@prisma/client";
 import type { NextFunction, Request, Response } from "express";
 import { verifyAccessToken } from "../lib/jwt.js";
+import { resolveRoleFromEmail } from "../lib/role-policy.js";
 
-function tokenRole(payload: { role?: UserRole }): UserRole {
-  return payload.role === "ADMIN" ? "ADMIN" : "USER";
+/** JWT içindeki role alanına güvenilmez; yetki yalnızca e-posta politikasından türetilir. */
+function tokenRole(payload: { email: string }): UserRole {
+  return resolveRoleFromEmail(payload.email);
 }
 
 function readBearerToken(request: Request) {
@@ -15,10 +17,15 @@ function readBearerToken(request: Request) {
   return header.slice("Bearer ".length).trim();
 }
 
+const BEARER_CHALLENGE = 'Bearer realm="api"';
+
 export function requireAuth(request: Request, response: Response, next: NextFunction) {
   const token = readBearerToken(request);
   if (!token) {
-    response.status(401).json({ message: "Authentication is required." });
+    response
+      .status(401)
+      .set("WWW-Authenticate", BEARER_CHALLENGE)
+      .json({ message: "Authentication is required." });
     return;
   }
 
@@ -32,7 +39,10 @@ export function requireAuth(request: Request, response: Response, next: NextFunc
     };
     next();
   } catch {
-    response.status(401).json({ message: "Authentication token is invalid or expired." });
+    response
+      .status(401)
+      .set("WWW-Authenticate", BEARER_CHALLENGE)
+      .json({ message: "Authentication token is invalid or expired." });
   }
 }
 

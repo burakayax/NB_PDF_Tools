@@ -4,6 +4,7 @@
  * - node_modules eksikse npm install çalıştırılır
  * - Prisma client üretilir; SQLite veritabanı dosyası yoksa db push yapılır
  * - web/.venv yoksa Python sanal ortamı kurulmaya çalışılır (PDF servisi için)
+ * - web/.venv varken web/backend/requirements.txt pip ile eşitlenir (PyJWT vb. eksik kalmasın)
  *
  * Not: Windows'ta npm alt süreçleri execSync ile çalıştırılır (spawn EINVAL hatasından kaçınmak için).
  */
@@ -73,6 +74,34 @@ if (!hasWebVenv()) {
     if (r.status !== 0) {
       console.warn(
         "[ensure-dev] Python/venv kurulamadı; PDF API (8000) çalışmayabilir. İsteğe bağlı: npm run install-all veya SETUP_NOTES.txt.",
+      );
+    }
+  }
+}
+
+function webVenvPythonPath() {
+  if (isWin) {
+    return path.join(webDir, ".venv", "Scripts", "python.exe");
+  }
+  const py3 = path.join(webDir, ".venv", "bin", "python3");
+  if (fs.existsSync(py3)) {
+    return py3;
+  }
+  return path.join(webDir, ".venv", "bin", "python");
+}
+
+if (hasWebVenv()) {
+  const py = webVenvPythonPath();
+  const backendReqs = path.join(webDir, "backend", "requirements.txt");
+  if (fs.existsSync(py) && fs.existsSync(backendReqs)) {
+    const r = spawnSync(py, ["-m", "pip", "install", "-q", "-r", backendReqs], {
+      cwd: webDir,
+      stdio: "pipe",
+      encoding: "utf8",
+    });
+    if (r.status !== 0) {
+      console.warn(
+        "[ensure-dev] web/backend/requirements.txt kurulamadı; PDF API (8000) ImportError ile düşebilir. Manuel: web\\.venv\\Scripts\\python.exe -m pip install -r web\\backend\\requirements.txt",
       );
     }
   }

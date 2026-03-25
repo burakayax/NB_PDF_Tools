@@ -31,6 +31,8 @@ enum AuthProvider {
 model User {
   id           String         @id @default(cuid())
   email        String         @unique
+  firstName    String?        @map("first_name")
+  lastName     String?        @map("last_name")
   name         String?
   /// Google "sub" (OpenID); yalnızca Google ile kayıtlı kullanıcılar için dolu
   googleId     String?        @unique

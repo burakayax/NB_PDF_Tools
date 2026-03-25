@@ -4,7 +4,14 @@ import { authLog } from "../../lib/auth-log.js";
 import { env } from "../../config/env.js";
 import { HttpError } from "../../lib/http-error.js";
 import { createSecureToken } from "../../lib/token.js";
-import { authCredentialsSchema, preferredLanguageSchema } from "./auth.schema.js";
+import {
+  authCredentialsSchema,
+  changePasswordSchema,
+  changePasswordSnakeSchema,
+  preferredLanguageSchema,
+  registerSchema,
+  updateProfileSchema,
+} from "./auth.schema.js";
 import {
   buildGoogleAuthorizeUrl,
   assertGoogleOAuthConfigured,
@@ -19,6 +26,7 @@ import {
   maskRedirectUrlForLog,
 } from "./google-oauth.console.js";
 import {
+  changeUserPassword,
   getUserById,
   loginUser,
   logoutUser,
@@ -27,6 +35,7 @@ import {
   signInWithGoogle,
   type AuthSessionResult,
   updatePreferredLanguage,
+  updateUserProfile,
   verifyEmailToken,
 } from "./auth.service.js";
 import { getDesktopDeviceIdFromHeaders, isDesktopClient } from "../device/device.service.js";
@@ -141,16 +150,12 @@ function renderVerificationHtml(status: "success" | "error", title: string, deta
 </html>`;
 }
 
-const registerBodySchema = authCredentialsSchema.extend({
-  preferredLanguage: preferredLanguageSchema.shape.preferredLanguage.optional(),
-});
-
 export async function registerController(request: Request, response: Response) {
   const meta = clientRequestMeta(request);
   authLog.info("POST /api/auth/register: body keys", {
     keys: request.body && typeof request.body === "object" ? Object.keys(request.body as object) : [],
   });
-  const parsed = registerBodySchema.safeParse(request.body);
+  const parsed = registerSchema.safeParse(request.body);
   if (!parsed.success) {
     authLog.warn("POST /api/auth/register: validation failed", { issues: parsed.error.issues.map((i) => i.message) });
     logRegisterAttempt({
@@ -267,6 +272,55 @@ export async function updatePreferredLanguageController(request: Request, respon
 
   const user = await updatePreferredLanguage(request.authUser.id, parsed.data.preferredLanguage);
   response.json({ user });
+}
+
+export async function updateProfileController(request: Request, response: Response) {
+  if (!request.authUser) {
+    throw new HttpError(401, "Authentication is required.");
+  }
+
+  const parsed = updateProfileSchema.safeParse(request.body);
+  if (!parsed.success) {
+    throw new HttpError(400, parsed.error.issues[0]?.message ?? "Profile data is invalid.");
+  }
+
+  const user = await updateUserProfile(request.authUser.id, parsed.data);
+  response.json({ user });
+}
+
+export async function changePasswordController(request: Request, response: Response) {
+  if (!request.authUser) {
+    throw new HttpError(401, "Authentication is required.");
+  }
+
+  const parsed = changePasswordSchema.safeParse(request.body);
+  if (!parsed.success) {
+    throw new HttpError(400, parsed.error.issues[0]?.message ?? "Password data is invalid.");
+  }
+
+  const user = await changeUserPassword(request.authUser.id, parsed.data);
+  response.json({ user });
+}
+
+/** POST /api/auth/change-password — JSON body: current_password, new_password */
+export async function changePasswordPostController(request: Request, response: Response) {
+  if (!request.authUser) {
+    throw new HttpError(401, "Authentication is required.");
+  }
+
+  const parsed = changePasswordSnakeSchema.safeParse(request.body);
+  if (!parsed.success) {
+    throw new HttpError(400, parsed.error.issues[0]?.message ?? "Password data is invalid.");
+  }
+
+  const user = await changeUserPassword(request.authUser.id, {
+    currentPassword: parsed.data.current_password,
+    newPassword: parsed.data.new_password,
+  });
+  response.json({
+    message: "Password has been updated successfully.",
+    user,
+  });
 }
 
 export async function googleOAuthStartController(request: Request, response: Response) {

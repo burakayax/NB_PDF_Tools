@@ -6,16 +6,19 @@ import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../lib
 import { sendMail } from "../../lib/mailer.js";
 import { hashPassword, verifyPassword } from "../../lib/password.js";
 import { prisma } from "../../lib/prisma.js";
+import { resolveRoleFromEmail } from "../../lib/role-policy.js";
 import { isAdminUser } from "../../lib/user-role.js";
 import { ensureDesktopDeviceAccess } from "../device/device.service.js";
 import { createUrlSafeToken, hashToken } from "../../lib/token.js";
 import { createAdminNotificationEmailTemplate, createVerificationEmailTemplate } from "./auth.email.js";
-import type { AuthCredentialsInput } from "./auth.schema.js";
+import type { AuthCredentialsInput, ChangePasswordInput, RegisterInput, UpdateProfileInput } from "./auth.schema.js";
 import { GOOGLE_OAUTH_LOG, logGoogleOAuthJwtIssued, previewSecret } from "./google-oauth.console.js";
 
 type PublicUser = {
   id: string;
   email: string;
+  firstName: string | null;
+  lastName: string | null;
   name: string | null;
   avatar: string | null;
   plan: Plan;
@@ -42,10 +45,25 @@ export type RegistrationResult = {
   user: PublicUser;
 };
 
+/** DB rolü ile e-posta politikası uyumsuzsa günceller (JWT oturumu doğru role ile üretilir). */
+async function syncUserRoleFromEmail(user: User): Promise<User> {
+  const expected = resolveRoleFromEmail(user.email);
+  if (user.role === expected) {
+    return user;
+  }
+  authLog.info("user role synced to email policy", { userId: user.id, from: user.role, to: expected });
+  return prisma.user.update({
+    where: { id: user.id },
+    data: { role: expected },
+  });
+}
+
 function toPublicUser(user: User): PublicUser {
   return {
     id: user.id,
     email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
     name: user.name,
     avatar: user.avatar,
     plan: user.plan,
@@ -189,7 +207,7 @@ async function revokeRefreshToken(token: string) {
   });
 }
 
-export async function registerUser(input: AuthCredentialsInput & { preferredLanguage?: Language }): Promise<RegistrationResult> {
+export async function registerUser(input: RegisterInput): Promise<RegistrationResult> {
   const existingUser = await prisma.user.findUnique({
     where: { email: input.email },
   });
@@ -199,13 +217,20 @@ export async function registerUser(input: AuthCredentialsInput & { preferredLang
     throw new HttpError(409, "An account with this email already exists.");
   }
 
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  const displayName = `${firstName} ${lastName}`.trim() || null;
+
   const passwordHash = await hashPassword(input.password);
   const user = await prisma.user.create({
     data: {
       email: input.email,
+      firstName,
+      lastName,
+      name: displayName,
       passwordHash,
       authProvider: "local",
-      role: "USER",
+      role: resolveRoleFromEmail(input.email),
       isVerified: false,
       preferredLanguage: input.preferredLanguage ?? "en",
     },
@@ -264,7 +289,7 @@ export async function registerUser(input: AuthCredentialsInput & { preferredLang
 export async function loginUser(input: AuthCredentialsInput, deviceId?: string): Promise<AuthSessionResult> {
   authLog.info("login: attempt", { email: input.email, desktop: Boolean(deviceId) });
 
-  const user = await prisma.user.findUnique({
+  let user = await prisma.user.findUnique({
     where: { email: input.email },
   });
 
@@ -288,6 +313,8 @@ export async function loginUser(input: AuthCredentialsInput, deviceId?: string):
     authLog.warn("login rejected: email not verified", { userId: user.id, email: input.email });
     throw new HttpError(403, "Please verify your email address before signing in.");
   }
+
+  user = await syncUserRoleFromEmail(user);
 
   if (deviceId) {
     await ensureDesktopDeviceAccess(user.id, deviceId, true, {
@@ -317,7 +344,7 @@ export async function refreshSession(refreshToken: string): Promise<AuthSessionR
     throw new HttpError(401, "Session refresh token has expired.");
   }
 
-  const user = await prisma.user.findUnique({
+  let user = await prisma.user.findUnique({
     where: { id: payload.sub },
   });
 
@@ -328,6 +355,8 @@ export async function refreshSession(refreshToken: string): Promise<AuthSessionR
   if (!user.isVerified) {
     throw new HttpError(403, "Please verify your email address before continuing.");
   }
+
+  user = await syncUserRoleFromEmail(user);
 
   await revokeRefreshToken(refreshToken);
 
@@ -343,7 +372,7 @@ export async function logoutUser(refreshToken: string | undefined) {
 }
 
 export async function getUserById(userId: string) {
-  const user = await prisma.user.findUnique({
+  let user = await prisma.user.findUnique({
     where: { id: userId },
   });
 
@@ -351,6 +380,7 @@ export async function getUserById(userId: string) {
     throw new HttpError(404, "User account could not be found.");
   }
 
+  user = await syncUserRoleFromEmail(user);
   return toPublicUser(user);
 }
 
@@ -361,6 +391,64 @@ export async function updatePreferredLanguage(userId: string, preferredLanguage:
   });
 
   return toPublicUser(user);
+}
+
+export async function updateUserProfile(userId: string, input: UpdateProfileInput) {
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  const displayName = `${firstName} ${lastName}`.trim() || null;
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      firstName,
+      lastName,
+      name: displayName,
+    },
+  });
+
+  return toPublicUser(user);
+}
+
+export async function changeUserPassword(userId: string, input: ChangePasswordInput) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new HttpError(404, "User account could not be found.");
+  }
+
+  if (!user.passwordHash) {
+    throw new HttpError(
+      400,
+      "This account does not use a password. Use Google sign-in or contact support if you need access.",
+    );
+  }
+
+  const currentMatches = await verifyPassword(input.currentPassword, user.passwordHash);
+  if (!currentMatches) {
+    authLog.warn("password change rejected: wrong current password", { userId: user.id });
+    throw new HttpError(401, "Current password is incorrect.");
+  }
+
+  if (input.currentPassword === input.newPassword) {
+    authLog.warn("password change rejected: new password same as current", { userId: user.id });
+    throw new HttpError(400, "New password must be different from your current password.");
+  }
+
+  const passwordHash = await hashPassword(input.newPassword);
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash },
+  });
+
+  authLog.info("security_event", {
+    event: "password_changed",
+    userId: updated.id,
+    email: updated.email,
+  });
+  return toPublicUser(updated);
 }
 
 export async function signInWithGoogle(params: {
@@ -397,6 +485,7 @@ export async function signInWithGoogle(params: {
         googleId,
         name: params.name,
         avatar: params.avatar,
+        role: resolveRoleFromEmail(email),
         ...(existing.isVerified
           ? {}
           : {
@@ -412,7 +501,8 @@ export async function signInWithGoogle(params: {
       googleId,
     });
     authLog.info("google login: success", { userId: user.id, email: user.email });
-    const session = await createSession(user);
+    const synced = await syncUserRoleFromEmail(user);
+    const session = await createSession(synced);
     logGoogleOAuthSessionIssued(session, "google-login");
     return session;
   }
@@ -425,7 +515,7 @@ export async function signInWithGoogle(params: {
       avatar: params.avatar,
       passwordHash: null,
       authProvider: "google",
-      role: "USER",
+      role: resolveRoleFromEmail(email),
       isVerified: true,
       verifiedAt: new Date(),
       preferredLanguage: params.preferredLanguage,
