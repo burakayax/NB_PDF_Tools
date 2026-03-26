@@ -7,8 +7,8 @@ const DESCRIPTIONS: Record<PlanName, { tr: string; en: string }> = {
     en: "Starter access for trying core document workflows with a daily limit.",
   },
   PRO: {
-    tr: "Tüm PDF araç setine sınırsız erişim.",
-    en: "Unlimited usage with access to the full PDF toolkit.",
+    tr: "Öncelikli işlem, tam araç seti ve günlük kota olmadan sınırsız kullanım.",
+    en: "Priority processing, the full toolkit, and unlimited usage without a daily cap.",
   },
   BUSINESS: {
     tr: "Ekipler için işletmeye uygun yetkilendirme yapısıyla sınırsız erişim.",

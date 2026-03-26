@@ -14,7 +14,7 @@ export function useAnalyticsTracking({ enabled, view, path, language, accessToke
   const lastTrackedRef = useRef("");
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !accessToken) {
       return;
     }
 

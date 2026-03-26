@@ -87,7 +87,7 @@ export function LoginSuccessPage({ completeOAuthLogin, clearSession, onNavigateT
             <h1 className="text-xl font-semibold text-nb-text">Sign-in could not complete</h1>
             <p className="mt-3 text-sm leading-relaxed text-nb-muted">{errorMessage}</p>
             <a
-              href="/?view=login"
+              href="/login"
               className="mt-8 inline-flex items-center justify-center rounded-xl border border-white/[0.1] bg-nb-panel px-4 py-3 text-sm font-semibold text-nb-text transition duration-200 hover:border-nb-primary/35 hover:bg-nb-bg-elevated"
             >
               Back to login

@@ -46,6 +46,7 @@ export function ws(lang: Language) {
       ? "Bu sayfa yalnızca Pro ve Business üyeler içindir. Planınızı yükseltmek için devam edin."
       : "This tool is available on Pro and Business plans. Upgrade to unlock it.",
     proGateCta: tr ? "Plan değiştir" : "Change plan",
+    lockedFeatureTooltip: tr ? "Bu özellik PRO plan gerektirir" : "This feature requires a PRO plan",
     filePick: tr ? "Dosya Seç" : "Choose file",
     fileAdd: tr ? "Dosya Ekle" : "Add file",
     selectedFiles: tr ? "Seçilen dosyalar" : "Selected files",
@@ -81,6 +82,45 @@ export function ws(lang: Language) {
     mergePasswordOk: tr ? "Parola doğrulandı" : "Password verified",
     usageRemainingShort: tr ? "Kalan günlük işlem" : "Daily operations left",
     usageUnlimited: tr ? "Sınırsız" : "Unlimited",
+    usageDailyHeading: tr ? "Günlük kullanım" : "Daily usage",
+    usageUsedTodayLine: (used: number, limit: number) =>
+      tr ? `Bugün kullanılan: ${used} / ${limit} işlem` : `Used today: ${used} / ${limit} operations`,
+    usageCountOfLimit: (used: number, limit: number) =>
+      tr ? `${used} / ${limit} işlem` : `${used} / ${limit} ops`,
+    usageRemainingLine: (n: number) => (tr ? `Kalan işlem: ${n}` : `Remaining: ${n}`),
+    usageUpgradeCta: tr ? "Sınırsız kullanım için PRO'ya geç" : "Upgrade to PRO for unlimited usage",
+    /** Üst menüdeki kısa yükseltme düğmesi */
+    navbarUpgrade: tr ? "Yükselt" : "Upgrade",
+    usageLimitReachedTitle: tr ? "Günlük limit doldu" : "Daily limit reached",
+    usageLimitReachedDetail: tr
+      ? "Abonelik sayfası açıldı. Sınırsız kullanım için PRO planına geçebilirsiniz."
+      : "The subscription page is open. Upgrade to PRO for unlimited usage.",
+    usageQuotaExhaustedBanner: tr
+      ? "Bugünkü ücretsiz işlem hakkınızı kullandınız. Devam etmek için plan yükseltin."
+      : "You've used your free daily operations for today. Upgrade to continue.",
+    proBenefitsKicker: tr ? "PRO değer önerisi" : "PRO value",
+    proBenefitsTitle: tr
+      ? "Daha hızlı işlem, tutarlı kalite, sınırsız kullanım"
+      : "Faster processing, dependable quality, unlimited usage",
+    proBenefitsIntro: tr
+      ? "Ücretsiz plan denemek ve hafif kullanım için uygundur. Belge hacmi arttığında veya tüm araçlara ihtiyaç duyduğunuzda PRO, üretkenliği sürdürülebilir kılan doğal yükseltmedir."
+      : "Free is great for trying the product and light workloads. When volume grows or you need the full toolkit, PRO is the natural upgrade to keep productivity sustainable.",
+    proBenefitTagSpeed: tr ? "Hız" : "Speed",
+    proBenefitSpeed: tr
+      ? "Öncelikli işlem ve daha akıcı çalışma — kuyrukta daha az bekleme, yoğun saatlerde daha öngörülebilir süreler."
+      : "Priority handling and smoother runs — less queue friction and more predictable turnaround when it matters.",
+    proBenefitTagQuality: tr ? "Kalite" : "Quality",
+    proBenefitQuality: tr
+      ? "Tam PDF araç seti ve tutarlı çıktı — dönüştürme, birleştirme, sıkıştırma ve şifrelemede profesyonel sonuçlar."
+      : "The full PDF toolkit with dependable output across convert, merge, compress, and protect workflows.",
+    proBenefitTagUnlimited: tr ? "Sınırsız" : "Unlimited",
+    proBenefitUnlimited: tr
+      ? "Günlük kota üst sınırı yok — limit dolunca durmak yerine aynı gün içinde işinize devam edersiniz."
+      : "No daily quota ceiling — keep working through busy days instead of stopping when a counter hits zero.",
+    proBenefitTagAccess: tr ? "Tam erişim" : "Full access",
+    proBenefitFullAccess: tr
+      ? "Ücretsiz planda yalnızca Pro ile sunulan ileri modüllere tam erişim — tek abonelikte tüm yetenekler."
+      : "Full access to advanced modules that remain gated on Free — one subscription, every capability unlocked.",
     validationPagesNeedPassword: tr
       ? "Sayfa sınırını doğrulamak için önce PDF parolasını girin."
       : "Enter the PDF password first to validate page numbers against the document.",
@@ -91,6 +131,13 @@ export function ws(lang: Language) {
     inspecting: tr ? "PDF kontrol ediliyor…" : "Checking PDF…",
     encryptedBadge: tr ? "Şifreli PDF" : "Encrypted PDF",
     ready: tr ? "Hazır" : "Ready",
+    compressEstimateLine: (minPct: number, maxPct: number) =>
+      tr
+        ? `Tahmini boyut düşüşü: ~%${minPct}–${maxPct} (tipik)`
+        : `Est. size reduction: ~${minPct}–${maxPct}% (typical)`,
+    compressEstimateTooltip: tr
+      ? "Yaklaşık tahmin; gerçek sonuç PDF içeriğine göre değişir."
+      : "Approximate; actual savings depend on PDF content.",
     notesTitle: tr ? "Web sürümü notları" : "Web edition notes",
     platform: tr ? "Platform" : "Platform",
     tesseract: tr ? "Tesseract" : "Tesseract",
@@ -102,6 +149,23 @@ export function ws(lang: Language) {
     mergeProgressPreparing: tr ? "Dosyalar hazırlanıyor…" : "Preparing files…",
     mergeProgressStarting: tr ? "İstek gönderiliyor…" : "Sending request…",
     toolProgressSub: tr ? "Tamamlanınca dosya indirilecek." : "The file will download when ready.",
+    toolProgressPhaseAnalyzing: tr ? "Dosya analiz ediliyor…" : "Analyzing file…",
+    toolProgressPhaseCompressing: tr ? "Sıkıştırma uygulanıyor…" : "Applying compression…",
+    toolProgressPhaseProcessing: tr ? "İşlem uygulanıyor…" : "Processing…",
+    toolProgressPhaseFinishing: tr ? "Son işlemler…" : "Finalizing…",
+    toolProgressPhaseMerging: tr ? "PDF'ler birleştiriliyor…" : "Merging PDFs…",
+    toolProgressSuccessTitle: tr ? "İşlem tamamlandı" : "Completed",
+    toolDownloadAgain: tr ? "Tekrar indir" : "Download again",
+    toolProgressDismiss: tr ? "Kapat" : "Dismiss",
+    toolProgressNativeDownloadHint: tr
+      ? "İndirme tarayıcıya bırakıldı; tekrar için indirilenler klasörünü kontrol edin."
+      : "Download was handed off to the browser; check your Downloads folder.",
+    toolProgressLargeFileHint: (mb: number) =>
+      tr
+        ? `Dosya büyük (~${mb.toFixed(1)} MB); sunucuda işlem uzun sürebilir.`
+        : `Large file (~${mb.toFixed(1)} MB); server processing may take longer.`,
+    toolProgressElapsed: (sec: number) =>
+      tr ? `Geçen süre: ${sec} sn` : `Elapsed: ${sec}s`,
     mergeStatus: tr ? "Durum" : "Status",
     mergeEtaLine: (totalSec: number) => {
       const s = Math.max(0, Math.round(totalSec));

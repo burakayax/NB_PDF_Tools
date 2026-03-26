@@ -4,7 +4,7 @@ import { appendLogLine } from "./file-log.js";
 // kind alanı tüketicilerin satırı sınıflandırmasını sağlar; şema değişince arama panelleri güncellenmelidir.
 // Dosya günlüğü env ile kapatılırsa bu fonksiyonlar sessizce no-op olur (file-log katmanında).
 
-type LogKind = "login_attempt" | "register_attempt" | "google_oauth" | "error" | "api_failure";
+type LogKind = "login_attempt" | "register_attempt" | "google_oauth" | "error" | "api_failure" | "security";
 
 function write(kind: LogKind, payload: Record<string, unknown>): void {
   const line = JSON.stringify({ ts: new Date().toISOString(), kind, ...payload });
@@ -73,4 +73,16 @@ export function logApiFailure(payload: {
   detail?: string;
 }): void {
   write("api_failure", payload as Record<string, unknown>);
+}
+
+/** Şüpheli trafik: rate limit, geçersiz JWT, otomatik IP blokları. */
+export function logSuspiciousActivity(payload: {
+  type: string;
+  ip?: string;
+  path?: string;
+  method?: string;
+  detail?: string;
+  userAgent?: string;
+}): void {
+  write("security", payload as Record<string, unknown>);
 }

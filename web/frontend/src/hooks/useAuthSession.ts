@@ -101,7 +101,7 @@ export function useAuthSession() {
         if (import.meta.env.DEV) {
           console.warn("[auth] /login-error", message);
         }
-        window.location.replace(`${url.origin}/?view=login&oauth_error=${encodeURIComponent(message)}`);
+        window.location.replace(`${url.origin}/login?oauth_error=${encodeURIComponent(message)}`);
         return;
       }
 
@@ -180,6 +180,19 @@ export function useAuthSession() {
     [accessToken],
   );
 
+  const refreshSession = useCallback(async () => {
+    try {
+      const refreshed = await refreshAuthSession();
+      if (refreshed) {
+        persistSession(refreshed.accessToken, refreshed.user);
+        return refreshed;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }, [persistSession]);
+
   return {
     user,
     accessToken,
@@ -193,5 +206,6 @@ export function useAuthSession() {
     changePassword,
     completeOAuthLogin,
     clearSession,
+    refreshSession,
   };
 }

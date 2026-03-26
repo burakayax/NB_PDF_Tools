@@ -7,6 +7,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from PIL import Image, ImageOps
 import PyPDF2
+import io
 import os
 import re
 import statistics
@@ -239,22 +240,105 @@ def word_to_pdf(docx_path: str, pdf_path: str, progress_callback=None) -> bool:
     return True
 
 
+def _fitz_pdf_text_stats(pdf_path: str, password: Optional[str]) -> Tuple[int, int]:
+    """Sayfa sayısı ve çıkarılabilir metin uzunluğu (taranmış PDF ayırt etmek için)."""
+    import fitz
+
+    doc = fitz.open(pdf_path)
+    try:
+        if doc.needs_pass:
+            if not password:
+                raise Exception("Şifre gerekli")
+            if not doc.authenticate(password):
+                raise Exception("Girilen şifre hatalı")
+        n = len(doc)
+        total = 0
+        for i in range(n):
+            total += len(doc.load_page(i).get_text())
+        return n, total
+    finally:
+        doc.close()
+
+
+def _pdf_to_word_ocr_fitz(
+    pdf_path: str,
+    docx_path: str,
+    password: Optional[str],
+    progress_callback=None,
+) -> None:
+    """Metin katmanı zayıf / taranmış PDF: sayfa görüntüsünden Tesseract ile düzenlenebilir metin."""
+    import fitz
+
+    doc_pdf = fitz.open(pdf_path)
+    try:
+        if doc_pdf.needs_pass:
+            if not password:
+                raise Exception("Şifre gerekli")
+            if not doc_pdf.authenticate(password):
+                raise Exception("Girilen şifre hatalı")
+        dw = Document()
+        n = len(doc_pdf)
+        for i in range(n):
+            if progress_callback:
+                progress_callback(i + 1, max(n, 1), f"OCR (sayfa {i + 1}/{n})")
+            page = doc_pdf.load_page(i)
+            mat = fitz.Matrix(2.0, 2.0)
+            pix = page.get_pixmap(matrix=mat, alpha=False)
+            img = Image.open(io.BytesIO(pix.tobytes("png")))
+            try:
+                text = pytesseract.image_to_string(img, lang="tur+eng", config=_TESSERACT_CONFIG)
+            except Exception:
+                text = pytesseract.image_to_string(img, lang="eng", config=_TESSERACT_CONFIG)
+            text = _polish_tesseract_output(text.strip())
+            if i > 0:
+                dw.add_page_break()
+            dw.add_heading(f"Sayfa {i + 1}", level=2)
+            if text:
+                for block in text.split("\n\n"):
+                    line = block.strip()
+                    if line:
+                        dw.add_paragraph(line)
+            else:
+                dw.add_paragraph("(Bu sayfada metin okunamadı.)")
+        dw.save(docx_path)
+    finally:
+        doc_pdf.close()
+
+
 def pdf_to_word(pdf_path: str, docx_path: str, progress_callback=None, password: Optional[str] = None) -> bool:
     """
-    PDF'i düzenlenebilir DOCX olarak dönüştürür (pdf2docx, önce ocr=0).
-    Yapısal dönüşüm başarısız olursa ocr=1 yedeklenir; kurulu pdf2docx sürümü OCR desteklemiyorsa taranmış PDF'ler başarısız olabilir.
+    PDF'i düzenlenebilir DOCX olarak dönüştürür.
+    Metin katmanı çok zayıfsa Tesseract OCR ile metin üretir; aksi halde pdf2docx (yapısal) kullanılır.
     """
     try:
         if is_pdf_encrypted(pdf_path) and not password:
             raise Exception(f"PDF'ten Word'e dönüşüm için şifre gerekli: {os.path.basename(pdf_path)}")
 
         if progress_callback:
-            progress_callback(0, 3, "Yapısal dönüşüm hazırlanıyor...")
+            progress_callback(0, 3, "PDF analiz ediliyor...")
 
         try:
             from pdf2docx import Converter
         except ImportError as e:
             raise Exception("pdf2docx yüklü değil.") from e
+
+        n_pages, text_len = _fitz_pdf_text_stats(pdf_path, password)
+        # Taranmış PDF: yalnızca gerçekten metin katmanı çok zayıfsa OCR (aksi halde pdf2docx düzen korur; erken OCR bazı metin PDF’lerini bozuyordu)
+        if n_pages > 0 and text_len < max(50, n_pages * 18):
+            if progress_callback:
+                progress_callback(1, 3, "Taranmış veya görsel PDF — OCR ile metin çıkarılıyor...")
+            if os.path.isfile(docx_path):
+                try:
+                    os.remove(docx_path)
+                except OSError:
+                    pass
+            _pdf_to_word_ocr_fitz(pdf_path, docx_path, password, progress_callback=progress_callback)
+            if progress_callback:
+                progress_callback(3, 3, "Word kaydediliyor...")
+            return True
+
+        if progress_callback:
+            progress_callback(0, 3, "Yapısal dönüşüm hazırlanıyor...")
 
         def _run_convert(use_ocr: int) -> None:
             converter = Converter(pdf_path, password=password)
@@ -271,24 +355,38 @@ def pdf_to_word(pdf_path: str, docx_path: str, progress_callback=None, password:
                         os.remove(docx_path)
                     except OSError:
                         pass
-                converter.convert(docx_path, ocr=use_ocr)
+                converter.convert(
+                    docx_path,
+                    ocr=use_ocr,
+                    clip_image_res_ratio=2.0,
+                    float_image_ignorable_gap=12.0,
+                    line_overlap_threshold=0.9,
+                    line_separate_threshold=6.0,
+                )
             finally:
                 converter.close()
 
-        # pdf2docx'in ocr=1 yolu birçok sürümde henüz yok; az metinli PDF'lerde önce ocr=1 çağrılırsa dönüşüm düşüyor.
-        # Her zaman önce yapısal dönüşüm (ocr=0) denenir.
         try:
             _run_convert(0)
         except Exception as structural_error:
             try:
                 _run_convert(1)
             except Exception:
-                raise Exception(
-                    "Bu PDF düzenlenebilir Word olarak dönüştürülemedi. "
-                    "Belge taranmış görsel yapıda olabilir veya sayfa düzeni desteklenmiyor; "
-                    "kurulu pdf2docx sürümünüzde OCR yolu yoksa taranmış PDF'ler desteklenmeyebilir.\n\n"
-                    f"Teknik ayrıntı: {structural_error}"
-                ) from structural_error
+                try:
+                    if os.path.isfile(docx_path):
+                        try:
+                            os.remove(docx_path)
+                        except OSError:
+                            pass
+                    if progress_callback:
+                        progress_callback(2, 3, "Yapısal dönüşüm başarısız — OCR deneniyor...")
+                    _pdf_to_word_ocr_fitz(pdf_path, docx_path, password, progress_callback=progress_callback)
+                except Exception:
+                    raise Exception(
+                        "Bu PDF düzenlenebilir Word olarak dönüştürülemedi. "
+                        "Tesseract kurulu olmalı; taranmış PDF’lerde OCR gerekir.\n\n"
+                        f"Teknik ayrıntı: {structural_error}"
+                    ) from structural_error
 
         if os.path.isfile(docx_path):
             if progress_callback:

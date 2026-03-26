@@ -10,6 +10,7 @@ from pathlib import Path
 from fastapi import HTTPException
 
 from app.core.operations import cleanup_path, get_engine
+from app.core.saas_gate import saas_record_usage_sync
 
 engine = get_engine()
 _jobs: dict[str, dict] = {}
@@ -39,7 +40,14 @@ def _serialize(job: dict) -> dict:
     }
 
 
-def create_merge_job(saved_paths: list[Path], passwords: dict[str, str], workdir: Path, output_name: str) -> str:
+def create_merge_job(
+    saved_paths: list[Path],
+    passwords: dict[str, str],
+    workdir: Path,
+    output_name: str,
+    *,
+    saas_token: str | None = None,
+) -> str:
     """PDF birlestirmeyi arka planda calistirip ilerleme bilgisini hafizada tutar."""
     job_id = uuid.uuid4().hex
     output_path = workdir / output_name
@@ -75,6 +83,8 @@ def create_merge_job(saved_paths: list[Path], passwords: dict[str, str], workdir
                 return True
 
             engine.merge_pdfs([str(p) for p in saved_paths], str(output_path), progress_callback=progress_cb, passwords=passwords)
+            if saas_token:
+                saas_record_usage_sync(saas_token, "merge")
             with _lock:
                 job["status"] = "completed"
                 job["message"] = "Birleştirme tamamlandı."

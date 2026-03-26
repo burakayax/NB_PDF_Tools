@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:with-api": "concurrently -k -n api,ui -c green,magenta \"npm run dev --prefix ../api\" \"vite\"",
     "dev:fullstack": "npm run dev --prefix ../..",
     "build": "tsc && vite build",
     "preview": "vite preview"
@@ -14,11 +15,14 @@
     "react-dom": "latest"
   },
   "devDependencies": {
-    "@types/node": "^22.13.14",
     "@tailwindcss/vite": "^4.2.2",
+    "@types/node": "^22.13.14",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "@vitejs/plugin-react": "latest",
+    "concurrently": "^9.2.1",
+    "esbuild": "^0.27.4",
+    "javascript-obfuscator": "^5.4.1",
     "tailwindcss": "^4.2.2",
     "typescript": "latest",
     "vite": "latest"

@@ -3,6 +3,7 @@ import { HttpError } from "../../lib/http-error.js";
 import { recordUsageSchema } from "./subscription.schema.js";
 import {
   assertSubscriptionAllowsOperation,
+  getSubscriptionStatus,
   getSubscriptionSummary,
   listPlans,
   recordUsage,
@@ -26,6 +27,12 @@ export async function currentSubscriptionController(request: Request, response: 
   const userId = requireUserId(request);
   const summary = await getSubscriptionSummary(userId);
   response.json(summary);
+}
+
+export async function subscriptionStatusController(request: Request, response: Response) {
+  const userId = requireUserId(request);
+  const status = await getSubscriptionStatus(userId);
+  response.json(status);
 }
 
 export async function assertFeatureController(request: Request, response: Response) {

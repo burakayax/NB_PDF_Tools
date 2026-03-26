@@ -1,6 +1,5 @@
 import type { Language } from "../i18n/landing";
-
-const SAAS_API_BASE = import.meta.env.VITE_SAAS_API_BASE ?? "http://localhost:4000";
+import { getSaasApiBase } from "./saasBase";
 
 /** useAuthSession ile aynı anahtar; yenileme sonrası güncel jetonu paylaşmak için dışa açık. */
 export const AUTH_ACCESS_TOKEN_STORAGE_KEY = "nbpdf-access-token";
@@ -13,6 +12,8 @@ export type AuthUser = {
   name?: string | null;
   avatar?: string | null;
   plan: string;
+  /** ISO 8601; ücretli abonelik bitişi, yoksa null veya atlanmış. */
+  subscription_expiry?: string | null;
   role?: "USER" | "ADMIN";
   preferredLanguage: Language;
   isVerified?: boolean;
@@ -30,6 +31,35 @@ export type RegisterResponse = {
   verificationRequired: true;
   user: AuthUser;
 };
+
+function authNetworkFailureMessage(): string {
+  return import.meta.env.DEV
+    ? "Kimlik API (port 4000) yanıt vermiyor. Proje kökünde veya `web/api` içinde API’yi başlatın. Geliştirmede `web/frontend/.env` içinde VITE_SAAS_API_BASE’i boş bırakın (Vite proxy kullanılır)."
+    : "API sunucusuna ulaşılamıyor. VITE_SAAS_API_BASE ve dağıtım adresini kontrol edin.";
+}
+
+async function authFetch(input: string, init?: RequestInit): Promise<Response> {
+  const attempts = import.meta.env.DEV ? 10 : 1;
+  const delayMs = 320;
+  let last: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fetch(input, init);
+    } catch (e) {
+      last = e;
+      const retryable = e instanceof TypeError && import.meta.env.DEV && i < attempts - 1;
+      if (retryable) {
+        await new Promise((r) => setTimeout(r, delayMs));
+        continue;
+      }
+      if (e instanceof TypeError) {
+        throw new Error(authNetworkFailureMessage());
+      }
+      throw e;
+    }
+  }
+  throw last instanceof Error ? last : new Error(authNetworkFailureMessage());
+}
 
 function messageFromErrorPayload(payload: unknown, fallback: string): string {
   if (!payload || typeof payload !== "object") {
@@ -85,8 +115,8 @@ type RegisterPayload = {
 };
 
 async function sendAuthRequest<T>(path: string, body?: RegisterPayload | Record<string, string>): Promise<T | null> {
-  const url = `${SAAS_API_BASE}/api/auth${path}`;
-  const response = await fetch(url, {
+  const url = `${getSaasApiBase()}/api/auth${path}`;
+  const response = await authFetch(url, {
     method: "POST",
     headers: body ? { "Content-Type": "application/json" } : undefined,
     credentials: "include",
@@ -146,7 +176,7 @@ export async function logoutAuthUser() {
 }
 
 export async function fetchAuthenticatedUser(accessToken: string) {
-  const response = await fetch(`${SAAS_API_BASE}/api/auth/me`, {
+  const response = await authFetch(`${getSaasApiBase()}/api/auth/me`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
@@ -160,11 +190,11 @@ export async function fetchAuthenticatedUser(accessToken: string) {
 
 export function getGoogleOAuthStartUrl(language: Language) {
   const lang = language === "tr" ? "tr" : "en";
-  return `${SAAS_API_BASE}/api/auth/google?lang=${lang}`;
+  return `${getSaasApiBase()}/api/auth/google?lang=${lang}`;
 }
 
 export async function updateAuthProfile(accessToken: string, body: { firstName: string; lastName: string }) {
-  const response = await fetch(`${SAAS_API_BASE}/api/auth/profile`, {
+  const response = await authFetch(`${getSaasApiBase()}/api/auth/profile`, {
     method: "PATCH",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -183,7 +213,7 @@ export async function updateAuthProfile(accessToken: string, body: { firstName: 
 }
 
 export async function changeAuthPassword(accessToken: string, body: { currentPassword: string; newPassword: string }) {
-  const response = await fetch(`${SAAS_API_BASE}/api/auth/change-password`, {
+  const response = await authFetch(`${getSaasApiBase()}/api/auth/change-password`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -202,7 +232,7 @@ export async function changeAuthPassword(accessToken: string, body: { currentPas
 }
 
 export async function updateAuthPreferredLanguage(accessToken: string, preferredLanguage: Language) {
-  const response = await fetch(`${SAAS_API_BASE}/api/auth/preferences/language`, {
+  const response = await authFetch(`${getSaasApiBase()}/api/auth/preferences/language`, {
     method: "PATCH",
     headers: {
       Authorization: `Bearer ${accessToken}`,

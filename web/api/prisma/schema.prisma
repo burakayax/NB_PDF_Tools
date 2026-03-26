@@ -45,6 +45,8 @@ model User {
   /// Kayıt sonrası e-posta doğrulama belirteci (düz metin); doğrulama sonrası null olur.
   verificationToken String?
   plan         Plan           @default(FREE)
+  /// Ücretli abonelik bitişi; ücretsiz veya süresiz için null olabilir.
+  subscriptionExpiry DateTime? @map("subscription_expiry")
   preferredLanguage Language  @default(en)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
@@ -54,6 +56,23 @@ model User {
   pageViews    PageView[]
   clientErrorLogs ClientErrorLog[]
   desktopDevices DesktopDevice[]
+  paymentCheckouts PaymentCheckout[]
+}
+
+/// iyzico ödeme oturumu; plan yükseltmesi yalnızca completed + doğrulanmış retrieve sonrası uygulanır.
+model PaymentCheckout {
+  id               String    @id @default(cuid())
+  conversationId   String    @unique
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan             Plan
+  status           String    @default("pending")
+  priceTry         String
+  createdAt        DateTime  @default(now())
+  completedAt      DateTime?
+
+  @@index([userId])
+  @@index([status])
 }
 
 model RefreshToken {

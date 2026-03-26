@@ -33,6 +33,20 @@ function devPdfApiDirectOrigin(): string | null {
 }
 
 /** Ağ hatası (Failed to fetch) için anlaşılır mesaj üretir. */
+/** PDF API (FastAPI) SaaS oturumu: plan/kota sunucuda doğrulanır. */
+function saasAuthHeaders(accessToken: string | null | undefined): HeadersInit | undefined {
+  if (!accessToken?.trim()) {
+    return undefined;
+  }
+  return { Authorization: `Bearer ${accessToken.trim()}` };
+}
+
+function appendSaasAccessToken(formData: FormData, accessToken: string | null | undefined) {
+  if (accessToken?.trim()) {
+    formData.set("access_token", accessToken.trim());
+  }
+}
+
 async function pdfFetch(url: string, init?: RequestInit): Promise<Response> {
   try {
     return await fetch(url, init);
@@ -265,9 +279,27 @@ function postFormDataForFileDownload(actionPath: string, formData: FormData): Pr
     : `${window.location.origin}${actionPath.startsWith("/") ? actionPath : `/${actionPath}`}`;
 
   const target = new URL(actionUrl, window.location.href);
-  const targetKey = `${target.origin}${target.pathname}`;
+  const targetPathname = target.pathname;
 
   return new Promise((resolve, reject) => {
+    /** form.submit() anından önceki kaynak zamanlamalarını yok say (önceki indirmeler /api/compress vb. ile karışmasın). */
+    let submitPerfMark = 0;
+
+    function resourceMatchesApiRequest(entry: PerformanceResourceTiming): boolean {
+      try {
+        const u = new URL(entry.name);
+        if (u.pathname !== targetPathname) {
+          return false;
+        }
+        if (submitPerfMark > 0 && entry.startTime > 0 && entry.startTime < submitPerfMark - 2000) {
+          return false;
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
     const iframe = document.createElement("iframe");
     const frameName = `nbpdf-dl-${Date.now()}`;
     iframe.name = frameName;
@@ -277,7 +309,9 @@ function postFormDataForFileDownload(actionPath: string, formData: FormData): Pr
 
     let settled = false;
     let perfObs: PerformanceObserver | null = null;
-    let responseFinalizeScheduled = false;
+    let pollId: number | null = null;
+    let finalizeTimer: number | null = null;
+    let finalizeScheduled = false;
 
     const timer = window.setTimeout(() => {
       if (!settled) {
@@ -289,6 +323,14 @@ function postFormDataForFileDownload(actionPath: string, formData: FormData): Pr
 
     function cleanup() {
       window.clearTimeout(timer);
+      if (finalizeTimer != null) {
+        window.clearTimeout(finalizeTimer);
+        finalizeTimer = null;
+      }
+      if (pollId != null) {
+        window.clearInterval(pollId);
+        pollId = null;
+      }
       try {
         perfObs?.disconnect();
       } catch {
@@ -318,12 +360,14 @@ function postFormDataForFileDownload(actionPath: string, formData: FormData): Pr
       resolve();
     }
 
-    function finalizeAfterResponse() {
-      if (settled || responseFinalizeScheduled) {
+    /** Yanıt gövdesi iframe’e yazıldıktan sonra hata / başarı ayrımı (tek sefer). */
+    function scheduleFinalize() {
+      if (settled || finalizeScheduled) {
         return;
       }
-      responseFinalizeScheduled = true;
-      window.setTimeout(() => {
+      finalizeScheduled = true;
+      finalizeTimer = window.setTimeout(() => {
+        finalizeTimer = null;
         if (settled) {
           return;
         }
@@ -333,7 +377,25 @@ function postFormDataForFileDownload(actionPath: string, formData: FormData): Pr
           return;
         }
         finishOk();
-      }, 120);
+      }, 280);
+    }
+
+    function scanPerformanceForCompletedRequest(): boolean {
+      try {
+        const entries = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
+        for (let i = entries.length - 1; i >= 0; i--) {
+          const e = entries[i];
+          if (!resourceMatchesApiRequest(e)) {
+            continue;
+          }
+          if (e.responseEnd > 0) {
+            return true;
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      return false;
     }
 
     function onResponseLoad() {
@@ -347,9 +409,9 @@ function postFormDataForFileDownload(actionPath: string, formData: FormData): Pr
           return;
         }
       } catch {
-        /* boş gövde: başarılı indirme */
+        /* boş veya ikili gövde */
       }
-      finishOk();
+      scheduleFinalize();
     }
 
     function buildSubmitForm(): HTMLFormElement {
@@ -391,29 +453,29 @@ function postFormDataForFileDownload(actionPath: string, formData: FormData): Pr
               continue;
             }
             const r = e as PerformanceResourceTiming;
-            if (r.responseEnd <= 0) {
+            if (r.responseEnd <= 0 || !resourceMatchesApiRequest(r)) {
               continue;
             }
-            let nameUrl: URL;
-            try {
-              nameUrl = new URL(r.name);
-            } catch {
-              continue;
-            }
-            const key = `${nameUrl.origin}${nameUrl.pathname}`;
-            if (key !== targetKey) {
-              continue;
-            }
-            finalizeAfterResponse();
+            scheduleFinalize();
           }
         });
         perfObs.observe({ type: "resource", buffered: true } as PerformanceObserverInit);
       } catch {
-        /* PerformanceObserver yoksa yalnızca load + uzun zaman aşımı */
+        /* PerformanceObserver yoksa yalnızca load + yoklama */
       }
+
+      pollId = window.setInterval(() => {
+        if (settled) {
+          return;
+        }
+        if (scanPerformanceForCompletedRequest()) {
+          scheduleFinalize();
+        }
+      }, 250);
 
       const form = buildSubmitForm();
       document.body.appendChild(form);
+      submitPerfMark = performance.now();
       form.submit();
       form.remove();
     }
@@ -424,7 +486,18 @@ function postFormDataForFileDownload(actionPath: string, formData: FormData): Pr
   });
 }
 
-async function triggerDownloadFromResponse(response: Response, fallbackName: string) {
+export type ToolDownloadResult = {
+  /** Tekrar indir; yalnızca blob ile tamamlanan yanıtlarda. */
+  replay?: () => void;
+  /** Bellekteki object URL’yi serbest bırakır; panel kapanırken çağrılmalı. */
+  dispose?: () => void;
+};
+
+async function triggerDownloadFromResponse(
+  response: Response,
+  fallbackName: string,
+  options?: { retainBlob?: boolean },
+): Promise<ToolDownloadResult> {
   let blob: Blob;
   try {
     blob = await response.blob();
@@ -451,7 +524,23 @@ async function triggerDownloadFromResponse(response: Response, fallbackName: str
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  URL.revokeObjectURL(blobUrl);
+
+  if (!options?.retainBlob) {
+    URL.revokeObjectURL(blobUrl);
+    return {};
+  }
+
+  const replay = () => {
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+  const dispose = () => URL.revokeObjectURL(blobUrl);
+  return { replay, dispose };
 }
 
 export async function fetchCapabilities() {
@@ -460,15 +549,17 @@ export async function fetchCapabilities() {
   return response.json();
 }
 
-export async function inspectPdf(file: File, password?: string) {
+export async function inspectPdf(file: File, password?: string, accessToken?: string | null) {
   const formData = new FormData();
   formData.append("file", file);
   if (password?.trim()) {
     formData.append("password", password.trim());
   }
+  appendSaasAccessToken(formData, accessToken);
   const response = await pdfFetch(`${API_BASE}/api/inspect-pdf`, {
     method: "POST",
     body: formData,
+    headers: saasAuthHeaders(accessToken),
   });
   await ensureOk(response, "PDF bilgisi okunamadı.");
   return response.json() as Promise<{
@@ -479,17 +570,24 @@ export async function inspectPdf(file: File, password?: string) {
   }>;
 }
 
-export async function createMergeJob(formData: FormData) {
+export async function createMergeJob(formData: FormData, accessToken?: string | null) {
+  appendSaasAccessToken(formData, accessToken);
   const response = await pdfFetch(`${API_BASE}/api/merge`, {
     method: "POST",
     body: formData,
+    headers: saasAuthHeaders(accessToken),
   });
   await ensureOk(response, "Birleştirme başlatılamadı.");
   return response.json() as Promise<{ job_id: string }>;
 }
 
-export async function fetchMergeJob(jobId: string) {
-  const response = await pdfFetchWithRetry(`${API_BASE}/api/jobs/${jobId}`, undefined, 5, 320);
+export async function fetchMergeJob(jobId: string, accessToken?: string | null) {
+  const response = await pdfFetchWithRetry(
+    `${API_BASE}/api/jobs/${jobId}`,
+    { headers: saasAuthHeaders(accessToken), cache: "no-store" },
+    5,
+    320,
+  );
   await ensureOk(response, "İşlem durumu okunamadı.");
   return response.json() as Promise<MergeJobStatus>;
 }
@@ -521,8 +619,18 @@ function shouldUseNativeMergeDownload(href: string): boolean {
  * Birleştirilmiş PDF: aynı kökende tarayıcının doğrudan indirmesini kullanır (fetch+blob akışı büyük dosyalarda kesilebiliyor).
  * PDF API farklı kökende ise fetch + blob yedeği kullanılır.
  */
-export async function downloadMergeJob(jobId: string, fallbackName = "birleştirilmiş.pdf") {
+export async function downloadMergeJob(
+  jobId: string,
+  fallbackName = "birleştirilmiş.pdf",
+  accessToken?: string | null,
+): Promise<ToolDownloadResult> {
   const href = mergeJobDownloadUrl(jobId);
+
+  if (accessToken?.trim()) {
+    const response = await pdfFetchWithRetry(href, { headers: saasAuthHeaders(accessToken), cache: "no-store" }, 8, 450);
+    await ensureOk(response, "Birleştirilmiş dosya indirilemedi.");
+    return triggerDownloadFromResponse(response, fallbackName, { retainBlob: true });
+  }
 
   if (shouldUseNativeMergeDownload(href)) {
     const a = document.createElement("a");
@@ -533,16 +641,51 @@ export async function downloadMergeJob(jobId: string, fallbackName = "birleştir
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    return;
+    return {};
   }
 
   const response = await pdfFetchWithRetry(href, undefined, 8, 450);
   await ensureOk(response, "Birleştirilmiş dosya indirilemedi.");
-  await triggerDownloadFromResponse(response, fallbackName);
+  return triggerDownloadFromResponse(response, fallbackName, { retainBlob: true });
 }
 
-export async function downloadFromApi(endpoint: string, formData: FormData, fallbackName: string) {
+/**
+ * Aynı kökende iframe + POST ile tamamlanma bazı tarayıcılarda hiç resolve olmuyor.
+ * Bu sınıra kadar fetch + blob ile indirilir (çubuk kapanır, dosya gelir). Çok büyük çıktılarda bellek sınırına dikkat.
+ */
+const MAX_SAME_ORIGIN_FETCH_BYTES = 220 * 1024 * 1024;
+
+function getPrimaryUploadFile(formData: FormData): File | null {
+  const v = formData.get("file");
+  return v instanceof File ? v : null;
+}
+
+export async function downloadFromApi(
+  endpoint: string,
+  formData: FormData,
+  fallbackName: string,
+  accessToken?: string | null,
+): Promise<ToolDownloadResult> {
+  appendSaasAccessToken(formData, accessToken);
   const url = buildToolApiUrl(endpoint);
+  const upload = getPrimaryUploadFile(formData);
+  const authInit = { headers: saasAuthHeaders(accessToken) };
+  const preferFetch =
+    shouldUseBrowserNativeDownload(url) &&
+    upload !== null &&
+    upload.size > 0 &&
+    upload.size <= MAX_SAME_ORIGIN_FETCH_BYTES;
+
+  if (preferFetch) {
+    const response = await pdfFetch(url, {
+      method: "POST",
+      body: formData,
+      ...authInit,
+    });
+    await ensureOk(response, "İşlem başarısız oldu.");
+    return triggerDownloadFromResponse(response, fallbackName, { retainBlob: true });
+  }
+
   if (shouldUseBrowserNativeDownload(url)) {
     try {
       await postFormDataForFileDownload(url, formData);
@@ -550,15 +693,16 @@ export async function downloadFromApi(endpoint: string, formData: FormData, fall
       const msg = e instanceof Error ? e.message : String(e);
       throw new Error(msg || "İşlem başarısız oldu.");
     }
-    return;
+    return {};
   }
 
   const response = await pdfFetch(url, {
     method: "POST",
     body: formData,
+    ...authInit,
   });
   await ensureOk(response, "İşlem başarısız oldu.");
-  await triggerDownloadFromResponse(response, fallbackName);
+  return triggerDownloadFromResponse(response, fallbackName, { retainBlob: true });
 }
 
 export type { MergeJobStatus };

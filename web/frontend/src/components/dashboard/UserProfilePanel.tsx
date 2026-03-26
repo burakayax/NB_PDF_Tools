@@ -1,5 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { AuthUser } from "../../api/auth";
+import type { PlanName } from "../../api/subscription";
+import { localizedPlanDisplayName } from "../../i18n/plans";
 import type { Language } from "../../i18n/landing";
 
 type ToastType = "success" | "error" | "loading" | "info";
@@ -14,6 +16,24 @@ type UserProfilePanelProps = {
 
 const inputClass =
   "w-full rounded-xl border border-white/[0.08] bg-nb-bg-soft/60 px-4 py-3 text-sm text-nb-text outline-none transition duration-200 ease-out placeholder:text-nb-muted focus:border-nb-primary/50 focus:ring-2 focus:ring-nb-primary/15 hover:border-white/12";
+
+function planNameFromUser(plan: string): PlanName {
+  if (plan === "PRO" || plan === "BUSINESS" || plan === "FREE") {
+    return plan;
+  }
+  return "FREE";
+}
+
+function formatSubscriptionExpiry(iso: string | null | undefined, language: Language): string {
+  if (!iso) {
+    return "—";
+  }
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) {
+    return "—";
+  }
+  return d.toLocaleDateString(language === "tr" ? "tr-TR" : "en-US", { dateStyle: "long" });
+}
 
 function splitFromName(name: string | null | undefined): { first: string; last: string } {
   const t = name?.trim() ?? "";
@@ -113,6 +133,26 @@ export function UserProfilePanel({ user, language, updateProfile, showToast, onO
             {profileSubmitting ? (tr ? "Kaydediliyor…" : "Saving…") : tr ? "Adı güncelle" : "Update name"}
           </button>
         </form>
+      </section>
+
+      <section className="rounded-2xl border border-white/[0.08] bg-nb-panel/50 p-6 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.45)] backdrop-blur-sm">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-nb-muted">{tr ? "Abonelik" : "Subscription"}</p>
+        <h2 className="mt-1 text-xl font-semibold tracking-tight text-nb-text">{tr ? "Plan ve yenileme" : "Plan and renewal"}</h2>
+        <dl className="mt-6 space-y-3 text-sm">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-white/[0.06] pb-3">
+            <dt className="text-nb-muted">{tr ? "Plan" : "Plan"}</dt>
+            <dd className="font-medium text-nb-text">{localizedPlanDisplayName(planNameFromUser(user.plan), language)}</dd>
+          </div>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <dt className="text-nb-muted">{tr ? "Abonelik bitişi" : "Subscription ends"}</dt>
+            <dd className="font-medium text-nb-text">{formatSubscriptionExpiry(user.subscription_expiry, language)}</dd>
+          </div>
+        </dl>
+        <p className="mt-4 text-xs leading-relaxed text-nb-muted">
+          {tr
+            ? "Abonelik bitişi, ücretli plan satın alındığında veya yenilendiğinde güncellenir."
+            : "Subscription end date is set when you purchase or renew a paid plan."}
+        </p>
       </section>
 
       <section

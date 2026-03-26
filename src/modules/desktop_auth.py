@@ -349,6 +349,13 @@ class DesktopAuthClient:
             raise DesktopAuthError("Lisans doğrulama yanıtı beklenen formatta değil.")
         return response
 
+    def subscription_status(self, access_token: str) -> dict[str, Any]:
+        """Web ile aynı kaynak: sunucu tarihine göre plan ve kalan gün (GET /api/subscription/status)."""
+        response = self._request("GET", "/subscription/status", access_token=access_token, forbidden_as_blocked=True)
+        if not isinstance(response, dict):
+            raise DesktopAuthError("Abonelik durumu yanıtı beklenen formatta değil.")
+        return response
+
     def fetch_profile(self, access_token: str) -> dict[str, Any]:
         response = self._request("GET", "/user/profile", access_token=access_token, forbidden_as_blocked=True)
         if not isinstance(response, dict) or not isinstance(response.get("user"), dict):

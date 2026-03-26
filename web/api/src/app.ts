@@ -1,22 +1,91 @@
+import compression from "compression";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
+import helmet from "helmet";
 import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 import { env } from "./config/env.js";
 import { logError } from "./lib/app-logger.js";
 import { asyncHandler } from "./lib/async-handler.js";
 import { HttpError } from "./lib/http-error.js";
+import { enforceHttpsMiddleware } from "./middleware/https-enforce.middleware.js";
+import { abuseBlockMiddleware, globalApiLimiter } from "./middleware/api-security.middleware.js";
 import { verifyEmailController } from "./modules/auth/auth.controller.js";
 import { submitContactController } from "./modules/contact/contact.controller.js";
 import { contactPostLimiter } from "./modules/contact/contact.rate-limit.js";
 import { apiRouter } from "./routes/index.js";
 
+/** localhost ↔ 127.0.0.1 (aynı port) tarayıcıda farklı origin sayılır; ikisini de CORS’ta kabul eder. */
+function corsAllowedOrigins(): Set<string> {
+  const primary = env.FRONTEND_ORIGIN.replace(/\/$/, "");
+  const set = new Set<string>([primary]);
+  try {
+    const u = new URL(primary);
+    if (u.hostname === "localhost") {
+      u.hostname = "127.0.0.1";
+      set.add(u.origin);
+    } else if (u.hostname === "127.0.0.1") {
+      u.hostname = "localhost";
+      set.add(u.origin);
+    }
+  } catch {
+    /* ignore */
+  }
+  const oauth = env.OAUTH_FRONTEND_REDIRECT_ORIGIN.replace(/\/$/, "");
+  if (oauth && oauth !== primary) {
+    set.add(oauth);
+    try {
+      const u = new URL(oauth);
+      if (u.hostname === "localhost") {
+        u.hostname = "127.0.0.1";
+        set.add(u.origin);
+      } else if (u.hostname === "127.0.0.1") {
+        u.hostname = "localhost";
+        set.add(u.origin);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return set;
+}
+
 export const app = express();
 
+const trust = env.TRUST_PROXY.trim();
+if (trust === "true" || trust === "1") {
+  app.set("trust proxy", true);
+} else if (/^\d+$/.test(trust)) {
+  app.set("trust proxy", Number.parseInt(trust, 10));
+} else if (trust.length > 0) {
+  app.set("trust proxy", trust);
+} else if (env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
+if (env.NODE_ENV === "production") {
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
+}
+
+app.use(compression());
+app.use(enforceHttpsMiddleware);
+
+const corsOrigins = corsAllowedOrigins();
 app.use(
   cors({
-    origin: env.FRONTEND_ORIGIN,
+    origin(origin, callback) {
+      if (!origin || corsOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(null, false);
+    },
     credentials: true,
   }),
 );
@@ -30,7 +99,7 @@ app.get("/verify-email", (request, response, next) => {
 // İletişim formunu kök URL altında da kabul eder; gövde POST /api/contact ile aynı denetleyicidir.
 // Eski veya kısa URL sözleşmeleri ve CDN yönlendirmeleri için esnek giriş noktası sağlar.
 // Yol veya handler ayrılırsa istemciler yanlış uç noktaya yazıp 404 alabilir.
-app.post("/contact", contactPostLimiter, asyncHandler(submitContactController));
+app.post("/contact", abuseBlockMiddleware, globalApiLimiter, contactPostLimiter, asyncHandler(submitContactController));
 
 app.use("/api", apiRouter);
 

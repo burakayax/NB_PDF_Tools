@@ -1,6 +1,5 @@
 import type { Language } from "../i18n/landing";
-
-const SAAS_API_BASE = import.meta.env.VITE_SAAS_API_BASE ?? "http://localhost:4000";
+import { getSaasApiBase } from "./saasBase";
 
 export type ClientErrorPayload = {
   message: string;
@@ -12,7 +11,7 @@ export type ClientErrorPayload = {
 };
 
 export async function reportClientError(payload: ClientErrorPayload, accessToken?: string | null) {
-  await fetch(`${SAAS_API_BASE}/api/errors/log`, {
+  await fetch(`${getSaasApiBase()}/api/errors/log`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

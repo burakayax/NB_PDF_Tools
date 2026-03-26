@@ -1,6 +1,5 @@
 import { AUTH_ACCESS_TOKEN_STORAGE_KEY, refreshAuthSession, type AuthUser } from "./auth";
-
-const SAAS_API_BASE = import.meta.env.VITE_SAAS_API_BASE ?? "http://localhost:4000";
+import { getSaasApiBase } from "./saasBase";
 
 type SaasSessionSync = (session: { accessToken: string; user: AuthUser }) => void;
 
@@ -68,6 +67,13 @@ export type SubscriptionSummary = {
   allowedFeatures: FeatureKey[];
 };
 
+/** Sunucu hesaplı kalan gün; geri sayım için istemci tarihi kullanılmaz. */
+export type SubscriptionStatus = {
+  plan: PlanName;
+  remaining_days: number | null;
+  plan_downgraded?: boolean;
+};
+
 async function ensureOk(response: Response, defaultMessage: string) {
   if (response.ok) {
     return;
@@ -91,7 +97,7 @@ function createHeaders(accessToken: string) {
 }
 
 export async function fetchPlans() {
-  const response = await fetch(`${SAAS_API_BASE}/api/subscription/plans`);
+  const response = await fetch(`${getSaasApiBase()}/api/subscription/plans`);
   await ensureOk(response, "Plans could not be loaded.");
   const payload = (await response.json()) as { plans: PlanDefinition[] };
   return payload.plans;
@@ -100,7 +106,7 @@ export async function fetchPlans() {
 export async function fetchSubscriptionSummary(accessToken: string) {
   const token = readLatestAccessToken(accessToken);
   const response = await saasAuthorizedFetch(token, (t) =>
-    fetch(`${SAAS_API_BASE}/api/subscription/current`, {
+    fetch(`${getSaasApiBase()}/api/subscription/current`, {
       headers: {
         Authorization: `Bearer ${t}`,
       },
@@ -111,11 +117,25 @@ export async function fetchSubscriptionSummary(accessToken: string) {
   return response.json() as Promise<SubscriptionSummary>;
 }
 
+export async function fetchSubscriptionStatus(accessToken: string) {
+  const token = readLatestAccessToken(accessToken);
+  const response = await saasAuthorizedFetch(token, (t) =>
+    fetch(`${getSaasApiBase()}/api/subscription/status`, {
+      headers: {
+        Authorization: `Bearer ${t}`,
+      },
+      credentials: "include",
+    }),
+  );
+  await ensureOk(response, "Subscription status could not be loaded.");
+  return response.json() as Promise<SubscriptionStatus>;
+}
+
 /** Server-side plan and quota check before running a PDF operation (does not consume quota). */
 export async function assertFeatureBeforeAction(accessToken: string, featureKey: FeatureKey) {
   const token = readLatestAccessToken(accessToken);
   const response = await saasAuthorizedFetch(token, (t) =>
-    fetch(`${SAAS_API_BASE}/api/subscription/assert-feature`, {
+    fetch(`${getSaasApiBase()}/api/subscription/assert-feature`, {
       method: "POST",
       headers: createHeaders(t),
       credentials: "include",
@@ -128,7 +148,7 @@ export async function assertFeatureBeforeAction(accessToken: string, featureKey:
 export async function recordUsage(accessToken: string, featureKey: FeatureKey) {
   const token = readLatestAccessToken(accessToken);
   const response = await saasAuthorizedFetch(token, (t) =>
-    fetch(`${SAAS_API_BASE}/api/subscription/record-usage`, {
+    fetch(`${getSaasApiBase()}/api/subscription/record-usage`, {
       method: "POST",
       headers: createHeaders(t),
       credentials: "include",

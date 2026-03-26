@@ -1,11 +1,74 @@
-import type { Plan } from "@prisma/client";
+import type { Plan, User } from "@prisma/client";
 import { HttpError } from "../../lib/http-error.js";
 import { prisma } from "../../lib/prisma.js";
 import { isAdminUser } from "../../lib/user-role.js";
 import { planDefinitions, type FeatureKey } from "./subscription.config.js";
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Sunucu saatiyle abonelik süresi dolmuşsa planı FREE yapar (JWT eski kalsa bile DB doğru olur).
+ * Geri sayım ve yetkilendirme bu fonksiyonla tutarlı kalır; istemci tarihi kullanılmaz.
+ */
+export async function ensurePaidSubscriptionActiveOrDowngrade(userId: string): Promise<{ user: User; downgraded: boolean }> {
+  const now = new Date();
+  const userBefore = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!userBefore) {
+    throw new HttpError(404, "User account could not be found.");
+  }
+
+  if (isAdminUser(userBefore)) {
+    return { user: userBefore, downgraded: false };
+  }
+
+  const paid = userBefore.plan === "PRO" || userBefore.plan === "BUSINESS";
+  if (paid && userBefore.subscriptionExpiry != null && userBefore.subscriptionExpiry.getTime() <= now.getTime()) {
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { plan: "FREE", subscriptionExpiry: null },
+    });
+    return { user, downgraded: true };
+  }
+
+  return { user: userBefore, downgraded: false };
+}
+
+export type SubscriptionStatusPayload = {
+  plan: Plan;
+  remaining_days: number | null;
+  plan_downgraded?: boolean;
+};
+
+export async function getSubscriptionStatus(userId: string): Promise<SubscriptionStatusPayload> {
+  const now = new Date();
+  const { user, downgraded } = await ensurePaidSubscriptionActiveOrDowngrade(userId);
+  const base = downgraded ? { plan_downgraded: true as const } : {};
+
+  if (isAdminUser(user)) {
+    return { plan: "PRO", remaining_days: null, ...base };
+  }
+
+  if (user.plan === "FREE") {
+    return { plan: "FREE", remaining_days: null, ...base };
+  }
+
+  if (!user.subscriptionExpiry) {
+    return { plan: user.plan, remaining_days: null };
+  }
+
+  const remaining_days = Math.max(
+    0,
+    Math.ceil((user.subscriptionExpiry.getTime() - now.getTime()) / MS_PER_DAY),
+  );
+
+  return { plan: user.plan, remaining_days };
 }
 
 function serializePlanCatalog() {
@@ -15,13 +78,7 @@ function serializePlanCatalog() {
 }
 
 export async function getSubscriptionSummary(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-  });
-
-  if (!user) {
-    throw new HttpError(404, "User account could not be found.");
-  }
+  const { user } = await ensurePaidSubscriptionActiveOrDowngrade(userId);
 
   const usageDate = todayKey();
   const usage = await prisma.dailyUsage.findUnique({
@@ -74,26 +131,9 @@ export function listPlans() {
   return serializePlanCatalog();
 }
 
-export async function changeUserPlan(userId: string, plan: Plan) {
-  const updatedUser = await prisma.user.update({
-    where: { id: userId },
-    data: { plan },
-  });
-
-  return {
-    plan: planDefinitions[updatedUser.plan],
-  };
-}
-
 /** Validates plan, feature entitlement, and daily quota without incrementing usage. Call before expensive work. */
 export async function assertSubscriptionAllowsOperation(userId: string, featureKey: FeatureKey) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-  });
-
-  if (!user) {
-    throw new HttpError(404, "User account could not be found.");
-  }
+  const { user } = await ensurePaidSubscriptionActiveOrDowngrade(userId);
 
   if (isAdminUser(user)) {
     return;

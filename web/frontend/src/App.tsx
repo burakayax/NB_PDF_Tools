@@ -15,19 +15,21 @@ import { CookieNotice } from "./components/common/CookieNotice";
 import { DashboardSidebar, DashboardSidebarMobileRail, type SidebarToolId } from "./components/dashboard/DashboardSidebar";
 import { DashboardTopNav } from "./components/dashboard/DashboardTopNav";
 import { ChangePasswordModal } from "./components/dashboard/ChangePasswordModal";
+import { UpgradeModal } from "./components/dashboard/UpgradeModal";
 import { UserProfilePanel } from "./components/dashboard/UserProfilePanel";
 import { userGreetingLine } from "./components/dashboard/userDisplayName";
 import { AuthPage } from "./components/auth/AuthPage";
 import { LoginSuccessPage } from "./components/auth/LoginSuccessPage";
 import { LandingPage } from "./components/landing/LandingPage";
 import { LegalPage } from "./components/legal/LegalPage";
+import { createPaymentCheckout } from "./api/payment";
 import {
-  assertFeatureBeforeAction,
   fetchPlans,
+  fetchSubscriptionStatus,
   fetchSubscriptionSummary,
-  recordUsage,
   type FeatureKey,
   type PlanDefinition,
+  type SubscriptionStatus,
   type SubscriptionSummary,
 } from "./api/subscription";
 import { translateAuthApiMessage } from "./i18n/auth";
@@ -203,6 +205,63 @@ function EmptyState({ title, hint, compact = false }: { title: string; hint: str
   );
 }
 
+function formatFileSize(bytes: number): string {
+  const n = Math.max(0, bytes);
+  if (n < 1024) return `${n} B`;
+  const kb = n / 1024;
+  if (kb < 1024) return `${kb < 10 ? kb.toFixed(1) : Math.round(kb)} KB`;
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
+  const gb = mb / 1024;
+  return `${gb.toFixed(1)} GB`;
+}
+
+/** UI-only heuristic for typical PDF recompression bands (not a server guarantee). */
+function compressEstimatePercentRange(bytes: number): { min: number; max: number } {
+  if (bytes < 80 * 1024) return { min: 5, max: 18 };
+  if (bytes < 512 * 1024) return { min: 10, max: 28 };
+  if (bytes < 5 * 1024 * 1024) return { min: 15, max: 38 };
+  return { min: 18, max: 45 };
+}
+
+function genericToolPhaseLabel(
+  featureId: FeatureId,
+  percent: number,
+  indeterminate: boolean,
+  W: ReturnType<typeof ws>,
+): string {
+  if (indeterminate) {
+    return W.toolProgressPhaseAnalyzing;
+  }
+  if (percent < 30) {
+    return W.toolProgressPhaseAnalyzing;
+  }
+  if (percent < 82) {
+    if (featureId === "compress") {
+      return W.toolProgressPhaseCompressing;
+    }
+    return W.toolProgressPhaseProcessing;
+  }
+  return W.toolProgressPhaseFinishing;
+}
+
+function mergeToolPhaseLabel(job: MergeJobStatus, indeterminate: boolean, W: ReturnType<typeof ws>): string {
+  if (job.status === "failed") {
+    return "";
+  }
+  if (indeterminate) {
+    return W.toolProgressPhaseAnalyzing;
+  }
+  const p = job.percent;
+  if (p < 32) {
+    return W.toolProgressPhaseAnalyzing;
+  }
+  if (p < 78) {
+    return W.toolProgressPhaseMerging;
+  }
+  return W.toolProgressPhaseFinishing;
+}
+
 function createUploadItems(fileList: File[]) {
   // Tarayıcı File listesini arayüz state modeline çevirir; her öğeye kararlı id ve şifre alanı ekler.
   // Birleştirme sırası ve liste render'ı bu yapı üzerinden yürüdüğünden tutarlı şema gereklidir.
@@ -320,6 +379,42 @@ function getTrackedPath(view: AppView) {
   }
 }
 
+/** İlk paint'te URL ile aynı ekranı göstermek için (ör. /login, /workspace, ?view=register). */
+function getInitialViewFromLocation(): AppView {
+  if (typeof window === "undefined") {
+    return "landing";
+  }
+  const rawPath = window.location.pathname.replace(/\/$/, "") || "/";
+  if (rawPath === "/login-success" || rawPath === "/login-error") {
+    return "landing";
+  }
+  switch (rawPath) {
+    case "/login":
+      return "login";
+    case "/register":
+      return "register";
+    case "/terms":
+      return "terms";
+    case "/privacy":
+      return "privacy";
+    case "/workspace":
+      return "web";
+    default:
+      break;
+  }
+  const requestedView = new URLSearchParams(window.location.search).get("view");
+  if (
+    requestedView === "login" ||
+    requestedView === "register" ||
+    requestedView === "web" ||
+    requestedView === "terms" ||
+    requestedView === "privacy"
+  ) {
+    return requestedView;
+  }
+  return "landing";
+}
+
 function App() {
   const { language, setLanguage, detectInitialLanguage } = usePreferredLanguage();
   const {
@@ -335,9 +430,10 @@ function App() {
     changePassword,
     completeOAuthLogin,
     clearSession,
+    refreshSession,
   } = useAuthSession();
   const { hasConsent, isReady: isCookieConsentReady, acceptConsent } = useCookieConsent();
-  const [view, setView] = useState<AppView>("landing");
+  const [view, setView] = useState<AppView>(getInitialViewFromLocation);
   const [legalBackView, setLegalBackView] = useState<NonLegalView>("landing");
   const [selectedFeatureId, setSelectedFeatureId] = useState<FeatureId>("split");
   const [contentPanel, setContentPanel] = useState<ContentPanel>("tool");
@@ -348,6 +444,7 @@ function App() {
   const [registrationSuccessBanner, setRegistrationSuccessBanner] = useState<string | null>(null);
   const [plans, setPlans] = useState<PlanDefinition[]>([]);
   const [subscriptionSummary, setSubscriptionSummary] = useState<SubscriptionSummary | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [password, setPassword] = useState("");
@@ -357,6 +454,16 @@ function App() {
   const [splitMode, setSplitMode] = useState("single");
   const [outputPassword, setOutputPassword] = useState("");
   const [mergeJob, setMergeJob] = useState<MergeJobStatus | null>(null);
+  /** Birleştirme dışı araçlarda ETA / süre göstergesi için başlangıç zamanı ve dosya boyutu. */
+  const [toolRunStartedAt, setToolRunStartedAt] = useState<number | null>(null);
+  const [toolRunFileBytes, setToolRunFileBytes] = useState(0);
+  const [toolRunClock, setToolRunClock] = useState(0);
+  const [toolProgressSuccess, setToolProgressSuccess] = useState<{
+    filename: string;
+    featureTitle: string;
+    replay?: () => void;
+  } | null>(null);
+  const toolProgressDisposeRef = useRef<(() => void) | null>(null);
   const [mergePointerDraggingId, setMergePointerDraggingId] = useState<string | null>(null);
   const [mergeDragOverIndex, setMergeDragOverIndex] = useState<number | null>(null);
   const [mergeDragSlotPx, setMergeDragSlotPx] = useState(140);
@@ -378,6 +485,7 @@ function App() {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [changePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactMessage, setContactMessage] = useState("");
@@ -395,7 +503,6 @@ function App() {
     setActiveSidebar("split");
     setContentPanel("tool");
     setView("web");
-    window.history.replaceState({}, "", "/?view=web");
   }, []);
 
   const selectedFeature = useMemo(() => {
@@ -468,6 +575,12 @@ function App() {
     setToast(null);
   }
 
+  const disposeToolProgressSuccess = useCallback(() => {
+    toolProgressDisposeRef.current?.();
+    toolProgressDisposeRef.current = null;
+    setToolProgressSuccess(null);
+  }, []);
+
   function resetForm(clearInputValue: boolean) {
     // Modül değişimi veya işlem sonrası dosya listesi, parola ve sayfa metnini tek yerden sıfırlar.
     // Önceki seçimlerin yeni modüle sızmasını önlemek için merkezi sıfırlama gerekir.
@@ -517,7 +630,7 @@ function App() {
     }
     setMergeVerifyingId(itemId);
     try {
-      const result = await inspectPdf(item.file, pwd);
+      const result = await inspectPdf(item.file, pwd, accessToken);
       const ok = result.page_count !== null && !result.inspect_error;
       setUploads((cur) =>
         cur.map((u) => (u.id === itemId ? { ...u, mergePasswordVerified: ok } : u)),
@@ -709,36 +822,83 @@ function App() {
     fileInputRef.current?.click();
   }
 
-  async function refreshSubscriptionState() {
+  const refreshSubscriptionState = useCallback(async () => {
     if (!accessToken || !isAuthenticated) {
       return;
     }
 
-    const summary = await fetchSubscriptionSummary(accessToken);
+    const [summary, status] = await Promise.all([
+      fetchSubscriptionSummary(accessToken),
+      fetchSubscriptionStatus(accessToken),
+    ]);
     setSubscriptionSummary(summary);
-  }
+    setSubscriptionStatus(status);
+  }, [accessToken, isAuthenticated]);
 
-  async function syncUsageAfterSuccess(featureKey: FeatureKey) {
-    if (!accessToken) {
+  useEffect(() => {
+    const path = window.location.pathname.replace(/\/$/, "") || "/";
+    if (path === "/login-success" || path === "/login-error") {
+      return;
+    }
+    if (view === "web" && (!isAuthenticated || isRestoring)) {
+      return;
+    }
+    const next = getTrackedPath(view);
+    const current = path;
+    const normalizedNext = next.replace(/\/$/, "") || "/";
+    if (current !== normalizedNext) {
+      const sp = new URLSearchParams(window.location.search);
+      const keep = new URLSearchParams();
+      for (const key of ["payment", "oauth_error", "email_verified"] as const) {
+        const v = sp.get(key);
+        if (v !== null) {
+          keep.set(key, v);
+        }
+      }
+      const qs = keep.toString();
+      window.history.replaceState(
+        {},
+        "",
+        `${next}${qs ? `?${qs}` : ""}${window.location.hash}`,
+      );
+    }
+  }, [view, isAuthenticated, isRestoring]);
+
+  useEffect(() => {
+    if (!isAuthenticated || isRestoring || !accessToken) {
+      return;
+    }
+    const url = new URL(window.location.href);
+    const payment = url.searchParams.get("payment");
+    if (!payment) {
+      return;
+    }
+    url.searchParams.delete("payment");
+    window.history.replaceState({}, "", url.pathname + (url.search ? `?${url.searchParams.toString()}` : "") + url.hash);
+
+    if (payment === "success") {
+      void (async () => {
+        await refreshSession();
+        await refreshSubscriptionState();
+        showToast(
+          "success",
+          language === "tr" ? "Ödeme tamamlandı" : "Payment complete",
+          language === "tr" ? "Planınız güncellendi." : "Your plan has been updated.",
+        );
+      })();
       return;
     }
 
-    await recordUsage(accessToken, featureKey);
-    await refreshSubscriptionState();
-  }
-
-  useEffect(() => {
-    const requestedView = new URLSearchParams(window.location.search).get("view");
-    if (
-      requestedView === "login" ||
-      requestedView === "register" ||
-      requestedView === "web" ||
-      requestedView === "terms" ||
-      requestedView === "privacy"
-    ) {
-      setView(requestedView);
+    if (payment === "failed") {
+      showToast(
+        "error",
+        language === "tr" ? "Ödeme başarısız" : "Payment failed",
+        language === "tr"
+          ? "İşlem tamamlanamadı veya iptal edildi."
+          : "The transaction could not be completed or was cancelled.",
+      );
     }
-  }, []);
+  }, [isAuthenticated, isRestoring, accessToken, refreshSession, refreshSubscriptionState, language]);
 
   useEffect(() => {
     if (view === "register") {
@@ -760,8 +920,11 @@ function App() {
     resetForm(true);
     setMergeJob(null);
     setSubmitting(false);
+    setToolRunStartedAt(null);
+    setToolRunFileBytes(0);
     clearToast();
-  }, [selectedFeatureId]);
+    disposeToolProgressSuccess();
+  }, [selectedFeatureId, disposeToolProgressSuccess]);
 
   useEffect(() => {
     if (selectedFeatureId !== "merge" || !mergeJob?.id || mergeJob.id === MERGE_JOB_PENDING_ID) {
@@ -781,7 +944,7 @@ function App() {
       const M = ws(language);
       mergePollInFlightRef.current = true;
       try {
-        const nextStatus = await fetchMergeJob(jobId);
+        const nextStatus = await fetchMergeJob(jobId, accessToken);
         if (!active || mergePollHandledRef.current) {
           return;
         }
@@ -798,7 +961,24 @@ function App() {
         if (nextStatus.status === "completed") {
           mergePollHandledRef.current = true;
           try {
-            await downloadMergeJob(jobId, fallbackName);
+            const dl = await downloadMergeJob(jobId, fallbackName, accessToken);
+            if (!active) {
+              return;
+            }
+            void refreshSubscriptionState();
+            showToast("success", M.mergeToastSuccessTitle, M.mergeToastSuccessBody);
+            resetForm(true);
+            setSubmitting(false);
+            setMergeJob(null);
+            disposeToolProgressSuccess();
+            if (dl.dispose) {
+              toolProgressDisposeRef.current = dl.dispose;
+            }
+            setToolProgressSuccess({
+              filename: fallbackName,
+              featureTitle: selectedFeature.title,
+              replay: dl.replay,
+            });
           } catch (downloadErr) {
             if (!active) {
               return;
@@ -809,14 +989,6 @@ function App() {
             showToast("error", M.mergeToastDownloadErrorTitle, detail);
             return;
           }
-          if (!active) {
-            return;
-          }
-          await syncUsageAfterSuccess("merge");
-          showToast("success", M.mergeToastSuccessTitle, M.mergeToastSuccessBody);
-          resetForm(true);
-          setSubmitting(false);
-          setMergeJob(null);
         }
       } catch (error) {
         if (!active) {
@@ -840,7 +1012,15 @@ function App() {
       active = false;
       window.clearInterval(timer);
     };
-  }, [mergeJob?.id, selectedFeatureId, selectedFeature.fallbackFilename, language]);
+  }, [
+    mergeJob?.id,
+    selectedFeatureId,
+    selectedFeature.fallbackFilename,
+    selectedFeature.title,
+    language,
+    disposeToolProgressSuccess,
+    accessToken,
+  ]);
 
   useEffect(() => {
     if (selectedFeatureId !== "split") {
@@ -864,14 +1044,14 @@ function App() {
       return;
     }
     const timer = window.setTimeout(() => {
-      void inspectPdf(primary.file, pwd).then((result) => {
+      void inspectPdf(primary.file, pwd, accessToken).then((result) => {
         setUploads((cur) =>
           cur.map((u, i) => (i === 0 ? { ...u, pageCount: result.page_count ?? null } : u)),
         );
       });
     }, 450);
     return () => window.clearTimeout(timer);
-  }, [password, selectedFeatureId, uploads[0]?.id, uploads[0]?.encrypted, language]);
+  }, [password, selectedFeatureId, uploads[0]?.id, uploads[0]?.encrypted, language, accessToken]);
 
   useEffect(() => {
     return () => {
@@ -886,23 +1066,79 @@ function App() {
   }, [isAuthenticated, isRestoring, view]);
 
   useEffect(() => {
+    setUpgradeModalOpen(false);
+  }, [view]);
+
+  useEffect(() => {
     if (!isAuthenticated || !user || !accessToken) {
       setSubscriptionSummary(null);
+      setSubscriptionStatus(null);
       return;
     }
 
-    setSubscriptionLoading(true);
-    void fetchSubscriptionSummary(accessToken)
-      .then((data) => {
-        setSubscriptionSummary(data);
-      })
-      .catch((error) => {
-        showToast("error", "Abonelik bilgisi alınamadı", error instanceof Error ? error.message : "Plan bilgileri yüklenemedi.");
-      })
-      .finally(() => {
-        setSubscriptionLoading(false);
-      });
-  }, [accessToken, isAuthenticated, user?.id]);
+    const authToken = accessToken;
+    const authUser = user;
+
+    let cancelled = false;
+    let intervalId: number | undefined;
+
+    async function loadSubscriptionBlock() {
+      setSubscriptionLoading(true);
+      try {
+        const [summary, status] = await Promise.all([
+          fetchSubscriptionSummary(authToken),
+          fetchSubscriptionStatus(authToken),
+        ]);
+        if (cancelled) {
+          return;
+        }
+        setSubscriptionSummary(summary);
+        setSubscriptionStatus(status);
+
+        const adminProNavbar = authUser.role === "ADMIN" && status.plan === "PRO";
+        const needsJwtRefresh =
+          Boolean(status.plan_downgraded) || (!adminProNavbar && status.plan !== authUser.plan);
+        if (needsJwtRefresh) {
+          const refreshed = await refreshSession();
+          if (cancelled || !refreshed) {
+            return;
+          }
+          const [nextSummary, nextStatus] = await Promise.all([
+            fetchSubscriptionSummary(refreshed.accessToken),
+            fetchSubscriptionStatus(refreshed.accessToken),
+          ]);
+          if (!cancelled) {
+            setSubscriptionSummary(nextSummary);
+            setSubscriptionStatus(nextStatus);
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          showToast(
+            "error",
+            "Abonelik bilgisi alınamadı",
+            error instanceof Error ? error.message : "Plan bilgileri yüklenemedi.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setSubscriptionLoading(false);
+        }
+      }
+    }
+
+    void loadSubscriptionBlock();
+    intervalId = window.setInterval(() => {
+      void loadSubscriptionBlock();
+    }, 60_000);
+
+    return () => {
+      cancelled = true;
+      if (intervalId !== undefined) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, [accessToken, isAuthenticated, refreshSession, user?.id, user?.plan, user?.role]);
 
   const W = ws(language);
   const splitModeDescription =
@@ -934,7 +1170,9 @@ function App() {
     Boolean(mergeJob && selectedFeatureId === "merge" && mergeJob.status !== "completed");
   const genericToolProgressActive =
     submitting && selectedFeatureId !== "merge" && view === "web" && contentPanel === "tool";
-  const bottomToolProgressActive = mergeProgressActive || genericToolProgressActive;
+  const toolSuccessBarActive = Boolean(toolProgressSuccess && view === "web" && contentPanel === "tool");
+  const bottomToolProgressActive =
+    mergeProgressActive || genericToolProgressActive || toolSuccessBarActive;
   const mergeProgressIndeterminate = Boolean(
     mergeJob &&
       (mergeJob.id === MERGE_JOB_PENDING_ID ||
@@ -948,6 +1186,49 @@ function App() {
     mergeJob.elapsed_seconds >= 2
       ? Math.round((mergeJob.elapsed_seconds / mergeJob.percent) * (100 - mergeJob.percent))
       : null;
+
+  useEffect(() => {
+    if (!genericToolProgressActive || toolRunStartedAt == null) {
+      return;
+    }
+    const id = window.setInterval(() => setToolRunClock((c) => c + 1), 1000);
+    return () => clearInterval(id);
+  }, [genericToolProgressActive, toolRunStartedAt]);
+
+  const genericToolElapsedSec = useMemo(() => {
+    if (toolRunStartedAt == null) {
+      return 0;
+    }
+    return Math.floor((Date.now() - toolRunStartedAt) / 1000);
+  }, [toolRunStartedAt, toolRunClock]);
+
+  const genericToolEstimateSec = useMemo(() => {
+    if (toolRunFileBytes <= 0) {
+      return 90;
+    }
+    const mb = toolRunFileBytes / (1024 * 1024);
+    const k =
+      selectedFeatureId === "compress"
+        ? 5.2
+        : selectedFeatureId === "pdf-to-word" || selectedFeatureId === "pdf-to-excel"
+          ? 4.0
+          : selectedFeatureId === "split"
+            ? 2.4
+            : selectedFeatureId === "encrypt"
+              ? 3.2
+              : 3.0;
+    return Math.max(40, Math.min(1800, Math.round(mb * k + 22)));
+  }, [toolRunFileBytes, selectedFeatureId]);
+
+  const genericToolFileMb = toolRunFileBytes / (1024 * 1024);
+  const genericToolRemainingSec = Math.max(0, genericToolEstimateSec - genericToolElapsedSec);
+  const genericToolPercent = Math.min(
+    97,
+    Math.max(2, Math.round((genericToolElapsedSec / Math.max(genericToolEstimateSec, 1)) * 100)),
+  );
+  const genericProgressIndeterminate =
+    genericToolProgressActive && (genericToolElapsedSec < 5 || genericToolPercent < 6);
+
   const splitInputDisabled = uploads.length === 0;
   const submitDisabled =
     submitting ||
@@ -975,6 +1256,53 @@ function App() {
 
   function closeContactModal() {
     setContactModalOpen(false);
+  }
+
+  async function handleUpgradeCheckout(plan: "PRO" | "BUSINESS" = "PRO") {
+    if (!accessToken) {
+      showToast(
+        "error",
+        language === "tr" ? "Oturum gerekli" : "Sign-in required",
+        language === "tr" ? "Ödeme için giriş yapın." : "Please sign in to continue to payment.",
+      );
+      return;
+    }
+
+    try {
+      const session = await createPaymentCheckout(accessToken, plan);
+      if (session.paymentPageUrl) {
+        window.location.href = session.paymentPageUrl;
+        return;
+      }
+      if (session.checkoutFormContent) {
+        const w = window.open("", "_blank", "noopener,noreferrer");
+        if (!w) {
+          showToast(
+            "error",
+            language === "tr" ? "Açılır pencere engellendi" : "Popup blocked",
+            language === "tr"
+              ? "Ödeme formu için tarayıcıda açılır pencerelere izin verin."
+              : "Allow pop-ups for this site to open the payment form.",
+          );
+          return;
+        }
+        w.document.open();
+        w.document.write(session.checkoutFormContent);
+        w.document.close();
+        return;
+      }
+      showToast(
+        "error",
+        language === "tr" ? "Ödeme başlatılamadı" : "Could not start payment",
+        language === "tr" ? "Sunucu yanıtı geçersiz." : "Invalid response from server.",
+      );
+    } catch (error) {
+      showToast(
+        "error",
+        language === "tr" ? "Ödeme başlatılamadı" : "Could not start payment",
+        error instanceof Error ? error.message : language === "tr" ? "Bilinmeyen hata." : "Unknown error.",
+      );
+    }
   }
 
   async function handleContactModalSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -1056,6 +1384,10 @@ function App() {
   }
 
   function handleSidebarSelect(id: SidebarToolId) {
+    if (id !== "subscription" && lockedFeatures.has(id)) {
+      setUpgradeModalOpen(true);
+      return;
+    }
     setActiveSidebar(id);
     if (id === "subscription") {
       setContentPanel("subscription");
@@ -1214,7 +1546,7 @@ function App() {
     }
 
     if (subscriptionSummary && subscriptionSummary.usage.dailyLimit !== null && subscriptionSummary.usage.remainingToday === 0) {
-      showToast("error", "Günlük limit doldu", "Bugünkü işlem hakkınızı kullandınız. Devam etmek için planınızı yükseltin.");
+      setUpgradeModalOpen(true);
       return;
     }
 
@@ -1224,15 +1556,14 @@ function App() {
     }
 
     try {
-      await assertFeatureBeforeAction(accessToken, selectedFeature.id);
-    } catch (error) {
-      showToast("error", "İşlem reddedildi", error instanceof Error ? error.message : "Plan veya günlük limit doğrulanamadı.");
-      return;
-    }
-
-    try {
+      disposeToolProgressSuccess();
       setSubmitting(true);
       clearToast();
+      if (selectedFeature.id !== "merge") {
+        setToolRunStartedAt(Date.now());
+        setToolRunFileBytes(uploads[0]?.file.size ?? 0);
+        setToolRunClock(0);
+      }
 
       if (selectedFeature.id === "merge") {
         const formData = new FormData();
@@ -1256,7 +1587,7 @@ function App() {
           ready: false,
         });
         try {
-          const { job_id } = await createMergeJob(formData);
+          const { job_id } = await createMergeJob(formData, accessToken);
           setMergeJob((prev) =>
             prev && prev.id === MERGE_JOB_PENDING_ID ? { ...prev, id: job_id, message: "Sıraya alındı." } : prev,
           );
@@ -1294,16 +1625,27 @@ function App() {
           break;
       }
 
-      await downloadFromApi(selectedFeature.endpoint, formData, selectedFeature.fallbackFilename);
-      await syncUsageAfterSuccess(selectedFeature.id);
+      const dl = await downloadFromApi(selectedFeature.endpoint, formData, selectedFeature.fallbackFilename, accessToken);
       showToast("success", "İşlem tamamlandı", "Çıktı dosyası başarıyla indirildi.");
       resetForm(true);
+      disposeToolProgressSuccess();
+      if (dl.dispose) {
+        toolProgressDisposeRef.current = dl.dispose;
+      }
+      setToolProgressSuccess({
+        filename: selectedFeature.fallbackFilename,
+        featureTitle: selectedFeature.title,
+        replay: dl.replay,
+      });
+      void refreshSubscriptionState();
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu.";
       showToast("error", "İşlem başarısız", detail);
     } finally {
       if (selectedFeature.id !== "merge") {
         setSubmitting(false);
+        setToolRunStartedAt(null);
+        setToolRunFileBytes(0);
       }
     }
   }
@@ -1351,7 +1693,7 @@ function App() {
     const inspectedNewItems = await Promise.all(
       incomingItems.map(async (item) => {
         try {
-          const result = await inspectPdf(item.file);
+          const result = await inspectPdf(item.file, undefined, accessToken);
           return {
             ...item,
             encrypted: Boolean(result.encrypted),
@@ -1612,6 +1954,20 @@ function App() {
         showToast={showToast}
       />
 
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        language={language}
+        onSelectPro={() => {
+          setUpgradeModalOpen(false);
+          void handleUpgradeCheckout("PRO");
+        }}
+        onSelectBusiness={() => {
+          setUpgradeModalOpen(false);
+          void handleUpgradeCheckout("BUSINESS");
+        }}
+      />
+
       {toast ? (
         <div className={`toast toast--${toast.type}`}>
           <div className="toast__title">{toast.title}</div>
@@ -1622,10 +1978,12 @@ function App() {
       <DashboardTopNav
         user={user}
         language={language}
+        subscriptionStatus={subscriptionStatus}
         onLogoClick={handleDashboardLogoClick}
         onProfile={handleNavProfile}
         onPassword={handleNavPassword}
         onLogout={() => void handleLogout()}
+        onUpgradeClick={() => setUpgradeModalOpen(true)}
       />
       <DashboardSidebar
         active={activeSidebar}
@@ -1636,14 +1994,52 @@ function App() {
         lockedFeatures={lockedFeatures}
         subscriptionSummary={subscriptionSummary}
         userRole={user?.role}
+        onUsageUpgradeClick={() => setUpgradeModalOpen(true)}
       />
       {showUsageQuota && !bottomToolProgressActive ? (
-        <div className="pointer-events-none fixed bottom-4 left-4 z-30 md:hidden">
-          <div className="pointer-events-auto rounded-xl border border-white/[0.1] bg-nb-bg-elevated/95 px-3 py-2 text-xs shadow-lg backdrop-blur-md">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-nb-muted">{ws(language).usageRemainingShort}</p>
-            <p className="mt-0.5 font-semibold tabular-nums text-nb-accent">
-              {subscriptionSummary!.usage.remainingToday ?? "—"} / {subscriptionSummary!.usage.dailyLimit}
+        <div className="pointer-events-none fixed bottom-4 left-4 z-30 max-w-[calc(100vw-2rem)] md:hidden">
+          <div
+            className={`pointer-events-auto rounded-xl border px-3 py-2.5 text-xs shadow-lg backdrop-blur-md ${
+              subscriptionSummary!.usage.remainingToday === 0
+                ? "border-amber-500/45 bg-gradient-to-b from-amber-950/50 to-nb-bg-elevated/98"
+                : "border-white/[0.1] bg-nb-bg-elevated/95"
+            }`}
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-nb-muted">{W.usageDailyHeading}</p>
+            <p className="mt-1 text-[13px] font-semibold leading-snug text-nb-text">
+              {W.usageUsedTodayLine(subscriptionSummary!.usage.usedToday, subscriptionSummary!.usage.dailyLimit ?? 0)}
             </p>
+            <p
+              className={`mt-0.5 text-[11px] font-semibold tabular-nums ${
+                subscriptionSummary!.usage.remainingToday === 0 ? "text-amber-200" : "text-sky-300/95"
+              }`}
+            >
+              {W.usageRemainingLine(subscriptionSummary!.usage.remainingToday ?? 0)}
+            </p>
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/35">
+              <div
+                className={`h-full rounded-full ${
+                  subscriptionSummary!.usage.remainingToday === 0
+                    ? "bg-gradient-to-r from-amber-600 to-amber-400"
+                    : "bg-gradient-to-r from-nb-primary to-sky-400"
+                }`}
+                style={{
+                  width: `${Math.min(
+                    100,
+                    ((subscriptionSummary!.usage.dailyLimit ?? 1) > 0
+                      ? subscriptionSummary!.usage.usedToday / (subscriptionSummary!.usage.dailyLimit ?? 1)
+                      : 0) * 100,
+                  )}%`,
+                }}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setUpgradeModalOpen(true)}
+              className="nb-transition mt-2.5 w-full rounded-lg border border-amber-400/45 bg-amber-500/15 px-2 py-2 text-[10px] font-bold uppercase tracking-[0.05em] text-amber-50 hover:bg-amber-500/25"
+            >
+              {W.usageUpgradeCta}
+            </button>
           </div>
         </div>
       ) : null}
@@ -1698,22 +2094,21 @@ function App() {
                   <strong>{localizedPlanDisplayName(subscriptionSummary.currentPlan.name, language)}</strong>
                 </div>
                 <div className="subscription-stat">
-                  <span>{language === "tr" ? "Bugünkü kullanım" : "Today's usage"}</span>
-                  <strong>
+                  <span>{W.usageDailyHeading}</span>
+                  <strong className="tabular-nums">
                     {subscriptionSummary.usage.dailyLimit === null
-                      ? language === "tr"
-                        ? "Sınırsız"
-                        : "Unlimited"
-                      : `${subscriptionSummary.usage.usedToday} / ${subscriptionSummary.usage.dailyLimit}`}
+                      ? W.usageUnlimited
+                      : W.usageCountOfLimit(
+                          subscriptionSummary.usage.usedToday,
+                          subscriptionSummary.usage.dailyLimit,
+                        )}
                   </strong>
                 </div>
                 <div className="subscription-stat">
                   <span>{language === "tr" ? "Kalan hak" : "Remaining"}</span>
-                  <strong>
+                  <strong className="tabular-nums">
                     {subscriptionSummary.usage.remainingToday === null
-                      ? language === "tr"
-                        ? "Sınırsız"
-                        : "Unlimited"
+                      ? W.usageUnlimited
                       : subscriptionSummary.usage.remainingToday}
                   </strong>
                 </div>
@@ -1732,6 +2127,60 @@ function App() {
                   />
                 </div>
               ) : null}
+
+              <section className="pro-value-card" aria-labelledby="pro-value-title">
+                <p className="pro-value-card__kicker">{W.proBenefitsKicker}</p>
+                <h3 id="pro-value-title" className="pro-value-card__title">
+                  {W.proBenefitsTitle}
+                </h3>
+                <p className="pro-value-card__intro">{W.proBenefitsIntro}</p>
+                <ul className="pro-value-card__list">
+                  <li className="pro-value-card__item">
+                    <span className="pro-value-card__check" aria-hidden>
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </span>
+                    <div className="pro-value-card__body">
+                      <span className="pro-value-card__tag pro-value-card__tag--speed">{W.proBenefitTagSpeed}</span>
+                      <p className="pro-value-card__text">{W.proBenefitSpeed}</p>
+                    </div>
+                  </li>
+                  <li className="pro-value-card__item">
+                    <span className="pro-value-card__check" aria-hidden>
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </span>
+                    <div className="pro-value-card__body">
+                      <span className="pro-value-card__tag pro-value-card__tag--quality">{W.proBenefitTagQuality}</span>
+                      <p className="pro-value-card__text">{W.proBenefitQuality}</p>
+                    </div>
+                  </li>
+                  <li className="pro-value-card__item">
+                    <span className="pro-value-card__check" aria-hidden>
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </span>
+                    <div className="pro-value-card__body">
+                      <span className="pro-value-card__tag pro-value-card__tag--unlimited">{W.proBenefitTagUnlimited}</span>
+                      <p className="pro-value-card__text">{W.proBenefitUnlimited}</p>
+                    </div>
+                  </li>
+                  <li className="pro-value-card__item">
+                    <span className="pro-value-card__check" aria-hidden>
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </span>
+                    <div className="pro-value-card__body">
+                      <span className="pro-value-card__tag">{W.proBenefitTagAccess}</span>
+                      <p className="pro-value-card__text">{W.proBenefitFullAccess}</p>
+                    </div>
+                  </li>
+                </ul>
+              </section>
 
               <div className="subscription-plan-grid">
                 {plans.map((plan) => {
@@ -1786,21 +2235,7 @@ function App() {
                   <button
                     type="button"
                     className="subscription-plan__action subscription-plan__action--upgrade"
-                    onClick={() => {
-                      const href = (import.meta.env.VITE_UPGRADE_URL as string | undefined)?.trim() ?? "";
-                      if (href) {
-                        window.open(href, "_blank", "noopener,noreferrer");
-                      } else {
-                        showToast(
-                          "info",
-                          language === "tr" ? "Ödeme yakında" : "Payment coming soon",
-                          language === "tr"
-                            ? "Pro satın alma bağlantısı henüz yapılandırılmadı. İletişim formundan bize yazabilirsiniz."
-                            : "Pro checkout is not configured yet. You can reach us via the contact form.",
-                        );
-                        openContactModal();
-                      }
-                    }}
+                    onClick={() => void handleUpgradeCheckout("PRO")}
                   >
                     {language === "tr" ? "Pro'ya yükselt" : "Upgrade to Pro"}
                   </button>
@@ -1813,11 +2248,20 @@ function App() {
               ) : null}
 
               {subscriptionSummary.currentPlan.name === "PRO" ? (
-                <p className="mt-4 text-sm text-nb-muted">
-                  {language === "tr"
-                    ? "İşletme (Business) planı veya ek lisanslar için iletişim formundan satış ekibine ulaşın."
-                    : "For Business or extra licenses, contact sales via the contact form."}
-                </p>
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                  <button
+                    type="button"
+                    className="subscription-plan__action subscription-plan__action--upgrade"
+                    onClick={() => void handleUpgradeCheckout("BUSINESS")}
+                  >
+                    {language === "tr" ? "Business'a yükselt (400 ₺/ay)" : "Upgrade to Business (400 TRY/mo)"}
+                  </button>
+                  <span className="text-sm text-nb-muted">
+                    {language === "tr"
+                      ? "Ek lisans veya kurumsal teklif için iletişim formundan da yazabilirsiniz."
+                      : "For extra licenses or enterprise quotes, you can also use the contact form."}
+                  </span>
+                </div>
               ) : null}
             </>
           ) : (
@@ -1847,6 +2291,19 @@ function App() {
               <h2>{selectedFeature.description}</h2>
             </div>
           </div>
+
+          {showUsageQuota && subscriptionSummary && subscriptionSummary.usage.remainingToday === 0 ? (
+            <div className="border-b border-amber-500/25 bg-gradient-to-r from-amber-950/45 via-amber-950/25 to-transparent px-4 py-3 md:px-6">
+              <p className="text-sm font-medium leading-snug text-amber-50/95">{W.usageQuotaExhaustedBanner}</p>
+              <button
+                type="button"
+                onClick={() => setUpgradeModalOpen(true)}
+                className="nb-transition mt-3 inline-flex min-h-[40px] items-center justify-center rounded-xl border border-amber-400/45 bg-amber-500/15 px-4 py-2 text-xs font-bold uppercase tracking-[0.06em] text-amber-50 shadow-[0_0_24px_-10px_rgba(245,158,11,0.5)] hover:bg-amber-500/25"
+              >
+                {W.usageUpgradeCta}
+              </button>
+            </div>
+          ) : null}
 
           <div className="relative min-h-[280px]">
             <div
@@ -2007,6 +2464,10 @@ function App() {
               ) : (
                 <div ref={mergeListScrollRef} className="selected-files__list">
                   {uploads.map((item, index) => {
+                    const compressEst =
+                      selectedFeature.id === "compress" && !item.inspecting
+                        ? compressEstimatePercentRange(item.file.size)
+                        : null;
                     const dragFromIdx =
                       mergePointerDraggingId !== null ? uploads.findIndex((u) => u.id === mergePointerDraggingId) : -1;
                     const dragToIdx = mergeDragOverIndex ?? dragFromIdx;
@@ -2041,15 +2502,45 @@ function App() {
                       onPointerDown={(e) => handleMergeRowPointerDown(e, index, item.id)}
                     >
                       <div className="selected-file-card__main">
-                        <div className="selected-file-card__text">
-                          <strong>{item.file.name}</strong>
-                          <div className="selected-file-card__meta">
-                            {item.inspecting ? <span>{W.inspecting}</span> : null}
-                            {!item.inspecting && item.encrypted ? <span className="warning-text">{W.encryptedBadge}</span> : null}
-                            {!item.inspecting && !item.encrypted ? <span>{W.ready}</span> : null}
+                        <div className="selected-file-card__lead">
+                          <div className="selected-file-card__icon" aria-hidden>
+                            <svg viewBox="0 0 24 24" fill="none" className="selected-file-card__icon-svg">
+                              <path
+                                d="M14 2H8a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8l-6-6Z"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M14 2v6h6"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M8 14h8M8 18h5"
+                                stroke="currentColor"
+                                strokeWidth="1.25"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          </div>
+                          <div className="selected-file-card__text">
+                            <strong>{item.file.name}</strong>
+                            <div className="selected-file-card__meta">
+                              <span className="selected-file-card__size">{formatFileSize(item.file.size)}</span>
+                              {compressEst ? (
+                                <span className="selected-file-card__compress" title={W.compressEstimateTooltip}>
+                                  {W.compressEstimateLine(compressEst.min, compressEst.max)}
+                                </span>
+                              ) : null}
+                              {item.inspecting ? <span>{W.inspecting}</span> : null}
+                              {!item.inspecting && item.encrypted ? <span className="warning-text">{W.encryptedBadge}</span> : null}
+                              {!item.inspecting && !item.encrypted ? <span>{W.ready}</span> : null}
+                            </div>
                           </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-1">
+                        <div className="selected-file-card__actions flex shrink-0 items-center gap-1">
                           {selectedFeature.id === "merge" ? (
                             <>
                               <button
@@ -2079,8 +2570,18 @@ function App() {
                             draggable={false}
                             className="remove-button"
                             onClick={() => removeUpload(item.id)}
+                            aria-label={`${W.remove}: ${item.file.name}`}
                           >
-                            {W.remove}
+                            <svg className="remove-button__glyph" viewBox="0 0 24 24" fill="none" aria-hidden>
+                              <path
+                                d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                            <span>{W.remove}</span>
                           </button>
                         </div>
                       </div>
@@ -2151,7 +2652,7 @@ function App() {
               <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-nb-bg/70 px-5 text-center backdrop-blur-sm">
                 <p className="text-base font-semibold text-nb-text">{W.proGateTitle}</p>
                 <p className="mt-2 max-w-sm text-sm leading-relaxed text-nb-muted">{W.proGateBody}</p>
-                <button type="button" className="primary-action mt-5" onClick={goSubscriptionFromTool}>
+                <button type="button" className="primary-action mt-5" onClick={() => setUpgradeModalOpen(true)}>
                   {W.proGateCta}
                 </button>
               </div>
@@ -2161,31 +2662,90 @@ function App() {
             </>
           ) : null}
         </div>
-        {mergeProgressActive && mergeJob ? (
+        {toolSuccessBarActive && toolProgressSuccess ? (
+          <div className="merge-progress-fixed merge-progress-fixed--success" role="status" aria-live="polite">
+            <div className="merge-progress-fixed__inner">
+              <div className="merge-progress-fixed__head">
+                <div className="merge-progress-fixed__titles">
+                  <strong className="merge-progress-fixed__title merge-progress-fixed__title--success">
+                    {W.toolProgressSuccessTitle}
+                  </strong>
+                  <p className="merge-progress-fixed__phase merge-progress-fixed__phase--success">
+                    {toolProgressSuccess.featureTitle} · {toolProgressSuccess.filename}
+                  </p>
+                </div>
+                <span className="merge-progress-fixed__pct merge-progress-fixed__pct--success" aria-hidden>
+                  %100
+                </span>
+              </div>
+              <div
+                className="progress-bar progress-bar--merge progress-bar--success"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={100}
+                aria-label={W.toolProgressSuccessTitle}
+              >
+                <div className="progress-bar__fill progress-bar__fill--success" style={{ width: "100%" }} />
+              </div>
+              <div className="merge-progress-fixed__success-actions">
+                {toolProgressSuccess.replay ? (
+                  <button
+                    type="button"
+                    className="merge-progress-fixed__download"
+                    onClick={() => toolProgressSuccess.replay?.()}
+                  >
+                    {W.toolDownloadAgain}
+                  </button>
+                ) : (
+                  <p className="merge-progress-fixed__native-hint">{W.toolProgressNativeDownloadHint}</p>
+                )}
+                <button type="button" className="merge-progress-fixed__dismiss" onClick={disposeToolProgressSuccess}>
+                  {W.toolProgressDismiss}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+        {toolSuccessBarActive ? null : mergeProgressActive && mergeJob ? (
           <div className="merge-progress-fixed" role="status" aria-live="polite">
             <div className="merge-progress-fixed__inner">
               <div className="merge-progress-fixed__head">
-                <strong className="merge-progress-fixed__title">
-                  {mergeJob.status === "failed"
-                    ? language === "tr"
-                      ? "Birleştirme başarısız"
-                      : "Merge failed"
-                    : mergeJob.id === MERGE_JOB_PENDING_ID
-                      ? W.mergeProgressStarting
-                      : mergeJob.where || W.mergeProgressPreparing}
-                </strong>
+                <div className="merge-progress-fixed__titles">
+                  <strong className="merge-progress-fixed__title">
+                    {mergeJob.status === "failed"
+                      ? language === "tr"
+                        ? "Birleştirme başarısız"
+                        : "Merge failed"
+                      : selectedFeature.title}
+                  </strong>
+                  {mergeJob.status !== "failed" ? (
+                    <p className="merge-progress-fixed__phase">
+                      {mergeJob.id === MERGE_JOB_PENDING_ID
+                        ? W.mergeProgressStarting
+                        : mergeToolPhaseLabel(mergeJob, mergeProgressIndeterminate, W)}
+                    </p>
+                  ) : null}
+                </div>
                 <span className="merge-progress-fixed__pct">
                   {mergeProgressIndeterminate ? "…" : `%${mergeJob.percent}`}
                 </span>
               </div>
               <div
-                className={`progress-bar progress-bar--merge ${mergeProgressIndeterminate ? "progress-bar--indeterminate" : ""} ${mergeJob.status === "failed" ? "progress-bar--failed" : ""}`}
+                className={`progress-bar progress-bar--merge progress-bar--gradient ${mergeProgressIndeterminate ? "progress-bar--indeterminate" : ""} ${mergeJob.status === "failed" ? "progress-bar--failed" : ""}`}
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={
+                  mergeProgressIndeterminate ? undefined : mergeJob.status === "failed" ? 100 : mergeJob.percent
+                }
+                aria-label={mergeToolPhaseLabel(mergeJob, mergeProgressIndeterminate, W) || selectedFeature.title}
               >
                 {mergeProgressIndeterminate ? (
                   <div className="progress-bar__fill progress-bar__fill--indeterminate" />
                 ) : (
                   <div
-                    className="progress-bar__fill"
+                    className="progress-bar__fill progress-bar__fill--gradient"
                     style={{
                       width: `${mergeJob.status === "failed" ? 100 : Math.max(mergeJob.percent, 2)}%`,
                     }}
@@ -2195,6 +2755,7 @@ function App() {
               <div className="merge-progress-fixed__meta">
                 <span>
                   {W.mergeStatus}: {mergeJob.current}/{mergeJob.total}
+                  {mergeJob.where ? ` · ${mergeJob.where}` : ""}
                 </span>
                 {mergeEtaSeconds !== null && mergeJob.status === "running" && !mergeProgressIndeterminate ? (
                   <span className="merge-progress-fixed__eta">{W.mergeEtaLine(mergeEtaSeconds)}</span>
@@ -2206,18 +2767,53 @@ function App() {
             </div>
           </div>
         ) : null}
-        {genericToolProgressActive ? (
+        {toolSuccessBarActive ? null : genericToolProgressActive ? (
           <div className="merge-progress-fixed merge-progress-fixed--generic" role="status" aria-live="polite">
             <div className="merge-progress-fixed__inner">
               <div className="merge-progress-fixed__head">
-                <strong className="merge-progress-fixed__title">{selectedFeature.title}</strong>
-                <span className="merge-progress-fixed__pct">…</span>
+                <div className="merge-progress-fixed__titles">
+                  <strong className="merge-progress-fixed__title">{selectedFeature.title}</strong>
+                  <p className="merge-progress-fixed__phase">
+                    {genericToolPhaseLabel(selectedFeatureId, genericToolPercent, genericProgressIndeterminate, W)}
+                  </p>
+                </div>
+                <span className="merge-progress-fixed__pct">
+                  {genericProgressIndeterminate ? "…" : `%${genericToolPercent}`}
+                </span>
               </div>
-              <div className="progress-bar progress-bar--merge progress-bar--indeterminate">
-                <div className="progress-bar__fill progress-bar__fill--indeterminate" />
+              <div
+                className={`progress-bar progress-bar--merge progress-bar--gradient ${genericProgressIndeterminate ? "progress-bar--indeterminate" : ""}`}
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={genericProgressIndeterminate ? undefined : genericToolPercent}
+                aria-label={genericToolPhaseLabel(
+                  selectedFeatureId,
+                  genericToolPercent,
+                  genericProgressIndeterminate,
+                  W,
+                )}
+              >
+                {genericProgressIndeterminate ? (
+                  <div className="progress-bar__fill progress-bar__fill--indeterminate" />
+                ) : (
+                  <div
+                    className="progress-bar__fill progress-bar__fill--gradient"
+                    style={{ width: `${genericToolPercent}%` }}
+                  />
+                )}
               </div>
               <div className="merge-progress-fixed__meta merge-progress-fixed__meta--generic">
                 <span>{W.toolProgressSub}</span>
+                {genericToolFileMb >= 5 ? (
+                  <span className="merge-progress-fixed__eta">{W.toolProgressLargeFileHint(genericToolFileMb)}</span>
+                ) : null}
+                {genericToolElapsedSec >= 1 ? (
+                  <span className="merge-progress-fixed__eta">{W.toolProgressElapsed(genericToolElapsedSec)}</span>
+                ) : null}
+                {genericToolRemainingSec > 0 && genericToolElapsedSec >= 4 ? (
+                  <span className="merge-progress-fixed__eta">{W.mergeEtaLine(genericToolRemainingSec)}</span>
+                ) : null}
               </div>
             </div>
           </div>

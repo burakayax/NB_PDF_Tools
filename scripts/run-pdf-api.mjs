@@ -66,10 +66,15 @@ if (port !== "8000") {
   );
 }
 
+const pdfApiEnv = { ...process.env };
+if (!pdfApiEnv.NB_SAAS_API_BASE?.trim()) {
+  pdfApiEnv.NB_SAAS_API_BASE = "http://127.0.0.1:4000";
+}
+
 const child = spawn(python, args, {
   cwd: webDir,
   stdio: "inherit",
-  env: process.env,
+  env: pdfApiEnv,
 });
 
 child.on("exit", (code, signal) => {

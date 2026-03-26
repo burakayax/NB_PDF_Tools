@@ -11,6 +11,10 @@ export function useErrorLogging({ language, accessToken }: ErrorLoggingOptions) 
   const recentErrorsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
+    if (!accessToken) {
+      return;
+    }
+
     function shouldLog(signature: string) {
       const now = Date.now();
       const lastSeen = recentErrorsRef.current.get(signature) ?? 0;

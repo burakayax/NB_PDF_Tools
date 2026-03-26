@@ -41,6 +41,18 @@ try:
 except ImportError as e:
     print(f"Modül Yükleme Hatası: {e}")
 
+
+def merge_subscription_status(license_info: dict, sub: dict) -> dict:
+    """GET /subscription/status yanıtını masaüstü lisans önbelleğine ekler (geri sayım sunucu hesaplı)."""
+    if not isinstance(license_info, dict) or not isinstance(sub, dict):
+        return license_info
+    license_info["subscriptionStatus"] = {
+        "plan": sub.get("plan"),
+        "remaining_days": sub.get("remaining_days"),
+    }
+    return license_info
+
+
 class NBPDFApp(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -724,7 +736,9 @@ class NBPDFApp(ctk.CTk):
                 self.auth_queue.put(("status", t("main.loading_title"), t("main.loading_verify")))
                 user = self.auth_client.fetch_profile(session["accessToken"])
                 self.auth_queue.put(("status", t("main.profile_loading"), t("main.loading_profile")))
+                sub = self.auth_client.subscription_status(session["accessToken"])
                 license_info = self.auth_client.validate_license(session["accessToken"])
+                merge_subscription_status(license_info, sub)
                 self.auth_queue.put(("restore_ok", build_session_payload(session["accessToken"], user, license_info), license_info))
             except DesktopAuthExpiredError as error:
                 self.session_store.clear()
@@ -838,7 +852,9 @@ class NBPDFApp(ctk.CTk):
                 self.auth_queue.put(("login_status", t("main.profile_loading")))
                 user = self.auth_client.fetch_profile(session["accessToken"])
                 self.auth_queue.put(("login_status", t("main.license_loading")))
+                sub = self.auth_client.subscription_status(session["accessToken"])
                 license_info = self.auth_client.validate_license(session["accessToken"])
+                merge_subscription_status(license_info, sub)
                 self.auth_queue.put(("login_ok", build_session_payload(session["accessToken"], user, license_info), license_info))
             except DesktopAccessBlockedError as error:
                 self.auth_queue.put(("login_error", str(error)))
@@ -877,6 +893,22 @@ class NBPDFApp(ctk.CTk):
                     self.license_info or {},
                 )
             )
+
+    def _sync_subscription_for_auth(self):
+        """Web ile aynı /api/subscription/status; süre dolmuşsa sunucu FREE yapar, lisans önbelleği güncellenir."""
+        if not self._is_authenticated_session():
+            return
+        token = self.current_session["accessToken"]
+        sub = self.auth_client.subscription_status(token)
+        cached_plan = (self.license_info or {}).get("plan")
+        if self.license_info is None or sub.get("plan_downgraded") or sub.get("plan") != cached_plan:
+            self.license_info = self.auth_client.validate_license(token)
+            self.current_session["license"] = self.license_info
+            lic_user = (self.license_info or {}).get("user")
+            if isinstance(lic_user, dict) and isinstance(self.current_session.get("user"), dict) and "plan" in lic_user:
+                self.current_session["user"]["plan"] = lic_user["plan"]
+            self._save_current_session()
+        merge_subscription_status(self.license_info or {}, sub)
 
     def _set_refresh_button_state(self, loading):
         self.is_refreshing_license = loading
@@ -921,8 +953,11 @@ class NBPDFApp(ctk.CTk):
 
         def worker():
             try:
-                user = self.auth_client.fetch_profile(self.current_session["accessToken"])
-                license_info = self.auth_client.validate_license(self.current_session["accessToken"])
+                token = self.current_session["accessToken"]
+                user = self.auth_client.fetch_profile(token)
+                sub = self.auth_client.subscription_status(token)
+                license_info = self.auth_client.validate_license(token)
+                merge_subscription_status(license_info, sub)
                 self.auth_queue.put(("license_refresh_ok", user, license_info, success_message))
             except DesktopAccessBlockedError as error:
                 self.auth_queue.put(("license_refresh_blocked", str(error)))
@@ -949,6 +984,10 @@ class NBPDFApp(ctk.CTk):
             self.show_login_screen(t("main.guest_sign_in_required"))
             raise DesktopAuthError(t("main.guest_sign_in_required"))
         try:
+            self._sync_subscription_for_auth()
+        except (DesktopAuthError, DesktopNetworkError) as error:
+            raise DesktopAuthError(str(error)) from error
+        try:
             result = self.auth_client.authorize_operation(self.current_session["accessToken"], feature_key, file_paths)
         except DesktopAuthExpiredError as error:
             self.force_logout(t("main.session_expired"))
@@ -972,6 +1011,14 @@ class NBPDFApp(ctk.CTk):
         messagebox.showinfo(t("main.upgrade"), message)
 
     def handle_click(self, feature_key, isim):
+        if self._is_authenticated_session():
+            try:
+                self._sync_subscription_for_auth()
+                self._apply_license_visuals()
+            except (DesktopAuthError, DesktopNetworkError) as error:
+                messagebox.showwarning(t("app.warning"), str(error))
+                return
+
         if not self.license_info:
             messagebox.showwarning(t("app.warning"), t("main.license_missing"))
             return

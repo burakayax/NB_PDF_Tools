@@ -1,16 +1,18 @@
 """Tarayıcıdan gelen istekleri PDF motoruna bağlayan web API rotaları.
 
-Bu dosyada her endpoint belirli bir araç modülünü temsil eder.
-İleride yeni bir web aracı eklemek istersen genelde yeni rota burada açılır.
+Plan ve kota doğrulaması Node SaaS API üzerinden yapılır; istemci yalnızca UI.
 """
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
+from app.api.pdf_auth import extract_bearer_header_only, extract_pdf_access_token
 from app.core.operations import (
     cleanup_and_raise,
     create_workdir,
@@ -26,12 +28,15 @@ from app.core.operations import (
     save_upload,
 )
 from app.core.jobs import cleanup_job, create_merge_job, get_job_download, get_job_status
+from app.core.saas_gate import saas_assert_feature, saas_record_usage, saas_session_ok
+from app.limiter import limiter
 
 router = APIRouter(prefix="/api", tags=["nb-pdf-tools"])
 engine = get_engine()
 
 
 @router.get("/health")
+@limiter.exempt
 def health():
     return {"status": "ok", "service": "nb-pdf-tools-web"}
 
@@ -43,18 +48,19 @@ def capabilities():
 
 @router.post("/merge")
 async def merge_pdfs(
+    token: Annotated[str, Depends(extract_pdf_access_token)],
     files: list[UploadFile] = File(...),
     passwords_json: str = Form(default="{}"),
 ):
-    # Birleştirme uzun sürebildiği için işi arka plana bırakıp job_id döndürüyoruz.
     if len(files) < 2:
         raise HTTPException(status_code=400, detail="Birleştirme için en az iki PDF seçin.")
+
+    await saas_assert_feature(token, "merge")
 
     workdir = create_workdir()
     try:
         saved_paths: list[Path] = []
         for idx, upload in enumerate(files):
-            # Aynı dosya adıyla birden fazla PDF gelince üst üste yazılmasın; sıra korunur.
             orig_name = Path(upload.filename or "upload.pdf").name
             unique_name = f"{idx:04d}__{orig_name}"
             saved = await save_upload(upload, workdir, filename=unique_name)
@@ -84,23 +90,23 @@ async def merge_pdfs(
                         passwords[str(saved)] = password
 
         output_name = "birleştirilmiş.pdf"
-        job_id = create_merge_job(saved_paths, passwords, workdir, output_name)
+        job_id = create_merge_job(saved_paths, passwords, workdir, output_name, saas_token=token)
         return {"job_id": job_id}
     except Exception as error:
         cleanup_and_raise(workdir, error)
 
 
 @router.get("/jobs/{job_id}")
-def job_status(job_id: str):
+def job_status(job_id: str, _token: Annotated[str, Depends(extract_bearer_header_only)]):
     return get_job_status(job_id)
 
 
 @router.get("/jobs/{job_id}/download")
-def download_job_output(job_id: str, background_tasks: BackgroundTasks):
-    """İndirme yanıtı gönderildikten sonra cleanup_job tek seferde job kaydını ve temp klasörü siler.
-
-    download_response ile çift cleanup_path tetiklenmesi (özellikle Windows’ta) akışı bozabiliyordu.
-    """
+def download_job_output(
+    job_id: str,
+    background_tasks: BackgroundTasks,
+    _token: Annotated[str, Depends(extract_bearer_header_only)],
+):
     output_path, output_name, _workdir = get_job_download(job_id)
     background_tasks.add_task(cleanup_job, job_id)
     return FileResponse(
@@ -112,9 +118,12 @@ def download_job_output(job_id: str, background_tasks: BackgroundTasks):
 
 @router.post("/inspect-pdf")
 async def inspect_pdf(
+    token: Annotated[str, Depends(extract_pdf_access_token)],
     file: UploadFile = File(...),
     password: str = Form(default=""),
 ):
+    await saas_session_ok(token)
+
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
@@ -122,7 +131,6 @@ async def inspect_pdf(
         pwd = password.strip() or None
         page_count = None
         inspect_error = None
-        # Şifreli PDF + parola yok: sayfa sayısı alınamaz; bu beklenen durum, hata sayma.
         if encrypted and not pwd:
             pass
         else:
@@ -149,12 +157,14 @@ async def inspect_pdf(
 @router.post("/split")
 async def split_pdf(
     background_tasks: BackgroundTasks,
+    token: Annotated[str, Depends(extract_pdf_access_token)],
     file: UploadFile = File(...),
     pages_text: str = Form(...),
     mode: str = Form(default="single"),
     password: str = Form(default=""),
 ):
-    # Sayfa ayırma akışı tek PDF veya ayrı dosyalar şeklinde iki moda ayrılır.
+    await saas_assert_feature(token, "split")
+
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
@@ -168,6 +178,7 @@ async def split_pdf(
             output_name = format_split_single_filename(file.filename or saved_file.name, pages)
             output_path = workdir / output_name
             engine.extract_pages(str(saved_file), pages, str(output_path), password=password)
+            await saas_record_usage(token, "split")
             return download_response(output_path, output_path.name, "application/pdf", background_tasks, workdir)
 
         output_folder = workdir / "separate-pages"
@@ -181,6 +192,7 @@ async def split_pdf(
             renamed_paths.append(renamed)
         zip_name = format_split_zip_filename(file.filename or saved_file.name, pages)
         zip_path = create_zip_archive(workdir / zip_name, renamed_paths)
+        await saas_record_usage(token, "split")
         return download_response(zip_path, zip_path.name, "application/zip", background_tasks, workdir)
     except Exception as error:
         cleanup_and_raise(workdir, error)
@@ -189,11 +201,12 @@ async def split_pdf(
 @router.post("/pdf-to-word")
 async def pdf_to_word(
     background_tasks: BackgroundTasks,
+    token: Annotated[str, Depends(extract_pdf_access_token)],
     file: UploadFile = File(...),
     password: str = Form(default=""),
 ):
-    # Web tarafında yalnızca düzenlenebilir içerik hedeflenir.
-    # Taranmış / görsel tabanlı PDF'ler için kullanıcıya net hata veriyoruz.
+    await saas_assert_feature(token, "pdf-to-word")
+
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
@@ -204,6 +217,7 @@ async def pdf_to_word(
         output_name = format_derived_filename(file.filename or saved_file.name, "Word", "docx")
         output_path = workdir / output_name
         engine.pdf_to_word(str(saved_file), str(output_path), password=pwd)
+        await saas_record_usage(token, "pdf-to-word")
         return download_response(
             output_path,
             output_path.name,
@@ -218,14 +232,18 @@ async def pdf_to_word(
 @router.post("/word-to-pdf")
 async def word_to_pdf(
     background_tasks: BackgroundTasks,
+    token: Annotated[str, Depends(extract_pdf_access_token)],
     file: UploadFile = File(...),
 ):
+    await saas_assert_feature(token, "word-to-pdf")
+
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
         output_name = format_derived_filename(file.filename or saved_file.name, "PDF", "pdf")
         output_path = workdir / output_name
         engine.word_to_pdf(str(saved_file), str(output_path))
+        await saas_record_usage(token, "word-to-pdf")
         return download_response(output_path, output_path.name, "application/pdf", background_tasks, workdir)
     except Exception as error:
         cleanup_and_raise(workdir, error)
@@ -234,14 +252,18 @@ async def word_to_pdf(
 @router.post("/excel-to-pdf")
 async def excel_to_pdf(
     background_tasks: BackgroundTasks,
+    token: Annotated[str, Depends(extract_pdf_access_token)],
     file: UploadFile = File(...),
 ):
+    await saas_assert_feature(token, "excel-to-pdf")
+
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
         output_name = format_derived_filename(file.filename or saved_file.name, "PDF", "pdf")
         output_path = workdir / output_name
         engine.excel_to_pdf(str(saved_file), str(output_path))
+        await saas_record_usage(token, "excel-to-pdf")
         return download_response(output_path, output_path.name, "application/pdf", background_tasks, workdir)
     except Exception as error:
         cleanup_and_raise(workdir, error)
@@ -250,9 +272,12 @@ async def excel_to_pdf(
 @router.post("/pdf-to-excel")
 async def pdf_to_excel(
     background_tasks: BackgroundTasks,
+    token: Annotated[str, Depends(extract_pdf_access_token)],
     file: UploadFile = File(...),
     password: str = Form(default=""),
 ):
+    await saas_assert_feature(token, "pdf-to-excel")
+
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
@@ -264,6 +289,7 @@ async def pdf_to_excel(
             preserve_tables=True,
             password=password.strip() or None,
         )
+        await saas_record_usage(token, "pdf-to-excel")
         return download_response(
             output_path,
             output_path.name,
@@ -278,15 +304,19 @@ async def pdf_to_excel(
 @router.post("/compress")
 async def compress_pdf(
     background_tasks: BackgroundTasks,
+    token: Annotated[str, Depends(extract_pdf_access_token)],
     file: UploadFile = File(...),
     password: str = Form(default=""),
 ):
+    await saas_assert_feature(token, "compress")
+
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
         output_name = format_derived_filename(file.filename or saved_file.name, "Sıkıştırılmış", "pdf")
         output_path = workdir / output_name
         engine.compress_pdf(str(saved_file), str(output_path), password=password.strip() or None)
+        await saas_record_usage(token, "compress")
         return download_response(output_path, output_path.name, "application/pdf", background_tasks, workdir)
     except Exception as error:
         cleanup_and_raise(workdir, error)
@@ -295,10 +325,13 @@ async def compress_pdf(
 @router.post("/encrypt")
 async def encrypt_pdf(
     background_tasks: BackgroundTasks,
+    token: Annotated[str, Depends(extract_pdf_access_token)],
     file: UploadFile = File(...),
     user_password: str = Form(...),
     input_password: str = Form(default=""),
 ):
+    await saas_assert_feature(token, "encrypt")
+
     user_password = user_password.strip()
     if not user_password:
         raise HTTPException(status_code=400, detail="Cikti PDF icin parola girmek zorunludur.")
@@ -314,6 +347,7 @@ async def encrypt_pdf(
             user_password=user_password,
             input_password=input_password.strip() or None,
         )
+        await saas_record_usage(token, "encrypt")
         return download_response(output_path, output_path.name, "application/pdf", background_tasks, workdir)
     except Exception as error:
         cleanup_and_raise(workdir, error)

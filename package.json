@@ -12,6 +12,7 @@
     "prestart": "node scripts/ensure-dev-prereqs.mjs",
     "start": "concurrently -n pdf,api,ui -c blue,green,magenta \"node scripts/run-pdf-api.mjs --prod\" \"npm run start --prefix web/api\" \"npm run preview --prefix web/frontend -- --host 127.0.0.1\"",
     "build:all": "npm run build --prefix web/api && npm run build --prefix web/frontend",
+    "build:production": "npm run build:all",
     "prisma:push": "npm run prisma:push --prefix web/api"
   },
   "devDependencies": {

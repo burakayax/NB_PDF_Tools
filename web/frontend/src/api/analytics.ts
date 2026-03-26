@@ -1,6 +1,5 @@
 import type { Language } from "../i18n/landing";
-
-const SAAS_API_BASE = import.meta.env.VITE_SAAS_API_BASE ?? "http://localhost:4000";
+import { getSaasApiBase } from "./saasBase";
 const SESSION_KEY = "nbpdf-analytics-session-id";
 
 export type PageViewPayload = {
@@ -23,7 +22,7 @@ function getOrCreateSessionId() {
 }
 
 export async function trackPageView(payload: Omit<PageViewPayload, "sessionId">, accessToken?: string | null) {
-  await fetch(`${SAAS_API_BASE}/api/analytics/page-view`, {
+  await fetch(`${getSaasApiBase()}/api/analytics/page-view`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

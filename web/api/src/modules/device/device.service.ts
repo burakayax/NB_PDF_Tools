@@ -1,8 +1,39 @@
+import { randomBytes } from "node:crypto";
+
 import { HttpError } from "../../lib/http-error.js";
 import { prisma } from "../../lib/prisma.js";
 import { hashToken } from "../../lib/token.js";
 
-export const MAX_DESKTOP_DEVICES = 3;
+export const MAX_DESKTOP_DEVICES = 2;
+
+/** Yeni cihaz kaydı için sunucu tarafı tek seferlik kimlik (istemci yerelde saklar, X-NB-Device-Id ile gönderir). */
+export function generateDeviceId(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+export type RegisterDeviceInput = {
+  /** Daha önce kayıtlı cihazı yenilemek için; yoksa sunucu yeni üretir. */
+  existingDeviceId?: string | null;
+};
+
+/**
+ * Cihazı veritabanına kaydeder veya mevcutsa lastSeen günceller.
+ * Kotayı aşan yeni cihazda 403 (admin istisnası `bypassDeviceLimit`).
+ */
+export async function registerDevice(
+  userId: string,
+  input: RegisterDeviceInput,
+  options: EnsureDesktopDeviceOptions = {},
+): Promise<{ deviceId: string; activeDeviceCount: number; deviceLimit: number }> {
+  const trimmed = input.existingDeviceId?.trim();
+  const rawId = trimmed && trimmed.length > 0 ? trimmed : generateDeviceId();
+  const result = await ensureDesktopDeviceAccess(userId, rawId, true, options);
+  return {
+    deviceId: rawId,
+    activeDeviceCount: result.activeDeviceCount,
+    deviceLimit: result.deviceLimit,
+  };
+}
 
 export function getDesktopDeviceIdFromHeaders(headers: Record<string, string | string[] | undefined>) {
   const raw = headers["x-nb-device-id"];

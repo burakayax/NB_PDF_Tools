@@ -22,6 +22,7 @@ type PublicUser = {
   name: string | null;
   avatar: string | null;
   plan: Plan;
+  subscription_expiry: string | null;
   role: UserRole;
   preferredLanguage: Language;
   isVerified: boolean;
@@ -67,6 +68,7 @@ function toPublicUser(user: User): PublicUser {
     name: user.name,
     avatar: user.avatar,
     plan: user.plan,
+    subscription_expiry: user.subscriptionExpiry ? user.subscriptionExpiry.toISOString() : null,
     role: user.role,
     preferredLanguage: user.preferredLanguage,
     isVerified: user.isVerified,

@@ -53,6 +53,31 @@ const rawEnvSchema = z
     /** Günlük dosyası yolu (göreli veya mutlak); üst dizin başlangıçta oluşturulur. */
     LOG_FILE_PATH: z.string().min(1).default("logs/nb-pdf-tools-api.log"),
     LOG_FILE_ENABLED: z.enum(["true", "false"]).optional().default("true"),
+    /** Dakikada çoğu /api yolu için IP başına üst sınır (SPA eşzamanlı istekleri için 60 önerilir; /auth/preferences ayrı kota). */
+    API_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(60),
+    /** Aynı IP tekrarlı rate limit ihlalinde kaç kez sonra geçici blok (varsayılan 5). */
+    API_ABUSE_THRESHOLD: z.coerce.number().int().positive().default(5),
+    /** Tekrarlı kötüye kullanım sonrası IP blok süresi (dakika). */
+    API_ABUSE_BLOCK_MINUTES: z.coerce.number().int().positive().default(60),
+    /** Ters proxy arkasında doğru istemci IP için (örn. 1 veya sayı). Boş = güvenme. */
+    TRUST_PROXY: z.string().optional().default(""),
+    /** iyzico API (boşsa POST /api/payment/create 503 döner). */
+    IYZICO_API_KEY: z.string().optional().default(""),
+    IYZICO_SECRET_KEY: z.string().optional().default(""),
+    /** Örn. https://sandbox-api.iyzipay.com veya üretim https://api.iyzipay.com */
+    IYZICO_URI: z.string().optional().default(""),
+    /** Sandbox / test alıcı T.C. kimlik no (11 hane). */
+    IYZICO_BUYER_IDENTITY_NUMBER: z.string().length(11).optional().default("74300864791"),
+    /** Alıcı GSM; iyzico formatı (+90...) */
+    IYZICO_BUYER_GSM: z.string().min(5).optional().default("+905350000000"),
+    /**
+     * Üretimde ters proxy arkasında HTTP→HTTPS yönlendirmesi (X-Forwarded-Proto gerekir).
+     * Doğrudan Node üzerinde TLS kullanıyorsanız genelde false bırakın; nginx/Caddy kullanımında true önerilir.
+     */
+    FORCE_HTTPS: z.enum(["true", "false"]).optional().default("false"),
+    /** Doğrudan Node’da TLS için PEM yolları (ikisi de doluysa server.ts HTTPS dinler). */
+    HTTPS_KEY_PATH: z.string().optional().default(""),
+    HTTPS_CERT_PATH: z.string().optional().default(""),
   })
   .superRefine((data, ctx) => {
     const smtpOk = Boolean(data.SMTP_USER && data.SMTP_PASS);
@@ -81,6 +106,11 @@ const oauthRedirectOrigin = (raw.OAUTH_FRONTEND_REDIRECT_ORIGIN ?? raw.FRONTEND_
 
 export const env = {
   ...raw,
+  TRUST_PROXY: raw.TRUST_PROXY?.trim() ?? "",
+  forceHttps: raw.FORCE_HTTPS === "true",
+  HTTPS_KEY_PATH: raw.HTTPS_KEY_PATH?.trim() ?? "",
+  HTTPS_CERT_PATH: raw.HTTPS_CERT_PATH?.trim() ?? "",
+  iyzicoEnabled: Boolean(raw.IYZICO_API_KEY?.trim() && raw.IYZICO_SECRET_KEY?.trim() && raw.IYZICO_URI?.trim()),
   SMTP_USER: smtpUser,
   SMTP_PASS: smtpPass,
   SMTP_FROM_EMAIL: smtpFromEmail,

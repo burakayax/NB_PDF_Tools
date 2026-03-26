@@ -1,5 +1,6 @@
 import type { UserRole } from "@prisma/client";
 import type { NextFunction, Request, Response } from "express";
+import { logSuspiciousActivity } from "../lib/app-logger.js";
 import { verifyAccessToken } from "../lib/jwt.js";
 import { resolveRoleFromEmail } from "../lib/role-policy.js";
 
@@ -39,6 +40,15 @@ export function requireAuth(request: Request, response: Response, next: NextFunc
     };
     next();
   } catch {
+    const ip = request.ip || request.socket?.remoteAddress;
+    logSuspiciousActivity({
+      type: "invalid_jwt",
+      ip,
+      path: request.originalUrl?.split("?")[0],
+      method: request.method,
+      userAgent: request.headers["user-agent"] as string | undefined,
+      detail: "Bearer present but verify failed",
+    });
     response
       .status(401)
       .set("WWW-Authenticate", BEARER_CHALLENGE)

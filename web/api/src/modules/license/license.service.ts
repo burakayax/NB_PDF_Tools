@@ -3,6 +3,7 @@ import { HttpError } from "../../lib/http-error.js";
 import { prisma } from "../../lib/prisma.js";
 import { isAdminUser } from "../../lib/user-role.js";
 import { MAX_DESKTOP_DEVICES, ensureDesktopDeviceAccess } from "../device/device.service.js";
+import { ensurePaidSubscriptionActiveOrDowngrade } from "../subscription/subscription.service.js";
 import type { FeatureKey } from "../subscription/subscription.config.js";
 import type { DesktopAuthorizeInput } from "./license.schema.js";
 
@@ -54,13 +55,7 @@ function getDesktopPlanRules(plan: Plan) {
 }
 
 async function getUserWithUsage(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-  });
-
-  if (!user) {
-    throw new HttpError(404, "User account could not be found.");
-  }
+  const { user } = await ensurePaidSubscriptionActiveOrDowngrade(userId);
 
   const usageDate = todayKey();
   const usage = await prisma.dailyUsage.findUnique({
