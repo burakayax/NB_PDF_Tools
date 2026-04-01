@@ -15,6 +15,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any, Optional
 
+from modules.email_identity_normalize import normalize_email_for_storage
 from modules.desktop_security_runtime import (
     AUTH_CHANGE_PASSWORD,
     AUTH_LOGIN,
@@ -399,10 +400,14 @@ class DesktopAuthClient:
             raise DesktopAuthError(f"Geçersiz sunucu yanıtı: {error}") from error
 
     def login(self, email: str, password: str) -> dict[str, Any]:
+        try:
+            normalized_email = normalize_email_for_storage(email)
+        except ValueError:
+            normalized_email = email.strip().lower()
         response = self._request(
             "POST",
             AUTH_LOGIN,
-            body={"email": email.strip().lower(), "password": password},
+            body={"email": normalized_email, "password": password},
             login_attempt=True,
         )
         if not isinstance(response, dict) or not response.get("accessToken"):

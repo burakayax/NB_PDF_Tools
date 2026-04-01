@@ -1,4 +1,5 @@
 # --- Ortam ve sırlar ---
+.vercel/
 .env
 .env.*
 !.env.example
@@ -57,6 +58,9 @@ htmlcov/
 
 # --- Prisma ---
 web/api/node_modules/.prisma/
+
+# --- Admin uploads (local) ---
+web/api/uploads/
 
 # --- IDE ve editör ---
 .idea/

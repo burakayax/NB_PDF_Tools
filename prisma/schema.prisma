@@ -28,6 +28,15 @@ enum AuthProvider {
   google
 }
 
+/// Yönetici tarafından engellenen (normalize) e-postalar; yeni kayıt kabul edilmez.
+model BlockedEmail {
+  email     String   @id
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("blocked_emails")
+}
+
 model User {
   id           String         @id @default(cuid())
   email        String         @unique
@@ -70,6 +79,7 @@ model DailyUsage {
   id              String   @id @default(cuid())
   usageDate       String
   operationsCount Int      @default(0)
+  postLimitExtraOps Int    @default(0) @map("post_limit_extra_ops")
   lastFeatureKey  String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

@@ -27,7 +27,7 @@ type TrustPoint = {
   description: string;
 };
 
-type LandingTranslation = {
+export type LandingTranslation = {
   navbar: {
     productLabel: string;
     platformTag: string;

@@ -1,4 +1,5 @@
 import type { AuthProvider, EmailVerificationToken, Language, Plan, User, UserRole } from "@prisma/client";
+import { isEmailBlocked } from "../../lib/blocked-email.js";
 import { authLog } from "../../lib/auth-log.js";
 import { env } from "../../config/env.js";
 import { HttpError } from "../../lib/http-error.js";
@@ -9,6 +10,7 @@ import { prisma } from "../../lib/prisma.js";
 import { resolveRoleFromEmail } from "../../lib/role-policy.js";
 import { isAdminUser } from "../../lib/user-role.js";
 import { ensureDesktopDeviceAccess } from "../device/device.service.js";
+import { normalizeEmailForStorage } from "../../lib/email-identity-normalize.js";
 import { createUrlSafeToken, hashToken } from "../../lib/token.js";
 import { createAdminNotificationEmailTemplate, createVerificationEmailTemplate } from "./auth.email.js";
 import type { AuthCredentialsInput, ChangePasswordInput, RegisterInput, UpdateProfileInput } from "./auth.schema.js";
@@ -27,6 +29,8 @@ type PublicUser = {
   preferredLanguage: Language;
   isVerified: boolean;
   authProvider: AuthProvider;
+  /** False when the account has no bcrypt password (e.g. Google-only). */
+  hasPassword: boolean;
   createdAt: string;
 };
 
@@ -73,6 +77,7 @@ function toPublicUser(user: User): PublicUser {
     preferredLanguage: user.preferredLanguage,
     isVerified: user.isVerified,
     authProvider: user.authProvider,
+    hasPassword: Boolean(user.passwordHash),
     createdAt: user.createdAt.toISOString(),
   };
 }
@@ -210,6 +215,11 @@ async function revokeRefreshToken(token: string) {
 }
 
 export async function registerUser(input: RegisterInput): Promise<RegistrationResult> {
+  if (await isEmailBlocked(input.email)) {
+    authLog.warn("register rejected: email blocked", { email: input.email });
+    throw new HttpError(403, "This email address cannot be used to create an account.");
+  }
+
   const existingUser = await prisma.user.findUnique({
     where: { email: input.email },
   });
@@ -453,6 +463,33 @@ export async function changeUserPassword(userId: string, input: ChangePasswordIn
   return toPublicUser(updated);
 }
 
+export async function setInitialPasswordForUser(userId: string, newPassword: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new HttpError(404, "User account could not be found.");
+  }
+
+  if (user.passwordHash) {
+    throw new HttpError(400, "A password is already set for this account. Use change password instead.");
+  }
+
+  const passwordHash = await hashPassword(newPassword);
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash },
+  });
+
+  authLog.info("security_event", {
+    event: "initial_password_set",
+    userId: updated.id,
+    email: updated.email,
+  });
+  return toPublicUser(updated);
+}
+
 export async function signInWithGoogle(params: {
   email: string;
   googleId: string;
@@ -460,7 +497,7 @@ export async function signInWithGoogle(params: {
   avatar: string | null;
   preferredLanguage: Language;
 }): Promise<AuthSessionResult> {
-  const email = params.email.trim().toLowerCase();
+  const email = normalizeEmailForStorage(params.email);
   const googleId = params.googleId.trim();
   console.log(`${GOOGLE_OAUTH_LOG} signInWithGoogle: lookup`, { email, name: params.name ?? null, googleId });
 
@@ -507,6 +544,11 @@ export async function signInWithGoogle(params: {
     const session = await createSession(synced);
     logGoogleOAuthSessionIssued(session, "google-login");
     return session;
+  }
+
+  if (await isEmailBlocked(email)) {
+    authLog.warn("google oauth rejected: email blocked", { email });
+    throw new HttpError(403, "This email address cannot be used to create an account.");
   }
 
   const user = await prisma.user.create({

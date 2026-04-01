@@ -1,5 +1,6 @@
 import { env } from "../../config/env.js";
 import { logApiFailure } from "../../lib/app-logger.js";
+import { normalizeEmailForStorage } from "../../lib/email-identity-normalize.js";
 import { HttpError } from "../../lib/http-error.js";
 import {
   logGoogleTokenEndpointError,
@@ -207,7 +208,14 @@ export async function fetchGoogleProfile(accessToken: string): Promise<{
     },
   });
 
-  const email = typeof profile.email === "string" ? profile.email.trim().toLowerCase() : "";
+  let email = "";
+  if (typeof profile.email === "string" && profile.email.trim()) {
+    try {
+      email = normalizeEmailForStorage(profile.email);
+    } catch {
+      email = profile.email.trim().toLowerCase();
+    }
+  }
   if (!email) {
     logGoogleUserInfoError({ phase: "validation", message: "missing email in Google profile" });
     throw new HttpError(400, "Google did not return an email address for this account.");

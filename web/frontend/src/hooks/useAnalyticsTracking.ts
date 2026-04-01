@@ -4,17 +4,26 @@ import type { Language } from "../i18n/landing";
 
 type AnalyticsTrackingOptions = {
   enabled: boolean;
+  /** When false, suppresses tracking even if cookie consent is granted (from `site.settings`). */
+  serverAnalyticsEnabled?: boolean;
   view: string;
   path: string;
   language: Language;
   accessToken?: string | null;
 };
 
-export function useAnalyticsTracking({ enabled, view, path, language, accessToken }: AnalyticsTrackingOptions) {
+export function useAnalyticsTracking({
+  enabled,
+  serverAnalyticsEnabled = true,
+  view,
+  path,
+  language,
+  accessToken,
+}: AnalyticsTrackingOptions) {
   const lastTrackedRef = useRef("");
 
   useEffect(() => {
-    if (!enabled || !accessToken) {
+    if (!enabled || !serverAnalyticsEnabled) {
       return;
     }
 
@@ -31,11 +40,12 @@ export function useAnalyticsTracking({ enabled, view, path, language, accessToke
         language,
         referrer: document.referrer || undefined,
       },
-      accessToken,
+      accessToken ?? undefined,
     ).catch(() => {
       // Sayfa görüntüleme kaydı başarısız olsa bile akış kesilmez; analitik isteğe bağlıdır.
       // Ağ veya sunucu hatalarında kullanıcı etkileşimi bloke edilmemelidir.
       // Hata yukarı sızdırılırsa gereksiz uyarılar veya yeniden render tetiklenebilir.
     });
-  }, [accessToken, enabled, language, path, view]);
+  }, [accessToken, enabled, language, path, serverAnalyticsEnabled, view]);
 }
+

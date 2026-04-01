@@ -13,7 +13,11 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.api.auth_routes import router as auth_router
 from app.api.routes import router
+
+# Trial abuse reference routes (disabled by default; see app.auth.registration_workflow_example):
+# from app.auth.registration_workflow_example import example_router
 from app.limiter import limiter, rate_limit_key_func
+from app.security.headers_middleware import SecurityHeadersMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +61,17 @@ else:
     )
 
 app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+
+
+@app.middleware("http")
+async def attach_nb_device_id(request: Request, call_next):
+    """Expose X-NB-Device-Id on request.state for trial / abuse hooks (desktop already sends this)."""
+    raw = request.headers.get("X-NB-Device-Id") or request.headers.get("x-nb-device-id")
+    request.state.nb_device_id = raw.strip() if raw and raw.strip() else None
+    return await call_next(request)
+
 
 app.include_router(router)
 app.include_router(auth_router, prefix="/api")
+# app.include_router(example_router, prefix="/api")

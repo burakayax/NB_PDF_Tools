@@ -25,6 +25,19 @@ class Settings(BaseSettings):
     sqlite_db_path: Path | None = Field(default=None, description="SQLITE_DB_PATH")
     database_url: str | None = Field(default=None, description="Prisma DATABASE_URL (file:...)")
 
+    #: HMAC key for hashing IPs, device ids, identity keys, and email verification tokens (env: TRIAL_ABUSE_HMAC_SECRET).
+    trial_abuse_hmac_secret: str = Field(
+        default="DEV_ONLY_TRIAL_ABUSE_HMAC_SECRET_CHANGE_IN_PRODUCTION_32+",
+        min_length=32,
+    )
+    trial_abuse_sqlite_path: Path | None = Field(
+        default=None,
+        description="Dedicated SQLite for trial abuse tables (default: web/backend/data/trial_abuse.sqlite)",
+    )
+    #: Registrations with same hashed IP within this window count toward soft cap.
+    trial_abuse_ip_window_hours: int = Field(default=24, ge=1, le=168)
+    trial_abuse_max_regs_per_ip_window: int = Field(default=5, ge=1, le=100)
+
     @field_validator("sqlite_db_path", mode="before")
     @classmethod
     def empty_str_to_none(cls, v: object) -> object:
@@ -44,6 +57,14 @@ class Settings(BaseSettings):
                 p = (Path.cwd() / p).resolve()
             return p
         return _default_sqlite_path()
+
+    def resolved_trial_abuse_sqlite_path(self) -> Path:
+        if self.trial_abuse_sqlite_path is not None:
+            return Path(self.trial_abuse_sqlite_path).expanduser().resolve()
+        backend_root = Path(__file__).resolve().parent.parent
+        data_dir = backend_root / "data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        return (data_dir / "trial_abuse.sqlite").resolve()
 
 
 @lru_cache

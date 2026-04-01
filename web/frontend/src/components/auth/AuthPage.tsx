@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { getGoogleOAuthStartUrl } from "../../api/auth";
-import { getAuthCopy } from "../../i18n/auth";
+import { authTranslations, getAuthCopy } from "../../i18n/auth";
 import type { Language } from "../../i18n/landing";
 import { validateNewPasswordPolicy } from "../../lib/passwordPolicy";
 
@@ -17,6 +17,7 @@ type AuthPageProps = {
   onBack: () => void;
   onModeChange: (mode: AuthMode) => void;
   onSubmit: (payload: { email: string; password: string; firstName?: string; lastName?: string }) => Promise<void>;
+  onForgotPassword?: () => void;
   onOpenTerms: () => void;
   onOpenPrivacy: () => void;
 };
@@ -57,6 +58,7 @@ export function AuthPage({
   onBack,
   onModeChange,
   onSubmit,
+  onForgotPassword,
   onOpenTerms,
   onOpenPrivacy,
 }: AuthPageProps) {
@@ -290,7 +292,18 @@ export function AuthPage({
             </label>
 
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-nb-muted">{copy.shared.passwordLabel}</span>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="block text-sm font-medium text-nb-muted">{copy.shared.passwordLabel}</span>
+                {mode === "login" && onForgotPassword ? (
+                  <button
+                    type="button"
+                    onClick={onForgotPassword}
+                    className="text-xs font-semibold text-sky-300 transition duration-200 hover:text-sky-200"
+                  >
+                    {authTranslations[language].login.forgotPassword}
+                  </button>
+                ) : null}
+              </div>
               <input
                 type="password"
                 autoComplete={mode === "login" ? "current-password" : "new-password"}

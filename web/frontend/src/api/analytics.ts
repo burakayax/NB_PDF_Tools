@@ -28,6 +28,7 @@ export async function trackPageView(payload: Omit<PageViewPayload, "sessionId">,
       "Content-Type": "application/json",
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
+    credentials: "include",
     keepalive: true,
     body: JSON.stringify({
       ...payload,

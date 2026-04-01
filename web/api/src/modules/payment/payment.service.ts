@@ -4,6 +4,7 @@ import { env } from "../../config/env.js";
 import { HttpError } from "../../lib/http-error.js";
 import { logSuspiciousActivity } from "../../lib/app-logger.js";
 import { prisma } from "../../lib/prisma.js";
+import { getPaymentPricesTry } from "./payment-pricing.js";
 import IyzipayImport from "iyzipay";
 import iyziUtilsImport from "iyzipay/lib/utils.js";
 
@@ -26,11 +27,6 @@ type IyzipayCtor = {
 const Iyzipay = IyzipayImport as unknown as IyzipayCtor;
 const iyziUtils = iyziUtilsImport as {
   calculateHmacSHA256Signature: (params: string[], secretKey: string) => string;
-};
-
-const PLAN_PRICES_TRY: Record<"PRO" | "BUSINESS", string> = {
-  PRO: "200.00",
-  BUSINESS: "400.00",
 };
 
 const SUBSCRIPTION_DAYS = 30;
@@ -175,7 +171,8 @@ export async function createPaymentCheckoutSession(params: {
   paymentPageUrl?: string;
   conversationId: string;
 }> {
-  const price = PLAN_PRICES_TRY[params.plan];
+  const prices = await getPaymentPricesTry();
+  const price = prices[params.plan];
   const user = await prisma.user.findUnique({
     where: { id: params.userId },
   });
@@ -363,8 +360,8 @@ export async function processPaymentCallback(token: string): Promise<string> {
     return buildRedirectHtml(true);
   }
 
-  const expectedPrice = PLAN_PRICES_TRY[pending.plan as "PRO" | "BUSINESS"];
-  if (result.paidPrice != null && String(result.paidPrice) !== expectedPrice) {
+  const expectedPrice = pending.priceTry;
+  if (result.paidPrice != null && String(result.paidPrice) !== String(expectedPrice)) {
     logSuspiciousActivity({
       type: "iyzico_price_mismatch",
       detail: `expected=${expectedPrice} got=${String(result.paidPrice)}`,

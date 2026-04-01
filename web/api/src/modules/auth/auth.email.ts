@@ -95,3 +95,61 @@ export function createAdminNotificationEmailTemplate({
     text,
   };
 }
+
+type PasswordResetCodeEmailInput = {
+  code: string;
+  lang: "tr" | "en";
+};
+
+export function createPasswordResetCodeEmailTemplate({ code, lang }: PasswordResetCodeEmailInput) {
+  const safeCode = escapeHtml(code);
+  const subject =
+    lang === "tr" ? "NB PDF TOOLS — Şifre sıfırlama kodunuz" : "NB PDF TOOLS — Your password reset code";
+
+  const title = lang === "tr" ? "Şifre sıfırlama kodu" : "Password reset code";
+  const intro =
+    lang === "tr"
+      ? "Hesabınız için tek kullanımlık doğrulama kodunuz aşağıdadır. Kodu kimseyle paylaşmayın."
+      : "Your one-time verification code is below. Do not share this code with anyone.";
+
+  const html = renderCorporateEmail({
+    eyebrow: lang === "tr" ? "Güvenlik" : "Security",
+    title,
+    intro,
+    bodyHtml: `
+      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #334155;border-radius:20px;background:linear-gradient(180deg,#0f172a 0%,#0b1220 100%);padding:28px 24px;">
+        <tbody>
+          <tr>
+            <td style="text-align:center;font-size:32px;font-weight:800;letter-spacing:0.35em;color:#38bdf8;font-family:ui-monospace,monospace;">${safeCode}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin:20px 0 0;font-size:13px;line-height:1.6;color:#94a3b8;">
+        ${lang === "tr" ? "Bu kod 15 dakika geçerlidir. İsteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz." : "This code expires in 15 minutes. If you did not request a reset, you can ignore this email."}
+      </p>
+    `,
+    footerText: "NB PDF TOOLS — NB Global Studio",
+    productName: "NB PDF TOOLS",
+  });
+
+  const text =
+    lang === "tr"
+      ? [
+          "NB PDF TOOLS — Şifre sıfırlama",
+          "",
+          `Kodunuz: ${code}`,
+          "",
+          "Bu kod 15 dakika geçerlidir.",
+          "İsteği siz yapmadıysanız bu e-postayı yok sayın.",
+        ].join("\n")
+      : [
+          "NB PDF TOOLS — Password reset",
+          "",
+          `Your code: ${code}`,
+          "",
+          "This code expires in 15 minutes.",
+          "If you did not request this, ignore this email.",
+        ].join("\n");
+
+  return { subject, html, text };
+}

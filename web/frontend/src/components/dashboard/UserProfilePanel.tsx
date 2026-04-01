@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import type { AuthUser } from "../../api/auth";
+import { userEffectiveHasPassword, type AuthUser } from "../../api/auth";
+import { validateNewPasswordPolicy } from "../../lib/passwordPolicy";
 import type { PlanName } from "../../api/subscription";
 import { localizedPlanDisplayName } from "../../i18n/plans";
 import type { Language } from "../../i18n/landing";
@@ -12,6 +13,7 @@ type UserProfilePanelProps = {
   updateProfile: (firstName: string, lastName: string) => Promise<AuthUser | null>;
   showToast: (type: ToastType, title: string, detail: string) => void;
   onOpenChangePassword: () => void;
+  setInitialPassword: (newPassword: string) => Promise<AuthUser | null>;
 };
 
 const inputClass =
@@ -47,12 +49,15 @@ function splitFromName(name: string | null | undefined): { first: string; last: 
   return { first: t.slice(0, i).trim(), last: t.slice(i + 1).trim() };
 }
 
-export function UserProfilePanel({ user, language, updateProfile, showToast, onOpenChangePassword }: UserProfilePanelProps) {
+export function UserProfilePanel({ user, language, updateProfile, showToast, onOpenChangePassword, setInitialPassword }: UserProfilePanelProps) {
   const tr = language === "tr";
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [profileSubmitting, setProfileSubmitting] = useState(false);
+  const [setPwdNew, setSetPwdNew] = useState("");
+  const [setPwdConfirm, setSetPwdConfirm] = useState("");
+  const [setPwdSubmitting, setSetPwdSubmitting] = useState(false);
 
   useEffect(() => {
     const f = user.firstName?.trim() ?? "";
@@ -67,7 +72,43 @@ export function UserProfilePanel({ user, language, updateProfile, showToast, onO
     }
   }, [user.id, user.firstName, user.lastName, user.name]);
 
-  const isLocalPassword = user.authProvider !== "google";
+  const hasPassword = userEffectiveHasPassword(user);
+
+  async function handleSetPasswordSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (hasPassword || setPwdSubmitting) {
+      return;
+    }
+    const policy = validateNewPasswordPolicy(setPwdNew);
+    if (!policy.ok) {
+      const msg = tr ? policy.issues.map((i) => i.tr).join(" · ") : policy.issues.map((i) => i.en).join(" · ");
+      showToast("error", tr ? "Şifre gücü" : "Password strength", msg);
+      return;
+    }
+    if (setPwdNew !== setPwdConfirm) {
+      showToast("error", tr ? "Şifre" : "Password", tr ? "Şifreler eşleşmiyor." : "Passwords do not match.");
+      return;
+    }
+    setSetPwdSubmitting(true);
+    try {
+      const next = await setInitialPassword(setPwdNew);
+      if (!next) {
+        showToast("error", tr ? "Şifre" : "Password", tr ? "Oturum bulunamadı; yeniden giriş yapın." : "Session not found; please sign in again.");
+        return;
+      }
+      setSetPwdNew("");
+      setSetPwdConfirm("");
+      showToast(
+        "success",
+        tr ? "Şifre" : "Password",
+        tr ? "Hesap şifreniz kaydedildi; e-posta ve şifre ile de giriş yapabilirsiniz." : "Your account password is set; you can also sign in with email and password.",
+      );
+    } catch (error) {
+      showToast("error", tr ? "Şifre" : "Password", error instanceof Error ? error.message : tr ? "Şifre kaydedilemedi." : "Could not save password.");
+    } finally {
+      setSetPwdSubmitting(false);
+    }
+  }
 
   async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -160,14 +201,47 @@ export function UserProfilePanel({ user, language, updateProfile, showToast, onO
         className="rounded-2xl border border-white/[0.08] bg-nb-panel/50 p-6 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.45)] backdrop-blur-sm"
       >
         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-nb-muted">{tr ? "Güvenlik" : "Security"}</p>
-        <h2 className="mt-1 text-xl font-semibold tracking-tight text-nb-text">{tr ? "Şifre değiştir" : "Change password"}</h2>
+        <h2 className="mt-1 text-xl font-semibold tracking-tight text-nb-text">
+          {hasPassword ? (tr ? "Şifre değiştir" : "Change password") : tr ? "Şifre belirle" : "Set password"}
+        </h2>
 
-        {!isLocalPassword ? (
-          <p className="mt-4 text-sm leading-relaxed text-nb-muted">
-            {tr
-              ? "Google hesabınızla giriş yaptınız. Şifre yönetimi Google hesabınız üzerinden yapılır."
-              : "You signed in with Google. Password is managed in your Google account."}
-          </p>
+        {!hasPassword ? (
+          <form className="mt-6 space-y-4" onSubmit={(e) => void handleSetPasswordSubmit(e)}>
+            <p className="text-sm leading-relaxed text-nb-muted">
+              {tr
+                ? "Google ile giriş yaptınız; isteğe bağlı olarak bu e-posta için bir hesap şifresi belirleyebilirsiniz."
+                : "You signed in with Google. Optionally set a password for this email to sign in with email and password as well."}
+            </p>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-nb-muted">{tr ? "Yeni şifre" : "New password"}</span>
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={setPwdNew}
+                onChange={(e) => setSetPwdNew(e.target.value)}
+                className={inputClass}
+                disabled={setPwdSubmitting}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-nb-muted">{tr ? "Yeni şifre (tekrar)" : "Confirm new password"}</span>
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={setPwdConfirm}
+                onChange={(e) => setSetPwdConfirm(e.target.value)}
+                className={inputClass}
+                disabled={setPwdSubmitting}
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={setPwdSubmitting}
+              className="rounded-xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_32px_-10px_rgba(37,99,235,0.45)] transition duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-55"
+            >
+              {setPwdSubmitting ? (tr ? "Kaydediliyor…" : "Saving…") : tr ? "Şifreyi kaydet" : "Save password"}
+            </button>
+          </form>
         ) : (
           <div className="mt-6">
             <p className="text-sm leading-relaxed text-nb-muted">

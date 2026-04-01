@@ -26,6 +26,8 @@ type DashboardSidebarProps = {
   userRole?: string;
   /** Kota CTA: yükseltme modali (yoksa abonelik sayfasına gider). */
   onUsageUpgradeClick?: () => void;
+  /** Yalnızca ADMIN: istatistik modali. */
+  onOpenAdminDashboard?: () => void;
 };
 
 export function DashboardSidebar({
@@ -38,6 +40,7 @@ export function DashboardSidebar({
   subscriptionSummary,
   userRole,
   onUsageUpgradeClick,
+  onOpenAdminDashboard,
 }: DashboardSidebarProps) {
   const L = ws(language);
   const showUsageChip =
@@ -46,6 +49,24 @@ export function DashboardSidebar({
   return (
     <aside className="fixed bottom-0 left-0 top-14 z-40 hidden w-60 flex-col border-r border-white/[0.08] bg-gradient-to-b from-nb-bg-elevated/92 via-[#0c1424]/95 to-nb-bg-elevated/92 shadow-[4px_0_32px_-6px_rgba(0,0,0,0.55)] backdrop-blur-xl backdrop-saturate-150 md:flex">
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4" aria-label="Tools">
+        {userRole === "ADMIN" && onOpenAdminDashboard ? (
+          <button
+            type="button"
+            onClick={onOpenAdminDashboard}
+            className="nb-transition mb-1 flex w-full items-center gap-3 rounded-2xl border border-violet-400/35 bg-violet-500/12 px-3 py-2.5 text-left text-sm font-medium text-violet-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:scale-[1.02] hover:border-violet-400/50 hover:bg-violet-500/18 hover:shadow-md"
+          >
+            <span className="text-violet-300/95">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} aria-hidden>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"
+                />
+              </svg>
+            </span>
+            {language === "tr" ? "Yönetim paneli" : "Admin Dashboard"}
+          </button>
+        ) : null}
         {SIDEBAR_TOOL_ORDER.map((id) => {
           const isActive = active === id;
           const locked = lockedFeatures.has(id);
@@ -198,13 +219,31 @@ export function DashboardSidebar({
   );
 }
 
-export function DashboardSidebarMobileRail({ active, onSelect, language, onLanguageChange, onGoHome, lockedFeatures }: DashboardSidebarProps) {
+export function DashboardSidebarMobileRail({
+  active,
+  onSelect,
+  language,
+  onLanguageChange,
+  onGoHome,
+  lockedFeatures,
+  userRole,
+  onOpenAdminDashboard,
+}: DashboardSidebarProps) {
   const L = ws(language);
   const labelFor = (id: FeatureKey) => sidebarToolLabel(id, language);
 
   return (
     <div className="sticky top-14 z-30 border-b border-white/[0.06] bg-nb-bg/95 backdrop-blur-md md:hidden">
       <div className="flex gap-1.5 overflow-x-auto py-2 pl-2 pr-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {userRole === "ADMIN" && onOpenAdminDashboard ? (
+          <button
+            type="button"
+            onClick={onOpenAdminDashboard}
+            className="nb-transition shrink-0 rounded-full border border-violet-400/40 bg-violet-500/15 px-2.5 py-1.5 text-[10px] font-semibold whitespace-nowrap text-violet-100"
+          >
+            {language === "tr" ? "Yönetim" : "Admin"}
+          </button>
+        ) : null}
         {SIDEBAR_TOOL_ORDER.map((id) => {
           const isActive = active === id;
           const locked = lockedFeatures.has(id);

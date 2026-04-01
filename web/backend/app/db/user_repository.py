@@ -1,4 +1,8 @@
-"""Kullanici parola alani okuma/guncelleme (ham SQLite)."""
+"""Kullanici parola alani okuma/guncelleme (ham SQLite).
+
+Guvenlik: Tum sorgular parametre baglama (? yer tutucu) kullanir; SQL enjeksiyonuna karsi
+dinamik SQL birlestirme yapilmaz. Dinamik tanimlayici gerekiyorsa query_safety.assert_safe_identifier kullanin.
+"""
 
 from __future__ import annotations
 

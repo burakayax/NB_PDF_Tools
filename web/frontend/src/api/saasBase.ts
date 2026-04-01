@@ -5,7 +5,7 @@ import { envHttpUrlIsLoopback, isNonLocalDeployedHost } from "../lib/runtimeApiO
  * - Geliştirmede `http://localhost:4000` / `127.0.0.1:4000` gibi yerel adresler yok sayılır → göreli `/api/...` (Vite proxy).
  *   Aksi halde tarayıcı doğrudan :4000’e gider; UI API’den önce açılınca sıkça ERR_CONNECTION_REFUSED olur.
  * - Uzak veya özel adres (ör. staging URL) geliştirmede de kullanılır.
- * - Üretimde boşsa veya Vercel gibi gerçek hostta localhost gömülüyse → göreli `/api/...` (aynı origin).
+ * - Üretimde boşsa veya gerçek hostta localhost gömülüyse → göreli `/api/...` (aynı origin).
  */
 function isLocalhostSaasDevUrl(trimmed: string): boolean {
   try {

@@ -1,11 +1,13 @@
 import { z } from "zod";
 
+import { normalizeEmailForStorage } from "../../lib/email-identity-normalize.js";
+
 const emailField = z
   .string()
   .trim()
   .min(1, "Email is required.")
   .email("Please enter a valid email address.")
-  .transform((value) => value.toLowerCase());
+  .transform((value) => normalizeEmailForStorage(value));
 
 const passwordField = z
   .string()
@@ -81,8 +83,35 @@ export const changePasswordSnakeSchema = z
     path: ["new_password"],
   });
 
+/** POST /api/auth/set-password — OAuth users without a password yet (snake_case body). */
+export const setInitialPasswordSnakeSchema = z.object({
+  new_password: strongNewPasswordField,
+});
+
 export type AuthCredentialsInput = z.infer<typeof authCredentialsSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type PreferredLanguageInput = z.infer<typeof preferredLanguageSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+/** POST /api/auth/forgot-password/request */
+export const forgotPasswordRequestSchema = z.object({
+  email: emailField,
+  preferredLanguage: z.enum(["tr", "en"]).optional(),
+});
+
+/** POST /api/auth/forgot-password/verify-code */
+export const forgotPasswordVerifySchema = z.object({
+  email: emailField,
+  code: z
+    .string()
+    .trim()
+    .min(6, "Code is required.")
+    .max(12, "Invalid code."),
+});
+
+/** POST /api/auth/forgot-password/reset */
+export const forgotPasswordResetSchema = z.object({
+  resetToken: z.string().trim().min(10, "Reset session is invalid."),
+  newPassword: strongNewPasswordField,
+});

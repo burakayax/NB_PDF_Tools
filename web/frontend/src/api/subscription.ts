@@ -17,7 +17,8 @@ function readLatestAccessToken(fallback: string): string {
   return window.localStorage.getItem(AUTH_ACCESS_TOKEN_STORAGE_KEY) ?? fallback;
 }
 
-async function saasAuthorizedFetch(initialToken: string, run: (token: string) => Promise<Response>): Promise<Response> {
+/** Shared by subscription and admin API clients (401 → refresh session). */
+export async function saasAuthorizedFetch(initialToken: string, run: (token: string) => Promise<Response>): Promise<Response> {
   let response = await run(initialToken);
   if (response.status !== 401 || !saasSessionSync) {
     return response;
@@ -53,6 +54,26 @@ export type PlanDefinition = {
   dailyLimit: number | null;
   allowedFeatures: FeatureKey[];
   multiUser: boolean;
+  /** Aylık abonelik fiyatı (TRY), ücretli planlar için API’den gelir. */
+  monthlyPriceTry?: string | null;
+};
+
+export type UsageWarningCode = "approaching_80" | "at_free_cap" | "beyond_free";
+
+export type UpgradeCta = {
+  intent: "subscribe_premium";
+  label: string;
+  subtitle: string;
+  clientAction: "open_upgrade_modal";
+};
+
+export type ConversionTracking = {
+  freeLimitExceeded: boolean;
+  operationsToday: number;
+  dailyLimit: number;
+  postLimitExtraOps: number;
+  postLimitThrottleEventsToday: number;
+  freeLimitFirstExceededAt: string | null;
 };
 
 export type SubscriptionSummary = {
@@ -63,8 +84,54 @@ export type SubscriptionSummary = {
     remainingToday: number | null;
     dailyLimit: number | null;
     lastFeatureKey: FeatureKey | null;
+    /** Ops today after free daily allowance (backend analytics / conversion). */
+    postLimitExtraOps?: number;
+    /** Delayed assert/authorize events today (post–free-cap). */
+    postLimitThrottleEventsToday?: number;
+    usageWarningCode?: UsageWarningCode | null;
+    softUsageWarning?: string | null;
+    strongUsageWarning?: string | null;
+    premiumBenefitsLine?: string | null;
+    upgradeCta?: UpgradeCta;
+    conversionSummary?: string;
+    conversionTracking?: ConversionTracking | null;
   };
   allowedFeatures: FeatureKey[];
+};
+
+export type RecordUsageResponse = {
+  usageDate: string;
+  operationsCount: number;
+  remainingToday: number | null;
+  postLimitExtraOps?: number;
+  usageWarningCode?: UsageWarningCode | null;
+  softUsageWarning?: string | null;
+  strongUsageWarning?: string | null;
+  premiumBenefitsLine?: string | null;
+  usageSummary: string | null;
+  conversionMessage: string | null;
+  reducedOutputQuality: boolean;
+  priorityProcessing: boolean;
+  postLimitMessage: string | null;
+  upgradeCta?: UpgradeCta | null;
+  conversionTracking?: ConversionTracking | null;
+};
+
+export type AssertFeatureThrottlePayload = {
+  throttleApplied: true;
+  delayMs: number;
+  message: string;
+  usageSummary: string;
+  reducedOutputQuality: boolean;
+  priorityProcessing: boolean;
+  upgradeCta: UpgradeCta;
+  conversionTracking: ConversionTracking;
+};
+
+export type AssertFeatureResult = {
+  throttleApplied: boolean;
+  reducedOutputQuality: boolean;
+  throttlePayload?: AssertFeatureThrottlePayload;
 };
 
 /** Sunucu hesaplı kalan gün; geri sayım için istemci tarihi kullanılmaz. */
@@ -132,7 +199,10 @@ export async function fetchSubscriptionStatus(accessToken: string) {
 }
 
 /** Server-side plan and quota check before running a PDF operation (does not consume quota). */
-export async function assertFeatureBeforeAction(accessToken: string, featureKey: FeatureKey) {
+export async function assertFeatureBeforeAction(
+  accessToken: string,
+  featureKey: FeatureKey,
+): Promise<AssertFeatureResult> {
   const token = readLatestAccessToken(accessToken);
   const response = await saasAuthorizedFetch(token, (t) =>
     fetch(`${getSaasApiBase()}/api/subscription/assert-feature`, {
@@ -143,6 +213,15 @@ export async function assertFeatureBeforeAction(accessToken: string, featureKey:
     }),
   );
   await ensureOk(response, "This action is not allowed on your current plan.");
+  if (response.status === 204) {
+    return { throttleApplied: false, reducedOutputQuality: false };
+  }
+  const data = (await response.json()) as AssertFeatureThrottlePayload;
+  return {
+    throttleApplied: true,
+    reducedOutputQuality: data.reducedOutputQuality,
+    throttlePayload: data,
+  };
 }
 
 export async function recordUsage(accessToken: string, featureKey: FeatureKey) {
@@ -156,5 +235,5 @@ export async function recordUsage(accessToken: string, featureKey: FeatureKey) {
     }),
   );
   await ensureOk(response, "Usage could not be recorded.");
-  return response.json() as Promise<{ usageDate: string; operationsCount: number; remainingToday: number | null }>;
+  return response.json() as Promise<RecordUsageResponse>;
 }

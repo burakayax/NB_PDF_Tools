@@ -7,6 +7,7 @@ import {
   logoutAuthUser,
   refreshAuthSession,
   registerAuthUser,
+  setInitialAuthPassword,
   updateAuthPreferredLanguage,
   updateAuthProfile,
   type AuthUser,
@@ -43,7 +44,7 @@ export function useAuthSession() {
 
     if (storedToken) {
       try {
-        const restoredUser = await fetchAuthenticatedUser(storedToken);
+        const restoredUser = await fetchAuthenticatedUser(storedToken, { silentUnauthorized: true });
         setAccessToken(storedToken);
         setUser(restoredUser);
         return;
@@ -180,6 +181,19 @@ export function useAuthSession() {
     [accessToken],
   );
 
+  const setInitialPassword = useCallback(
+    async (newPassword: string) => {
+      if (!accessToken) {
+        return null;
+      }
+
+      const nextUser = await setInitialAuthPassword(accessToken, newPassword);
+      setUser(nextUser);
+      return nextUser;
+    },
+    [accessToken],
+  );
+
   const refreshSession = useCallback(async () => {
     try {
       const refreshed = await refreshAuthSession();
@@ -204,6 +218,7 @@ export function useAuthSession() {
     updatePreferredLanguage,
     updateProfile,
     changePassword,
+    setInitialPassword,
     completeOAuthLogin,
     clearSession,
     refreshSession,

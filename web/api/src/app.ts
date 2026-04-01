@@ -2,6 +2,7 @@ import compression from "compression";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
+import { getMediaUploadRoot } from "./modules/admin/media.service.js";
 import helmet from "helmet";
 import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
@@ -67,8 +68,28 @@ if (trust === "true" || trust === "1") {
 if (env.NODE_ENV === "production") {
   app.use(
     helmet({
-      contentSecurityPolicy: false,
+      /** E-posta doğrulama HTML’i satır içi style kullanır; script yok. API yanıtları çoğunlukla JSON. */
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'none'"],
+          styleSrc: ["'unsafe-inline'"],
+          scriptSrc: ["'none'"],
+          imgSrc: ["'none'"],
+          fontSrc: ["'none'"],
+          connectSrc: ["'none'"],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+          baseUri: ["'none'"],
+          formAction: ["'none'"],
+        },
+      },
       crossOriginEmbedderPolicy: false,
+      strictTransportSecurity: {
+        maxAge: 31_536_000,
+        includeSubDomains: true,
+        preload: false,
+      },
+      xContentTypeOptions: true,
     }),
   );
 }
@@ -100,6 +121,15 @@ app.get("/verify-email", (request, response, next) => {
 // Eski veya kısa URL sözleşmeleri ve CDN yönlendirmeleri için esnek giriş noktası sağlar.
 // Yol veya handler ayrılırsa istemciler yanlış uç noktaya yazıp 404 alabilir.
 app.post("/contact", abuseBlockMiddleware, globalApiLimiter, contactPostLimiter, asyncHandler(submitContactController));
+
+app.use(
+  "/api/media/files",
+  express.static(getMediaUploadRoot(), {
+    fallthrough: false,
+    index: false,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  }),
+);
 
 app.use("/api", apiRouter);
 

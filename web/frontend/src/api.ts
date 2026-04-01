@@ -3,7 +3,7 @@ import { envHttpUrlIsLoopback, isNonLocalDeployedHost } from "./lib/runtimeApiOr
 /**
  * PDF API kök adresi.
  * - `npm run dev`: boş string → istekler `/api/...` (Vite aynı origin + proxy → :8000). Tarayıcı doğrudan :8000’e gitmez, CORS gerekmez.
- * - `vite build` / önizleme: VITE_API_BASE (ör. tam URL) veya boş → göreli /api (aynı site; Vercel’de kendi domain’i).
+ * - `vite build` / önizleme: VITE_API_BASE (ör. tam URL) veya boş → göreli /api (aynı site / kendi domain’i).
  * - Üretimde derlemeye localhost gömülmüş olsa bile gerçek sitede açılınca göreli /api kullanılır.
  */
 function getPdfApiBase(): string {

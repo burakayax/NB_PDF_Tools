@@ -15,10 +15,12 @@ import { CookieNotice } from "./components/common/CookieNotice";
 import { DashboardSidebar, DashboardSidebarMobileRail, type SidebarToolId } from "./components/dashboard/DashboardSidebar";
 import { DashboardTopNav } from "./components/dashboard/DashboardTopNav";
 import { ChangePasswordModal } from "./components/dashboard/ChangePasswordModal";
+import { AdminPanel } from "./admin/AdminPanel";
 import { UpgradeModal } from "./components/dashboard/UpgradeModal";
 import { UserProfilePanel } from "./components/dashboard/UserProfilePanel";
 import { userGreetingLine } from "./components/dashboard/userDisplayName";
 import { AuthPage } from "./components/auth/AuthPage";
+import { ForgotPasswordPage } from "./components/auth/ForgotPasswordPage";
 import { LoginSuccessPage } from "./components/auth/LoginSuccessPage";
 import { LandingPage } from "./components/landing/LandingPage";
 import { LegalPage } from "./components/legal/LegalPage";
@@ -40,7 +42,15 @@ import {
   validatePagesMax,
   ws,
 } from "./i18n/workspace";
+import { fetchPublicCms, fetchPublicSiteConfig } from "./api/public";
+import { getCmsWorkspaceBanner } from "./lib/landingCmsMerge";
 import { useAnalyticsTracking } from "./hooks/useAnalyticsTracking";
+
+function formatTryPerMonth(price: string | null | undefined, tr: boolean): string | null {
+  if (price == null || price === "") return null;
+  const n = price.replace(/\.00$/, "");
+  return tr ? `${n} ₺/ay` : `${n} TRY/mo`;
+}
 import { useAuthSession } from "./hooks/useAuthSession";
 import { useCookieConsent } from "./hooks/useCookieConsent";
 import { useErrorLogging } from "./hooks/useErrorLogging";
@@ -48,7 +58,7 @@ import { usePreferredLanguage } from "./hooks/usePreferredLanguage";
 
 type FeatureId = FeatureKey;
 
-type NonLegalView = "landing" | "login" | "register" | "web";
+type NonLegalView = "landing" | "login" | "register" | "forgot_password" | "web" | "admin";
 type LegalView = "terms" | "privacy";
 type AppView = NonLegalView | LegalView;
 type ToastType = "success" | "error" | "loading" | "info";
@@ -349,12 +359,16 @@ function getTrackedViewName(view: AppView) {
       return "auth-login";
     case "register":
       return "auth-register";
+    case "forgot_password":
+      return "auth-forgot-password";
     case "terms":
       return "legal-terms";
     case "privacy":
       return "legal-privacy";
     case "web":
       return "workspace";
+    case "admin":
+      return "admin-panel";
     default:
       return "landing";
   }
@@ -368,12 +382,16 @@ function getTrackedPath(view: AppView) {
       return "/login";
     case "register":
       return "/register";
+    case "forgot_password":
+      return "/forgot-password";
     case "terms":
       return "/terms";
     case "privacy":
       return "/privacy";
     case "web":
       return "/workspace";
+    case "admin":
+      return "/admin";
     default:
       return "/";
   }
@@ -393,12 +411,16 @@ function getInitialViewFromLocation(): AppView {
       return "login";
     case "/register":
       return "register";
+    case "/forgot-password":
+      return "forgot_password";
     case "/terms":
       return "terms";
     case "/privacy":
       return "privacy";
     case "/workspace":
       return "web";
+    case "/admin":
+      return "admin";
     default:
       break;
   }
@@ -406,7 +428,9 @@ function getInitialViewFromLocation(): AppView {
   if (
     requestedView === "login" ||
     requestedView === "register" ||
+    requestedView === "forgot_password" ||
     requestedView === "web" ||
+    requestedView === "admin" ||
     requestedView === "terms" ||
     requestedView === "privacy"
   ) {
@@ -423,10 +447,12 @@ function App() {
     isAuthenticated,
     isRestoring,
     logout,
+    login,
     register,
     updatePreferredLanguage,
     updateProfile,
     changePassword,
+    setInitialPassword,
     completeOAuthLogin,
     clearSession,
     refreshSession,
@@ -491,6 +517,8 @@ function App() {
   const [contactWebsite, setContactWebsite] = useState("");
   const [contactError, setContactError] = useState("");
   const [contactSubmitting, setContactSubmitting] = useState(false);
+  const [publicCms, setPublicCms] = useState<Record<string, unknown> | null>(null);
+  const [serverAnalyticsEnabled, setServerAnalyticsEnabled] = useState(true);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const inspectRunRef = useRef(0);
@@ -498,6 +526,11 @@ function App() {
   const contactSubmitInFlightRef = useRef(false);
 
   const navigateToDashboardAfterOAuth = useCallback(() => {
+    const url = new URL(window.location.href);
+    url.pathname = "/workspace";
+    url.searchParams.delete("token");
+    const qs = url.searchParams.toString();
+    window.history.replaceState({}, "", `${url.pathname}${qs ? `?${qs}` : ""}${url.hash}`);
     setSelectedFeatureId("split");
     setActiveSidebar("split");
     setContentPanel("tool");
@@ -522,6 +555,16 @@ function App() {
     }
     return next;
   }, [isAuthenticated, subscriptionSummary, subscriptionLoading]);
+
+  const proTryLine = useMemo(
+    () => formatTryPerMonth(plans.find((p) => p.name === "PRO")?.monthlyPriceTry, language === "tr"),
+    [plans, language],
+  );
+  const businessTryLine = useMemo(
+    () => formatTryPerMonth(plans.find((p) => p.name === "BUSINESS")?.monthlyPriceTry, language === "tr"),
+    [plans, language],
+  );
+
   const primaryUpload = uploads[0] ?? null;
   const currentPdfIsEncrypted = Boolean(primaryUpload?.encrypted);
   const shouldInspectCurrentFeature = pdfInspectionFeatures.includes(selectedFeatureId);
@@ -537,9 +580,23 @@ function App() {
   const shouldShowCookieNotice = isCookieConsentReady && !hasConsent;
   const trackedView = getTrackedViewName(view);
   const trackedPath = getTrackedPath(view);
+  const workspaceBanner = useMemo(() => getCmsWorkspaceBanner(publicCms), [publicCms]);
+
+  useEffect(() => {
+    void fetchPublicCms()
+      .then((d) => setPublicCms(d.content))
+      .catch(() => setPublicCms(null));
+  }, []);
+
+  useEffect(() => {
+    void fetchPublicSiteConfig()
+      .then((c) => setServerAnalyticsEnabled(c.analyticsEnabled !== false))
+      .catch(() => setServerAnalyticsEnabled(true));
+  }, []);
 
   useAnalyticsTracking({
     enabled: hasConsent,
+    serverAnalyticsEnabled,
     view: trackedView,
     path: trackedPath,
     language,
@@ -573,6 +630,9 @@ function App() {
     }
     setToast(null);
   }
+
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
 
   const disposeToolProgressSuccess = useCallback(() => {
     toolProgressDisposeRef.current?.();
@@ -836,13 +896,20 @@ function App() {
 
   useEffect(() => {
     const path = window.location.pathname.replace(/\/$/, "") || "/";
-    if (path === "/login-success" || path === "/login-error") {
+    if (path === "/login-error") {
+      return;
+    }
+    /** OAuth tamamlandıktan sonra view=web iken /login-success’ten /workspace’e geçişe izin ver. */
+    if (path === "/login-success" && view !== "web") {
       return;
     }
     if (view === "web" && (!isAuthenticated || isRestoring)) {
       return;
     }
-    const next = getTrackedPath(view);
+    if (view === "admin" && (!isAuthenticated || isRestoring || user?.role !== "ADMIN")) {
+      return;
+    }
+    const next = view === "admin" ? "/admin" : getTrackedPath(view);
     const current = path;
     const normalizedNext = next.replace(/\/$/, "") || "/";
     if (current !== normalizedNext) {
@@ -861,7 +928,17 @@ function App() {
         `${next}${qs ? `?${qs}` : ""}${window.location.hash}`,
       );
     }
-  }, [view, isAuthenticated, isRestoring]);
+  }, [view, isAuthenticated, isRestoring, user?.role]);
+
+  useEffect(() => {
+    if (view !== "admin" || isRestoring || !isAuthenticated) {
+      return;
+    }
+    if (user?.role !== "ADMIN") {
+      setView("web");
+      window.history.replaceState({}, "", "/workspace");
+    }
+  }, [view, isRestoring, isAuthenticated, user?.role]);
 
   useEffect(() => {
     if (!isAuthenticated || isRestoring || !accessToken) {
@@ -1139,6 +1216,37 @@ function App() {
     };
   }, [accessToken, isAuthenticated, refreshSession, user?.id, user?.plan, user?.role]);
 
+  useEffect(() => {
+    if (!subscriptionSummary?.usage) return;
+    const u = subscriptionSummary.usage;
+    if (u.dailyLimit == null) return;
+
+    const code = u.usageWarningCode;
+    const strong = u.strongUsageWarning;
+    const soft = u.softUsageWarning;
+    if (!code || (!strong && !soft)) return;
+
+    if (typeof sessionStorage === "undefined") return;
+
+    const k = `nb-usage-toast-${u.date}-${code}`;
+    if (sessionStorage.getItem(k)) return;
+    sessionStorage.setItem(k, "1");
+
+    const detail = (strong ?? soft) as string;
+    const isStrong = Boolean(strong);
+    showToastRef.current(
+      "info",
+      language === "tr"
+        ? isStrong
+          ? "Günlük ücretsiz kota"
+          : "Kota uyarısı"
+        : isStrong
+          ? "Free daily limit"
+          : "Usage reminder",
+      detail,
+    );
+  }, [subscriptionSummary, language]);
+
   const W = ws(language);
   const splitModeDescription =
     splitMode === "single"
@@ -1397,6 +1505,11 @@ function App() {
   }
 
   function handleDashboardLogoClick() {
+    if (view === "admin") {
+      setView("web");
+      window.history.replaceState({}, "", "/workspace");
+      return;
+    }
     setContentPanel("tool");
     setActiveSidebar("split");
     setSelectedFeatureId("split");
@@ -1431,26 +1544,21 @@ function App() {
         );
         setView("login");
         return;
-      } else {
-        /** Geçici: e-posta girişinde API yok; bakım mesajı (Vercel / onay süreci). */
-        const maintenanceMs = 1400;
-        await new Promise((r) => setTimeout(r, maintenanceMs));
-        showToast(
-          "info",
-          language === "tr" ? "Bakımdayız" : "Under maintenance",
-          language === "tr"
-            ? "Sistemimiz şu an bakım aşamasındadır, kısa süre sonra tekrar deneyiniz."
-            : "Our system is currently under maintenance. Please try again in a little while.",
-        );
-        return;
       }
 
+      const loggedInUser = await login(payload.email, payload.password);
+      if (loggedInUser.preferredLanguage && loggedInUser.preferredLanguage !== language) {
+        setLanguage(loggedInUser.preferredLanguage);
+      }
       setSelectedFeatureId("split");
       setActiveSidebar("split");
       setContentPanel("tool");
       setView("web");
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : "Kimlik doğrulama işlemi başarısız oldu.");
+      const fallback =
+        language === "tr" ? "Kimlik doğrulama işlemi başarısız oldu." : "Authentication failed.";
+      const raw = error instanceof Error ? error.message : fallback;
+      setAuthError(translateAuthApiMessage(raw, language));
       throw error;
     } finally {
       setAuthSubmitting(false);
@@ -1744,6 +1852,27 @@ function App() {
     );
   }
 
+  if (view === "forgot_password") {
+    return (
+      <ForgotPasswordPage
+        language={language}
+        onBackToLogin={() => {
+          setAuthError("");
+          setView("login");
+        }}
+        onCompleted={(successMessage) => {
+          setAuthError("");
+          setView("login");
+          showToast(
+            "success",
+            language === "tr" ? "Şifre sıfırlandı" : "Password reset",
+            successMessage,
+          );
+        }}
+      />
+    );
+  }
+
   if (view === "landing") {
     return (
       <>
@@ -1764,6 +1893,7 @@ function App() {
           }}
           onOpenTerms={() => openLegalPage("terms")}
           onOpenPrivacy={() => openLegalPage("privacy")}
+          cmsContent={publicCms}
         />
         <CookieNotice
           language={language}
@@ -1795,6 +1925,10 @@ function App() {
             setView(nextMode);
           }}
           onSubmit={handleAuthSubmit}
+          onForgotPassword={() => {
+            setAuthError("");
+            setView("forgot_password");
+          }}
           onOpenTerms={() => openLegalPage("terms")}
           onOpenPrivacy={() => openLegalPage("privacy")}
         />
@@ -1888,6 +2022,49 @@ function App() {
     );
   }
 
+  if (view === "admin") {
+    if (user.role !== "ADMIN" || !accessToken) {
+      return (
+        <>
+          <div className="min-h-screen bg-nb-bg px-6 py-16 text-center text-nb-muted">
+            <p className="text-lg font-semibold text-nb-text">Yönetici erişimi gerekli</p>
+            <p className="mt-2 text-sm">Yetkili bir yönetici hesabıyla giriş yapın.</p>
+          </div>
+          <CookieNotice
+            language={language}
+            visible={shouldShowCookieNotice}
+            onAccept={acceptConsent}
+            onOpenPrivacy={() => openLegalPage("privacy")}
+          />
+        </>
+      );
+    }
+    return (
+      <>
+        {toast ? (
+          <div className={`toast toast--${toast.type}`}>
+            <div className="toast__title">{toast.title}</div>
+            <div className="toast__detail">{toast.detail}</div>
+          </div>
+        ) : null}
+        <CookieNotice
+          language={language}
+          visible={shouldShowCookieNotice}
+          onAccept={acceptConsent}
+          onOpenPrivacy={() => openLegalPage("privacy")}
+        />
+        <AdminPanel
+          accessToken={accessToken}
+          onExit={() => {
+            setView("web");
+            window.history.replaceState({}, "", "/workspace");
+          }}
+          onLogout={() => void handleLogout()}
+        />
+      </>
+    );
+  }
+
   return (
     <div className="app-shell">
       {contactModalOpen ? (
@@ -1964,6 +2141,7 @@ function App() {
         user={user}
         language={language}
         changePassword={changePassword}
+        setInitialPassword={setInitialPassword}
         showToast={showToast}
       />
 
@@ -1971,6 +2149,8 @@ function App() {
         open={upgradeModalOpen}
         onClose={() => setUpgradeModalOpen(false)}
         language={language}
+        proPriceTry={plans.find((p) => p.name === "PRO")?.monthlyPriceTry ?? null}
+        businessPriceTry={plans.find((p) => p.name === "BUSINESS")?.monthlyPriceTry ?? null}
         onSelectPro={() => {
           setUpgradeModalOpen(false);
           void handleUpgradeCheckout("PRO");
@@ -1997,7 +2177,17 @@ function App() {
         onPassword={handleNavPassword}
         onLogout={() => void handleLogout()}
         onUpgradeClick={() => setUpgradeModalOpen(true)}
+        showAdminEntry={user?.role === "ADMIN"}
+        onOpenAdmin={() => {
+          setView("admin");
+          window.history.replaceState({}, "", "/admin");
+        }}
       />
+      {workspaceBanner.enabled ? (
+        <div className="border-b border-sky-500/30 bg-sky-950/50 px-4 py-2 text-center text-xs font-medium text-sky-100 md:text-sm">
+          {workspaceBanner.text}
+        </div>
+      ) : null}
       <DashboardSidebar
         active={activeSidebar}
         onSelect={handleSidebarSelect}
@@ -2008,6 +2198,14 @@ function App() {
         subscriptionSummary={subscriptionSummary}
         userRole={user?.role}
         onUsageUpgradeClick={() => setUpgradeModalOpen(true)}
+        onOpenAdminDashboard={
+          user?.role === "ADMIN"
+            ? () => {
+                setView("admin");
+                window.history.replaceState({}, "", "/admin");
+              }
+            : undefined
+        }
       />
       {showUsageQuota && !bottomToolProgressActive ? (
         <div className="pointer-events-none fixed bottom-4 left-4 z-30 max-w-[calc(100vw-2rem)] md:hidden">
@@ -2066,6 +2264,15 @@ function App() {
           onLanguageChange={(lang) => void handleLanguageChange(lang)}
           onGoHome={goToLandingFromDashboard}
           lockedFeatures={lockedFeatures}
+          userRole={user?.role}
+          onOpenAdminDashboard={
+            user?.role === "ADMIN"
+              ? () => {
+                  setView("admin");
+                  window.history.replaceState({}, "", "/admin");
+                }
+              : undefined
+          }
         />
         <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-8">
           {contentPanel === "subscription" ? (
@@ -2250,7 +2457,13 @@ function App() {
                     className="subscription-plan__action subscription-plan__action--upgrade"
                     onClick={() => void handleUpgradeCheckout("PRO")}
                   >
-                    {language === "tr" ? "Pro'ya yükselt" : "Upgrade to Pro"}
+                    {language === "tr"
+                      ? proTryLine
+                        ? `Pro'ya yükselt (${proTryLine})`
+                        : "Pro'ya yükselt"
+                      : proTryLine
+                        ? `Upgrade to Pro (${proTryLine})`
+                        : "Upgrade to Pro"}
                   </button>
                   <span className="text-sm text-nb-muted">
                     {language === "tr"
@@ -2267,7 +2480,13 @@ function App() {
                     className="subscription-plan__action subscription-plan__action--upgrade"
                     onClick={() => void handleUpgradeCheckout("BUSINESS")}
                   >
-                    {language === "tr" ? "Business'a yükselt (400 ₺/ay)" : "Upgrade to Business (400 TRY/mo)"}
+                    {language === "tr"
+                      ? businessTryLine
+                        ? `Business'a yükselt (${businessTryLine})`
+                        : "Business'a yükselt"
+                      : businessTryLine
+                        ? `Upgrade to Business (${businessTryLine})`
+                        : "Upgrade to Business"}
                   </button>
                   <span className="text-sm text-nb-muted">
                     {language === "tr"
@@ -2292,6 +2511,7 @@ function App() {
               updateProfile={updateProfile}
               showToast={showToast}
               onOpenChangePassword={() => setChangePasswordModalOpen(true)}
+              setInitialPassword={setInitialPassword}
             />
           ) : null}
 

@@ -1,4 +1,8 @@
-"""Masaüstünde PRO/Business ödeme: sunucu ile aynı iyzico oturumu, tarayıcıda ödeme sayfası."""
+"""Masaüstünde PRO/Business ödeme: sunucu ile aynı iyzico oturumu, tarayıcıda ödeme sayfası.
+
+PCI DSS: Kart numarası/CVV bu uygulamada işlenmez veya saklanmaz; ödeme sağlayıcı sayfası
+HTTPS üzerinden açılır. Oturum sunucu tarafında JWT + yenileme çerezi ile yönetilir.
+"""
 
 from __future__ import annotations
 

@@ -265,6 +265,8 @@ def _pdf_to_word_ocr_fitz(
     docx_path: str,
     password: Optional[str],
     progress_callback=None,
+    *,
+    ocr_matrix_scale: float = 2.0,
 ) -> None:
     """Metin katmanı zayıf / taranmış PDF: sayfa görüntüsünden Tesseract ile düzenlenebilir metin."""
     import fitz
@@ -282,7 +284,7 @@ def _pdf_to_word_ocr_fitz(
             if progress_callback:
                 progress_callback(i + 1, max(n, 1), f"OCR (sayfa {i + 1}/{n})")
             page = doc_pdf.load_page(i)
-            mat = fitz.Matrix(2.0, 2.0)
+            mat = fitz.Matrix(ocr_matrix_scale, ocr_matrix_scale)
             pix = page.get_pixmap(matrix=mat, alpha=False)
             img = Image.open(io.BytesIO(pix.tobytes("png")))
             try:
@@ -305,7 +307,14 @@ def _pdf_to_word_ocr_fitz(
         doc_pdf.close()
 
 
-def pdf_to_word(pdf_path: str, docx_path: str, progress_callback=None, password: Optional[str] = None) -> bool:
+def pdf_to_word(
+    pdf_path: str,
+    docx_path: str,
+    progress_callback=None,
+    password: Optional[str] = None,
+    *,
+    reduced_quality: bool = False,
+) -> bool:
     """
     PDF'i düzenlenebilir DOCX olarak dönüştürür.
     Metin katmanı çok zayıfsa Tesseract OCR ile metin üretir; aksi halde pdf2docx (yapısal) kullanılır.
@@ -332,7 +341,14 @@ def pdf_to_word(pdf_path: str, docx_path: str, progress_callback=None, password:
                     os.remove(docx_path)
                 except OSError:
                     pass
-            _pdf_to_word_ocr_fitz(pdf_path, docx_path, password, progress_callback=progress_callback)
+            ocr_scale = 1.38 if reduced_quality else 2.0
+            _pdf_to_word_ocr_fitz(
+                pdf_path,
+                docx_path,
+                password,
+                progress_callback=progress_callback,
+                ocr_matrix_scale=ocr_scale,
+            )
             if progress_callback:
                 progress_callback(3, 3, "Word kaydediliyor...")
             return True
@@ -380,7 +396,14 @@ def pdf_to_word(pdf_path: str, docx_path: str, progress_callback=None, password:
                             pass
                     if progress_callback:
                         progress_callback(2, 3, "Yapısal dönüşüm başarısız — OCR deneniyor...")
-                    _pdf_to_word_ocr_fitz(pdf_path, docx_path, password, progress_callback=progress_callback)
+                    _fb_scale = 1.38 if reduced_quality else 2.0
+                    _pdf_to_word_ocr_fitz(
+                        pdf_path,
+                        docx_path,
+                        password,
+                        progress_callback=progress_callback,
+                        ocr_matrix_scale=_fb_scale,
+                    )
                 except Exception:
                     raise Exception(
                         "Bu PDF düzenlenebilir Word olarak dönüştürülemedi. "

@@ -21,6 +21,7 @@ type AuthCopy = {
     submit: string;
     alternatePrompt: string;
     alternateAction: string;
+    forgotPassword: string;
   };
   register: {
     title: string;
@@ -29,6 +30,64 @@ type AuthCopy = {
     alternatePrompt: string;
     alternateAction: string;
   };
+};
+
+export type ForgotPasswordCopy = {
+  title: string;
+  stepEmailTitle: string;
+  stepEmailHint: string;
+  stepCodeTitle: string;
+  stepCodeHint: string;
+  stepNewTitle: string;
+  stepNewHint: string;
+  emailLabel: string;
+  codeLabel: string;
+  newPasswordLabel: string;
+  confirmPasswordLabel: string;
+  sendCode: string;
+  verifyCode: string;
+  savePassword: string;
+  backToLogin: string;
+  passwordsMismatch: string;
+};
+
+export const forgotPasswordTranslations: Record<Language, ForgotPasswordCopy> = {
+  en: {
+    title: "Reset your password",
+    stepEmailTitle: "Enter your email",
+    stepEmailHint: "We will send a 6-digit code if an account exists with a password.",
+    stepCodeTitle: "Enter the code",
+    stepCodeHint: "Check your inbox for the code we sent.",
+    stepNewTitle: "Choose a new password",
+    stepNewHint: "Use at least 10 characters with upper, lower, number, and symbol.",
+    emailLabel: "Email address",
+    codeLabel: "6-digit code",
+    newPasswordLabel: "New password",
+    confirmPasswordLabel: "Confirm new password",
+    sendCode: "Send code",
+    verifyCode: "Continue",
+    savePassword: "Update password and go to sign in",
+    backToLogin: "Back to sign in",
+    passwordsMismatch: "Passwords do not match.",
+  },
+  tr: {
+    title: "Şifrenizi sıfırlayın",
+    stepEmailTitle: "E-postanızı girin",
+    stepEmailHint: "Şifre ile kayıtlı bir hesap varsa 6 haneli kod gönderilir.",
+    stepCodeTitle: "Kodu girin",
+    stepCodeHint: "Gelen kutunuzdaki kodu yazın.",
+    stepNewTitle: "Yeni şifre belirleyin",
+    stepNewHint: "En az 10 karakter; büyük, küçük harf, rakam ve sembol kullanın.",
+    emailLabel: "E-posta adresi",
+    codeLabel: "6 haneli kod",
+    newPasswordLabel: "Yeni şifre",
+    confirmPasswordLabel: "Yeni şifre (tekrar)",
+    sendCode: "Kodu gönder",
+    verifyCode: "Devam",
+    savePassword: "Şifreyi güncelle ve girişe git",
+    backToLogin: "Girişe dön",
+    passwordsMismatch: "Şifreler eşleşmiyor.",
+  },
 };
 
 export const authTranslations: Record<Language, AuthCopy> = {
@@ -55,6 +114,7 @@ export const authTranslations: Record<Language, AuthCopy> = {
       submit: "Sign In",
       alternatePrompt: "Don't have an account yet?",
       alternateAction: "Create account",
+      forgotPassword: "Forgot password?",
     },
     register: {
       title: "Create your account",
@@ -87,6 +147,7 @@ export const authTranslations: Record<Language, AuthCopy> = {
       submit: "Giriş Yap",
       alternatePrompt: "Henüz hesabınız yok mu?",
       alternateAction: "Hesap oluştur",
+      forgotPassword: "Şifremi unuttum",
     },
     register: {
       title: "Hesabınızı oluşturun",
@@ -120,6 +181,7 @@ export function translateAuthApiMessage(message: string, language: Language): st
     "New password must be different from your current password.":
       "Yeni şifre mevcut şifrenizden farklı olmalıdır.",
     "An account with this email already exists.": "Bu e-posta adresi ile kayıtlı bir hesap zaten var.",
+    "This email address cannot be used to create an account.": "Bu e-posta adresi ile yeni hesap oluşturulamaz.",
     "Password must be at least 8 characters.": "Şifre en az 8 karakter olmalıdır.",
     "Password is too long.": "Şifre çok uzun.",
     "Password must be at least 10 characters.": "Şifre en az 10 karakter olmalıdır.",
@@ -133,12 +195,24 @@ export function translateAuthApiMessage(message: string, language: Language): st
     "Password data is invalid.": "Şifre bilgileri geçersiz.",
     "Authentication request failed.": "Kimlik doğrulama isteği başarısız oldu.",
     "Password could not be changed.": "Şifre değiştirilemedi.",
+    "Password could not be set.": "Şifre kaydedilemedi.",
+    "A password is already set for this account. Use change password instead.":
+      "Bu hesap için zaten bir şifre tanımlı. Şifre değiştirmeyi kullanın.",
+    "Password has been set successfully.": "Şifreniz başarıyla kaydedildi.",
     "No active session found.": "Aktif oturum bulunamadı.",
     "Authentication is required.": "Oturum açmanız gerekiyor.",
     "Session refresh token is invalid.": "Oturum yenileme bilgisi geçersiz.",
     "Session refresh token has expired.": "Oturum süresi doldu; yeniden giriş yapın.",
     "User account could not be found.": "Kullanıcı hesabı bulunamadı.",
     "Email address is already verified.": "E-posta adresi zaten doğrulanmış.",
+    "Invalid or expired code.": "Kod geçersiz veya süresi dolmuş.",
+    "Reset session expired. Please start again from Forgot password.":
+      "Oturum süresi doldu. Lütfen Şifremi unuttum adımlarını baştan yapın.",
+    "This account cannot reset password here.": "Bu hesap buradan şifre sıfırlayamaz.",
+    "We could not send the email. Please try again later.":
+      "E-posta gönderilemedi. Lütfen daha sonra tekrar deneyin.",
+    "Password has been updated. You can sign in with your new password.":
+      "Şifreniz güncellendi. Yeni şifrenizle giriş yapabilirsiniz.",
   };
   if (map[message]) {
     return map[message];

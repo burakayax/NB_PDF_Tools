@@ -8,7 +8,7 @@ export function envHttpUrlIsLoopback(value: string): boolean {
   }
 }
 
-/** Tarayıcıda sayfa localhost dışında açıksa (ör. Vercel); SSR’da false. */
+/** Tarayıcıda sayfa localhost dışında açıksa (ör. üretim domain’i); SSR’da false. */
 export function isNonLocalDeployedHost(): boolean {
   if (typeof window === "undefined") {
     return false;

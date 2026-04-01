@@ -6,11 +6,29 @@ type UpgradeModalProps = {
   open: boolean;
   onClose: () => void;
   language: Language;
+  /** Sunucudan gelen aylık fiyat (örn. 200.00); yoksa etiket gösterilmez. */
+  proPriceTry?: string | null;
+  businessPriceTry?: string | null;
   onSelectPro: () => void;
   onSelectBusiness: () => void;
 };
 
-export function UpgradeModal({ open, onClose, language, onSelectPro, onSelectBusiness }: UpgradeModalProps) {
+function tryPriceSuffix(price: string | null | undefined, lang: Language): string {
+  if (!price) return "";
+  const n = price.replace(/\.00$/, "");
+  const tr = lang === "tr";
+  return tr ? ` · ${n} ₺/ay` : ` · ${n} TRY/mo`;
+}
+
+export function UpgradeModal({
+  open,
+  onClose,
+  language,
+  proPriceTry,
+  businessPriceTry,
+  onSelectPro,
+  onSelectBusiness,
+}: UpgradeModalProps) {
   const C = upgradeModalCopy(language);
 
   useEffect(() => {
@@ -97,6 +115,7 @@ export function UpgradeModal({ open, onClose, language, onSelectPro, onSelectBus
             </ul>
             <button type="button" className="upgrade-modal__cta upgrade-modal__cta--pro" onClick={onSelectPro}>
               {C.ctaPro}
+              {tryPriceSuffix(proPriceTry ?? null, language)}
             </button>
           </article>
 
@@ -109,6 +128,7 @@ export function UpgradeModal({ open, onClose, language, onSelectPro, onSelectBus
             </ul>
             <button type="button" className="upgrade-modal__cta upgrade-modal__cta--business" onClick={onSelectBusiness}>
               {C.ctaBusiness}
+              {tryPriceSuffix(businessPriceTry ?? null, language)}
             </button>
           </article>
         </div>

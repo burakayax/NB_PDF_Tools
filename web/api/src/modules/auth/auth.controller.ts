@@ -2,12 +2,14 @@ import type { Request, Response } from "express";
 import { logGoogleOAuth, logLoginAttempt, logRegisterAttempt } from "../../lib/app-logger.js";
 import { authLog } from "../../lib/auth-log.js";
 import { env } from "../../config/env.js";
+import { tryNormalizeEmailForStorage } from "../../lib/email-identity-normalize.js";
 import { HttpError } from "../../lib/http-error.js";
 import { createSecureToken } from "../../lib/token.js";
 import {
   authCredentialsSchema,
   changePasswordSchema,
   changePasswordSnakeSchema,
+  setInitialPasswordSnakeSchema,
   preferredLanguageSchema,
   registerSchema,
   updateProfileSchema,
@@ -27,6 +29,7 @@ import {
 } from "./google-oauth.console.js";
 import {
   changeUserPassword,
+  setInitialPasswordForUser,
   getUserById,
   loginUser,
   logoutUser,
@@ -115,7 +118,11 @@ function rawBodyEmail(request: Request) {
     return undefined;
   }
   const v = (request.body as { email?: unknown }).email;
-  return typeof v === "string" ? v.trim().toLowerCase().slice(0, 320) : undefined;
+  if (typeof v !== "string") {
+    return undefined;
+  }
+  const trimmed = v.trim().slice(0, 320);
+  return tryNormalizeEmailForStorage(trimmed) ?? trimmed.toLowerCase();
 }
 
 function renderVerificationHtml(status: "success" | "error", title: string, detail: string) {
@@ -319,6 +326,23 @@ export async function changePasswordPostController(request: Request, response: R
   });
   response.json({
     message: "Password has been updated successfully.",
+    user,
+  });
+}
+
+export async function setInitialPasswordPostController(request: Request, response: Response) {
+  if (!request.authUser) {
+    throw new HttpError(401, "Authentication is required.");
+  }
+
+  const parsed = setInitialPasswordSnakeSchema.safeParse(request.body);
+  if (!parsed.success) {
+    throw new HttpError(400, parsed.error.issues[0]?.message ?? "Password data is invalid.");
+  }
+
+  const user = await setInitialPasswordForUser(request.authUser.id, parsed.data.new_password);
+  response.json({
+    message: "Password has been set successfully.",
     user,
   });
 }

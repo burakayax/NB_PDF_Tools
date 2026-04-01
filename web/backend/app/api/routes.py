@@ -55,8 +55,6 @@ async def merge_pdfs(
     if len(files) < 2:
         raise HTTPException(status_code=400, detail="Birleştirme için en az iki PDF seçin.")
 
-    await saas_assert_feature(token, "merge")
-
     workdir = create_workdir()
     try:
         saved_paths: list[Path] = []
@@ -65,6 +63,9 @@ async def merge_pdfs(
             unique_name = f"{idx:04d}__{orig_name}"
             saved = await save_upload(upload, workdir, filename=unique_name)
             saved_paths.append(saved)
+
+        total_bytes = sum(p.stat().st_size for p in saved_paths if p.is_file())
+        await saas_assert_feature(token, "merge", total_size_bytes=total_bytes)
 
         passwords: dict[str, str] = {}
         if passwords_json.strip():
@@ -163,11 +164,10 @@ async def split_pdf(
     mode: str = Form(default="single"),
     password: str = Form(default=""),
 ):
-    await saas_assert_feature(token, "split")
-
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
+        await saas_assert_feature(token, "split", total_size_bytes=saved_file.stat().st_size)
         password = password.strip() or None
         if engine.is_pdf_encrypted(str(saved_file)) and not password:
             raise HTTPException(status_code=400, detail="Şifreli PDF için kaynak parolası gerekli.")
@@ -205,18 +205,19 @@ async def pdf_to_word(
     file: UploadFile = File(...),
     password: str = Form(default=""),
 ):
-    await saas_assert_feature(token, "pdf-to-word")
-
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
+        reduced_quality = await saas_assert_feature(
+            token, "pdf-to-word", total_size_bytes=saved_file.stat().st_size
+        )
         pwd = password.strip() or None
         if engine.is_pdf_encrypted(str(saved_file)) and not pwd:
             raise HTTPException(status_code=400, detail="Şifreli PDF için kaynak parolası gerekli.")
 
         output_name = format_derived_filename(file.filename or saved_file.name, "Word", "docx")
         output_path = workdir / output_name
-        engine.pdf_to_word(str(saved_file), str(output_path), password=pwd)
+        engine.pdf_to_word(str(saved_file), str(output_path), password=pwd, reduced_quality=reduced_quality)
         await saas_record_usage(token, "pdf-to-word")
         return download_response(
             output_path,
@@ -235,11 +236,10 @@ async def word_to_pdf(
     token: Annotated[str, Depends(extract_pdf_access_token)],
     file: UploadFile = File(...),
 ):
-    await saas_assert_feature(token, "word-to-pdf")
-
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
+        await saas_assert_feature(token, "word-to-pdf", total_size_bytes=saved_file.stat().st_size)
         output_name = format_derived_filename(file.filename or saved_file.name, "PDF", "pdf")
         output_path = workdir / output_name
         engine.word_to_pdf(str(saved_file), str(output_path))
@@ -255,11 +255,10 @@ async def excel_to_pdf(
     token: Annotated[str, Depends(extract_pdf_access_token)],
     file: UploadFile = File(...),
 ):
-    await saas_assert_feature(token, "excel-to-pdf")
-
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
+        await saas_assert_feature(token, "excel-to-pdf", total_size_bytes=saved_file.stat().st_size)
         output_name = format_derived_filename(file.filename or saved_file.name, "PDF", "pdf")
         output_path = workdir / output_name
         engine.excel_to_pdf(str(saved_file), str(output_path))
@@ -276,11 +275,10 @@ async def pdf_to_excel(
     file: UploadFile = File(...),
     password: str = Form(default=""),
 ):
-    await saas_assert_feature(token, "pdf-to-excel")
-
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
+        await saas_assert_feature(token, "pdf-to-excel", total_size_bytes=saved_file.stat().st_size)
         output_name = format_derived_filename(file.filename or saved_file.name, "Excel", "xlsx")
         output_path = workdir / output_name
         engine.pdf_text_to_excel(
@@ -308,11 +306,10 @@ async def compress_pdf(
     file: UploadFile = File(...),
     password: str = Form(default=""),
 ):
-    await saas_assert_feature(token, "compress")
-
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
+        await saas_assert_feature(token, "compress", total_size_bytes=saved_file.stat().st_size)
         output_name = format_derived_filename(file.filename or saved_file.name, "Sıkıştırılmış", "pdf")
         output_path = workdir / output_name
         engine.compress_pdf(str(saved_file), str(output_path), password=password.strip() or None)
@@ -330,8 +327,6 @@ async def encrypt_pdf(
     user_password: str = Form(...),
     input_password: str = Form(default=""),
 ):
-    await saas_assert_feature(token, "encrypt")
-
     user_password = user_password.strip()
     if not user_password:
         raise HTTPException(status_code=400, detail="Cikti PDF icin parola girmek zorunludur.")
@@ -339,6 +334,7 @@ async def encrypt_pdf(
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
+        await saas_assert_feature(token, "encrypt", total_size_bytes=saved_file.stat().st_size)
         output_name = format_derived_filename(file.filename or saved_file.name, "Şifreli", "pdf")
         output_path = workdir / output_name
         engine.encrypt_pdf(

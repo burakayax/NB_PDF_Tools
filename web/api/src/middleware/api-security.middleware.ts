@@ -94,6 +94,23 @@ function apiRateLimitForPath(request: Request): number {
   if (path.startsWith("/payment")) {
     return 120;
   }
+  if (path.startsWith("/auth/forgot-password")) {
+    return 15;
+  }
+  /** Giriş denemeleri genel API kotasından ayrı (yanlış şifreler workspace isteklerini tüketmesin). */
+  if (path === "/auth/login" && request.method === "POST") {
+    return 30;
+  }
+  /** Oturum açık şifre değiştirme; giriş kotasından bağımsız sayaç. */
+  if (path === "/auth/change-password" && request.method === "POST") {
+    return 90;
+  }
+  if (path === "/auth/set-password" && request.method === "POST") {
+    return 90;
+  }
+  if (path === "/auth/password" && request.method === "PATCH") {
+    return 90;
+  }
   return env.API_RATE_LIMIT_PER_MINUTE;
 }
 
@@ -108,16 +125,39 @@ function rateLimitTier(request: Request): string {
   if (path.startsWith("/auth/preferences")) {
     return "preferences";
   }
+  if (path === "/auth/login" && request.method === "POST") {
+    return "auth-login";
+  }
+  if (path === "/auth/change-password" && request.method === "POST") {
+    return "auth-password";
+  }
+  if (path === "/auth/set-password" && request.method === "POST") {
+    return "auth-password";
+  }
+  if (path === "/auth/password" && request.method === "PATCH") {
+    return "auth-password";
+  }
   return "default";
 }
 
 /** Bu yollarda 429 kötüye kullanım sayacına yazılmaz (dil kaydı yeniden denemeleri IP blokuna yol açmasın). */
 function rateLimitCountsTowardAbuseBlock(request: Request): boolean {
   const p = logicalApiPath(request);
+  const m = request.method;
   if (p.startsWith("/auth/preferences")) {
     return false;
   }
   if (p === "/payment/callback") {
+    return false;
+  }
+  /** Mevcut şifre yanlış denemeleri giriş kotasından ayrı; tekrarlı 429 ile IP blokuna gitmesin. */
+  if (p === "/auth/change-password" && m === "POST") {
+    return false;
+  }
+  if (p === "/auth/set-password" && m === "POST") {
+    return false;
+  }
+  if (p === "/auth/password" && m === "PATCH") {
     return false;
   }
   return true;
@@ -156,6 +196,13 @@ export function isPublicApiPath(method: string, path: string): boolean {
   if (p === "/subscription/plans" && method === "GET") {
     return true;
   }
+  if (p.startsWith("/public/") && method === "GET") {
+    return true;
+  }
+  /** Sayfa görüntüleme: oturum açmadan da (çerez onayı + istemci) gönderilebilir; userId için isteğe bağlı Bearer. */
+  if (p === "/analytics/page-view" && method === "POST") {
+    return true;
+  }
   if (p === "/contact" && method === "POST") {
     return true;
   }
@@ -179,6 +226,9 @@ export function isPublicApiPath(method: string, path: string): boolean {
       return true;
     }
     if (p === "/auth/verify-email" && method === "GET") {
+      return true;
+    }
+    if (p.startsWith("/auth/forgot-password/") && method === "POST") {
       return true;
     }
   }

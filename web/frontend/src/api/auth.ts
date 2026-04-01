@@ -18,8 +18,15 @@ export type AuthUser = {
   preferredLanguage: Language;
   isVerified?: boolean;
   authProvider?: "local" | "google";
+  /** From API; when absent, local accounts are treated as having a password. */
+  hasPassword?: boolean;
   createdAt: string;
 };
+
+/** True if the user can use email/password (has a password or is a legacy local account). */
+export function userEffectiveHasPassword(user: AuthUser): boolean {
+  return user.hasPassword ?? user.authProvider !== "google";
+}
 
 type AuthResponse = {
   accessToken: string;
@@ -167,21 +174,41 @@ export async function loginAuthUser(email: string, password: string) {
   return response;
 }
 
-export async function refreshAuthSession() {
-  return sendAuthRequest<AuthResponse>("/refresh");
+/**
+ * HttpOnly yenileme çerezi varsa yeni access token döner.
+ * Çerez yoksa veya oturum geçersizse 401 beklenir; bu normaldir (misafir veya süresi dolmuş oturum) — konsola uyarı yazılmaz.
+ */
+export async function refreshAuthSession(): Promise<AuthResponse | null> {
+  const url = `${getSaasApiBase()}/api/auth/refresh`;
+  const response = await authFetch(url, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (response.status === 401) {
+    return null;
+  }
+  await ensureOk(response, "Session refresh failed.");
+  return response.json() as Promise<AuthResponse>;
 }
 
 export async function logoutAuthUser() {
   await sendAuthRequest("/logout");
 }
 
-export async function fetchAuthenticatedUser(accessToken: string) {
+export async function fetchAuthenticatedUser(
+  accessToken: string,
+  options?: { silentUnauthorized?: boolean },
+) {
   const response = await authFetch(`${getSaasApiBase()}/api/auth/me`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
     credentials: "include",
   });
+
+  if (!response.ok && options?.silentUnauthorized && response.status === 401) {
+    throw new Error("Unauthorized");
+  }
 
   await ensureOk(response, "User session could not be verified.");
   const payload = (await response.json()) as { user: AuthUser };
@@ -231,6 +258,24 @@ export async function changeAuthPassword(accessToken: string, body: { currentPas
   return payload.user;
 }
 
+export async function setInitialAuthPassword(accessToken: string, newPassword: string) {
+  const response = await authFetch(`${getSaasApiBase()}/api/auth/set-password`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+    body: JSON.stringify({
+      new_password: newPassword,
+    }),
+  });
+
+  await ensureOk(response, "Password could not be set.");
+  const payload = (await response.json()) as { user: AuthUser; message?: string };
+  return payload.user;
+}
+
 export async function updateAuthPreferredLanguage(accessToken: string, preferredLanguage: Language) {
   const response = await authFetch(`${getSaasApiBase()}/api/auth/preferences/language`, {
     method: "PATCH",
@@ -245,5 +290,41 @@ export async function updateAuthPreferredLanguage(accessToken: string, preferred
   await ensureOk(response, "Preferred language could not be updated.");
   const payload = (await response.json()) as { user: AuthUser };
   return payload.user;
+}
+
+export async function requestPasswordReset(email: string, preferredLanguage: Language): Promise<{ message: string }> {
+  const url = `${getSaasApiBase()}/api/auth/forgot-password/request`;
+  const response = await authFetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email: email.trim().toLowerCase(), preferredLanguage }),
+  });
+  await ensureOk(response, "Could not send reset code.");
+  return response.json() as Promise<{ message: string }>;
+}
+
+export async function verifyPasswordResetCodeApi(email: string, code: string): Promise<{ resetToken: string }> {
+  const url = `${getSaasApiBase()}/api/auth/forgot-password/verify-code`;
+  const response = await authFetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email: email.trim().toLowerCase(), code: code.trim() }),
+  });
+  await ensureOk(response, "Code verification failed.");
+  return response.json() as Promise<{ resetToken: string }>;
+}
+
+export async function completePasswordResetApi(resetToken: string, newPassword: string): Promise<{ message: string }> {
+  const url = `${getSaasApiBase()}/api/auth/forgot-password/reset`;
+  const response = await authFetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ resetToken, newPassword }),
+  });
+  await ensureOk(response, "Password could not be reset.");
+  return response.json() as Promise<{ message: string }>;
 }
 

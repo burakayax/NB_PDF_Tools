@@ -14,6 +14,8 @@ type DashboardTopNavProps = {
   onLogout: () => void;
   /** FREE / PRO için plan yükseltme (ör. ücretlendirme modalı) */
   onUpgradeClick?: () => void;
+  showAdminEntry?: boolean;
+  onOpenAdmin?: () => void;
 };
 
 function planNameFromApi(plan: string): PlanName {
@@ -50,6 +52,8 @@ export function DashboardTopNav({
   onPassword,
   onLogout,
   onUpgradeClick,
+  showAdminEntry,
+  onOpenAdmin,
 }: DashboardTopNavProps) {
   const W = ws(language);
   const plan = subscriptionStatus ? planNameFromApi(subscriptionStatus.plan) : null;
@@ -92,6 +96,16 @@ export function DashboardTopNav({
             </button>
           ) : null}
         </div>
+      ) : null}
+
+      {showAdminEntry && onOpenAdmin ? (
+        <button
+          type="button"
+          onClick={onOpenAdmin}
+          className="nb-transition mr-1 shrink-0 rounded-full border border-violet-400/40 bg-violet-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-violet-100 hover:bg-violet-500/25 sm:mr-2 sm:px-3 sm:text-[11px]"
+        >
+          {language === "tr" ? "Yönetim" : "Admin"}
+        </button>
       ) : null}
 
       <UserMenu user={user} language={language} onProfile={onProfile} onPassword={onPassword} onLogout={onLogout} />

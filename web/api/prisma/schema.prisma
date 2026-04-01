@@ -48,6 +48,8 @@ model User {
   /// Ücretli abonelik bitişi; ücretsiz veya süresiz için null olabilir.
   subscriptionExpiry DateTime? @map("subscription_expiry")
   preferredLanguage Language  @default(en)
+  /// İlk kez günlük ücretsiz kota aşıldığında (post-limit op veya kota üstü); dönüşüm analitiği.
+  freeLimitFirstExceededAt DateTime? @map("free_limit_first_exceeded_at")
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
   refreshTokens RefreshToken[]
@@ -57,6 +59,21 @@ model User {
   clientErrorLogs ClientErrorLog[]
   desktopDevices DesktopDevice[]
   paymentCheckouts PaymentCheckout[]
+  passwordResetCodes PasswordResetCode[]
+}
+
+/// E-posta ile gönderilen 6 haneli şifre sıfırlama kodu (hash saklanır).
+model PasswordResetCode {
+  id         String    @id @default(cuid())
+  codeHash   String    @map("code_hash")
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  userId     String    @map("user_id")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 /// iyzico ödeme oturumu; plan yükseltmesi yalnızca completed + doğrulanmış retrieve sonrası uygulanır.
@@ -91,6 +108,10 @@ model DailyUsage {
   id              String   @id @default(cuid())
   usageDate       String
   operationsCount Int      @default(0)
+  /// Ops today after free daily allowance (monetization / analytics).
+  postLimitExtraOps Int    @default(0) @map("post_limit_extra_ops")
+  /// Bugün kota aşımı sonrası kaç kez gecikmeli assert/authorize uygulandı (dönüşüm / tekrarlayan gecikme).
+  postLimitThrottleCount Int @default(0) @map("post_limit_throttle_count")
   lastFeatureKey  String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -159,4 +180,32 @@ model DesktopDevice {
 
   @@unique([userId, deviceHash])
   @@index([userId])
+}
+
+/// Admin-editable key/value (JSON string) for CMS, site settings, marketing copy drafts.
+/// Yönetici tarafından engellenen (normalize) e-postalar; yeni kayıt ve OAuth ile hesap açılamaz.
+model BlockedEmail {
+  email     String   @id
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("blocked_emails")
+}
+
+model SiteSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+/// Files uploaded from the admin panel; served from `/api/media/files/:storageKey`.
+model MediaAsset {
+  id           String   @id @default(cuid())
+  storageKey   String   @unique
+  originalName String   @map("original_name")
+  mimeType     String   @map("mime_type")
+  byteSize     Int      @map("byte_size")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
 }

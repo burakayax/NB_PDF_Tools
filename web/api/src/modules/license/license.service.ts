@@ -3,8 +3,17 @@ import { HttpError } from "../../lib/http-error.js";
 import { prisma } from "../../lib/prisma.js";
 import { isAdminUser } from "../../lib/user-role.js";
 import { ensureDesktopDeviceAccess } from "../device/device.service.js";
-import { ensurePaidSubscriptionActiveOrDowngrade } from "../subscription/subscription.service.js";
-import { featureCatalog, planDefinitions, type FeatureKey } from "../subscription/subscription.config.js";
+import { buildSummaryUpgradeHint, buildUpgradeCta } from "../subscription/conversion-upgrade.js";
+import { getToolsConversionOverrides } from "../subscription/tools-config-runtime.js";
+import {
+  ensurePaidSubscriptionActiveOrDowngrade,
+  incrementPostLimitThrottleCount,
+} from "../subscription/subscription.service.js";
+import { computePostLimitThrottle, formatFreeUsageLine, sleepMs } from "../subscription/post-limit-throttle.js";
+import { mergeUsageSoftWarnings } from "../subscription/usage-soft-warnings.js";
+import type { PlanDefinition } from "../subscription/subscription.config.js";
+import { featureCatalog, type FeatureKey } from "../subscription/subscription.config.js";
+import { getPlanDefinitionsResolved } from "../subscription/plan-runtime.js";
 import type { DesktopAuthorizeInput } from "./license.schema.js";
 
 type DesktopEntitlements = {
@@ -21,12 +30,12 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function blockedFeaturesForPlan(plan: Plan): FeatureKey[] {
-  const allowed = new Set(planDefinitions[plan].allowedFeatures);
+function blockedFeaturesForPlan(plan: Plan, defs: Record<Plan, PlanDefinition>): FeatureKey[] {
+  const allowed = new Set(defs[plan].allowedFeatures);
   return featureCatalog.filter((f) => !allowed.has(f));
 }
 
-function getDesktopPlanRules(plan: Plan) {
+function getDesktopPlanRules(plan: Plan, defs: Record<Plan, PlanDefinition>) {
   switch (plan) {
     case "PRO":
       return {
@@ -50,12 +59,12 @@ function getDesktopPlanRules(plan: Plan) {
     default:
       return {
         status: "active" as const,
-        dailyLimit: planDefinitions.FREE.dailyLimit,
+        dailyLimit: defs.FREE.dailyLimit,
         canUseEncryption: false,
         /** Web’de Free için birleştirme açık; çoklu dosya (ör. birleştirme) için gerekli. */
         canUseBatchProcessing: true,
         maxFileSizeMb: 15,
-        blockedFeatures: blockedFeaturesForPlan("FREE"),
+        blockedFeatures: blockedFeaturesForPlan("FREE", defs),
       };
   }
 }
@@ -80,8 +89,8 @@ async function getUserWithUsage(userId: string) {
   };
 }
 
-function buildEntitlements(plan: Plan, usedToday: number): DesktopEntitlements {
-  const rules = getDesktopPlanRules(plan);
+function buildEntitlements(plan: Plan, usedToday: number, defs: Record<Plan, PlanDefinition>): DesktopEntitlements {
+  const rules = getDesktopPlanRules(plan, defs);
   return {
     dailyLimit: rules.dailyLimit,
     usedToday,
@@ -95,13 +104,28 @@ function buildEntitlements(plan: Plan, usedToday: number): DesktopEntitlements {
 
 export async function validateDesktopLicense(userId: string, deviceId?: string) {
   const { user, usageDate, usage } = await getUserWithUsage(userId);
+  const defs = await getPlanDefinitionsResolved();
   const admin = isAdminUser(user);
   const deviceAccess = await ensureDesktopDeviceAccess(userId, deviceId ?? "", Boolean(deviceId), {
     bypassDeviceLimit: admin,
   });
   const effectivePlan: Plan = admin ? "PRO" : user.plan;
-  const rules = getDesktopPlanRules(effectivePlan);
-  const entitlements = buildEntitlements(effectivePlan, usage?.operationsCount ?? 0);
+  const rules = getDesktopPlanRules(effectivePlan, defs);
+  const entitlements = buildEntitlements(effectivePlan, usage?.operationsCount ?? 0, defs);
+  const throttleEvents = usage?.postLimitThrottleCount ?? 0;
+  const ctaOv = !admin && rules.dailyLimit !== null ? await getToolsConversionOverrides() : undefined;
+  const hint =
+    !admin && rules.dailyLimit !== null
+      ? buildSummaryUpgradeHint(
+          {
+            usedToday: entitlements.usedToday,
+            dailyLimit: rules.dailyLimit,
+            postLimitExtraOps: usage?.postLimitExtraOps ?? 0,
+            postLimitThrottleEventsToday: throttleEvents,
+          },
+          ctaOv,
+        )
+      : null;
 
   return {
     plan: user.plan,
@@ -111,19 +135,33 @@ export async function validateDesktopLicense(userId: string, deviceId?: string) 
       email: user.email,
       plan: user.plan,
     },
-    usage: {
+    usage: mergeUsageSoftWarnings({
       date: usageDate,
       usedToday: entitlements.usedToday,
       remainingToday: entitlements.remainingToday,
       dailyLimit: entitlements.dailyLimit,
       lastFeatureKey: usage?.lastFeatureKey ?? null,
-    },
+      postLimitExtraOps: usage?.postLimitExtraOps ?? 0,
+      postLimitThrottleEventsToday: throttleEvents,
+    }),
     entitlements,
     devices: {
       activeCount: deviceAccess.activeDeviceCount,
       limit: deviceAccess.deviceLimit,
     },
-    upgradeMessage: null,
+    upgradeMessage: hint?.conversionSummary ?? null,
+    upgradeCta: hint?.upgradeCta ?? null,
+    conversionTracking:
+      !admin && rules.dailyLimit !== null
+        ? {
+            freeLimitExceeded: entitlements.usedToday >= rules.dailyLimit || (usage?.postLimitExtraOps ?? 0) > 0,
+            operationsToday: entitlements.usedToday,
+            dailyLimit: rules.dailyLimit,
+            postLimitExtraOps: usage?.postLimitExtraOps ?? 0,
+            postLimitThrottleEventsToday: throttleEvents,
+            freeLimitFirstExceededAt: user.freeLimitFirstExceededAt?.toISOString() ?? null,
+          }
+        : null,
   };
 }
 
@@ -148,13 +186,12 @@ function assertDesktopOperationAllowed(input: DesktopAuthorizeInput, entitlement
     }
   }
 
-  if (entitlements.dailyLimit !== null && entitlements.usedToday >= entitlements.dailyLimit) {
-    throw new HttpError(403, "Your daily desktop usage limit has been reached. Upgrade to Pro for unlimited access.");
-  }
+  /* Past daily free limit: desktop is not blocked; progressive delay runs in authorizeDesktopOperation. */
 }
 
 export async function authorizeDesktopOperation(userId: string, input: DesktopAuthorizeInput, deviceId?: string) {
   const { user, usageDate } = await getUserWithUsage(userId);
+  const defs = await getPlanDefinitionsResolved();
   const admin = isAdminUser(user);
   const deviceAccess = await ensureDesktopDeviceAccess(userId, deviceId ?? "", Boolean(deviceId), {
     bypassDeviceLimit: admin,
@@ -171,28 +208,59 @@ export async function authorizeDesktopOperation(userId: string, input: DesktopAu
   const effectivePlan: Plan = admin ? "PRO" : user.plan;
 
   if (admin) {
-    const entitlements = buildEntitlements("PRO", currentUsage?.operationsCount ?? 0);
+    const entitlements = buildEntitlements("PRO", currentUsage?.operationsCount ?? 0, defs);
     return {
       allowed: true,
       plan: user.plan,
-      status: getDesktopPlanRules("PRO").status,
-      usage: {
+      status: getDesktopPlanRules("PRO", defs).status,
+      usage: mergeUsageSoftWarnings({
         date: usageDate,
         usedToday: currentUsage?.operationsCount ?? 0,
         remainingToday: null,
         dailyLimit: null,
         lastFeatureKey: currentUsage?.lastFeatureKey ?? null,
-      },
+        postLimitExtraOps: currentUsage?.postLimitExtraOps ?? 0,
+        postLimitThrottleEventsToday: currentUsage?.postLimitThrottleCount ?? 0,
+      }),
       entitlements,
       devices: {
         activeCount: deviceAccess.activeDeviceCount,
         limit: deviceAccess.deviceLimit,
       },
+      throttleApplied: false,
+      throttleMessage: null as string | null,
+      usageSummary: null as string | null,
+      conversionMessage: null as string | null,
+      reducedOutputQuality: false,
+      priorityProcessing: true,
+      postLimitExtraOpsToday: currentUsage?.postLimitExtraOps ?? 0,
+      upgradeCta: null,
+      conversionTracking: null,
     };
   }
 
-  const entitlements = buildEntitlements(effectivePlan, currentUsage?.operationsCount ?? 0);
+  const entitlements = buildEntitlements(effectivePlan, currentUsage?.operationsCount ?? 0, defs);
   assertDesktopOperationAllowed(input, entitlements);
+
+  const usedBefore = currentUsage?.operationsCount ?? 0;
+  const priorThrottle = currentUsage?.postLimitThrottleCount ?? 0;
+  const conversionCtaOverrides = await getToolsConversionOverrides();
+  const throttle = computePostLimitThrottle({
+    usedToday: usedBefore,
+    dailyLimit: defs[user.plan].dailyLimit,
+    featureKey: input.featureKey as FeatureKey,
+    totalSizeBytes: input.totalSizeBytes,
+    postLimitExtraOps: currentUsage?.postLimitExtraOps ?? 0,
+    throttleOpNumber: priorThrottle + 1,
+    conversionCtaOverrides,
+  });
+  if (throttle) {
+    await incrementPostLimitThrottleCount(userId);
+    await sleepMs(throttle.delayMs);
+  }
+
+  const planLimit = defs[user.plan].dailyLimit;
+  const extraInc = planLimit !== null && usedBefore >= planLimit ? 1 : 0;
 
   const nextUsage = await prisma.dailyUsage.upsert({
     where: {
@@ -204,32 +272,70 @@ export async function authorizeDesktopOperation(userId: string, input: DesktopAu
     update: {
       operationsCount: { increment: 1 },
       lastFeatureKey: input.featureKey,
+      ...(extraInc ? { postLimitExtraOps: { increment: extraInc } } : {}),
     },
     create: {
       userId,
       usageDate,
       operationsCount: 1,
       lastFeatureKey: input.featureKey,
+      postLimitExtraOps: 0,
     },
   });
 
-  const nextEntitlements = buildEntitlements(user.plan, nextUsage.operationsCount);
+  const nextEntitlements = buildEntitlements(user.plan, nextUsage.operationsCount, defs);
+  const usageLine =
+    planLimit !== null ? formatFreeUsageLine(nextUsage.operationsCount, planLimit) : null;
+
+  const userForConv = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { freeLimitFirstExceededAt: true },
+  });
+
+  const upgradeCta =
+    planLimit !== null &&
+    (Boolean(throttle) || nextUsage.postLimitExtraOps > 0 || nextUsage.operationsCount > planLimit)
+      ? (throttle?.upgradeCta ?? buildUpgradeCta(conversionCtaOverrides))
+      : null;
+
+  const conversionTracking =
+    planLimit !== null
+      ? {
+          freeLimitExceeded: nextUsage.operationsCount > planLimit || nextUsage.postLimitExtraOps > 0,
+          operationsToday: nextUsage.operationsCount,
+          dailyLimit: planLimit,
+          postLimitExtraOps: nextUsage.postLimitExtraOps,
+          postLimitThrottleEventsToday: nextUsage.postLimitThrottleCount,
+          freeLimitFirstExceededAt: userForConv?.freeLimitFirstExceededAt?.toISOString() ?? null,
+        }
+      : null;
 
   return {
     allowed: true,
     plan: user.plan,
-    status: getDesktopPlanRules(user.plan).status,
-    usage: {
+    status: getDesktopPlanRules(user.plan, defs).status,
+    usage: mergeUsageSoftWarnings({
       date: usageDate,
       usedToday: nextUsage.operationsCount,
       remainingToday: nextEntitlements.remainingToday,
       dailyLimit: nextEntitlements.dailyLimit,
       lastFeatureKey: input.featureKey,
-    },
+      postLimitExtraOps: nextUsage.postLimitExtraOps,
+      postLimitThrottleEventsToday: nextUsage.postLimitThrottleCount,
+    }),
     entitlements: nextEntitlements,
     devices: {
       activeCount: deviceAccess.activeDeviceCount,
       limit: deviceAccess.deviceLimit,
     },
+    throttleApplied: Boolean(throttle),
+    throttleMessage: throttle?.message ?? null,
+    usageSummary: usageLine,
+    conversionMessage: throttle?.message ?? null,
+    reducedOutputQuality: Boolean(throttle?.reducedOutputQuality),
+    priorityProcessing: defs[user.plan].dailyLimit === null,
+    postLimitExtraOpsToday: nextUsage.postLimitExtraOps,
+    upgradeCta,
+    conversionTracking,
   };
 }

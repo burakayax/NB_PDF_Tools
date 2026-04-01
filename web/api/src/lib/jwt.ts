@@ -53,3 +53,26 @@ export function verifyRefreshToken(token: string) {
   }
   return payload;
 }
+
+type PasswordResetJwtPayload = {
+  sub: string;
+  typ: "pwd_reset";
+};
+
+/** Kod doğrulandıktan sonra yeni şifre adımı; erişim JWT’sinden ayrı tür. */
+export function signPasswordResetJwt(userId: string) {
+  const payload: PasswordResetJwtPayload = { sub: userId, typ: "pwd_reset" };
+  return jwt.sign(payload, env.JWT_ACCESS_SECRET, { expiresIn: "25m" });
+}
+
+export function verifyPasswordResetJwt(token: string): string {
+  const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET);
+  if (typeof decoded === "string" || !decoded || typeof decoded !== "object") {
+    throw new Error("Invalid password reset token.");
+  }
+  const payload = decoded as PasswordResetJwtPayload;
+  if (payload.typ !== "pwd_reset" || typeof payload.sub !== "string") {
+    throw new Error("Invalid password reset token.");
+  }
+  return payload.sub;
+}

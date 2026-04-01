@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { adminRouter } from "../modules/admin/admin.routes.js";
 import { analyticsRouter } from "../modules/analytics/analytics.routes.js";
 import { authRouter } from "../modules/auth/auth.routes.js";
 import { contactRouter } from "../modules/contact/contact.routes.js";
@@ -6,6 +7,7 @@ import { deviceRouter } from "../modules/device/device.routes.js";
 import { licenseRouter } from "../modules/license/license.routes.js";
 import { monitoringRouter } from "../modules/monitoring/monitoring.routes.js";
 import { paymentRouter } from "../modules/payment/payment.routes.js";
+import { publicRouter } from "../modules/public/public.routes.js";
 import { subscriptionRouter } from "../modules/subscription/subscription.routes.js";
 import { userRouter } from "../modules/user/user.routes.js";
 import {
@@ -28,6 +30,8 @@ apiRouter.get("/health", (_request, response) => {
   });
 });
 
+apiRouter.use("/public", publicRouter);
+apiRouter.use("/admin", adminRouter);
 apiRouter.use("/analytics", analyticsRouter);
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/contact", contactRouter);
