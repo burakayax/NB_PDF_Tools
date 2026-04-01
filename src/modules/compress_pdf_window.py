@@ -5,9 +5,10 @@ import threading
 from queue import Queue, Empty
 
 from modules.i18n import t
-from modules.progress_dialog import ProgressDialog
 from modules.pdf_password_dialog import PdfPasswordDialog
-from modules.ui_theme import badge_colors, theme
+from modules.pdf_tool_ui import build_drop_zone, build_file_card, build_tool_header
+from modules.progress_dialog import ProgressDialog
+from modules.ui_theme import theme
 
 
 class CompressPdfWindow(ctk.CTkToplevel):
@@ -25,18 +26,11 @@ class CompressPdfWindow(ctk.CTkToplevel):
         self.selected_is_encrypted = False
 
         self.title(t("compress.window_title"))
-        self.ortalama_func(self, 620, 540)
+        self.ortalama_func(self, 640, 620)
         self.grab_set()
         self.configure(fg_color=self.ui["bg"])
 
-        header_frame = ctk.CTkFrame(self, fg_color=self.ui["accent"], height=60, corner_radius=0)
-        header_frame.pack(fill="x", side="top")
-        ctk.CTkLabel(
-            header_frame,
-            text=t("compress.header"),
-            font=self.ui["title_font"],
-            text_color="white",
-        ).pack(pady=15)
+        build_tool_header(self, t("compress.header"), t("compress.detail"))
 
         self.main_card = ctk.CTkFrame(
             self,
@@ -46,13 +40,6 @@ class CompressPdfWindow(ctk.CTkToplevel):
             border_color=self.ui["border"],
         )
         self.main_card.pack(pady=15, padx=30, fill="both", expand=True)
-
-        ctk.CTkLabel(
-            self.main_card,
-            text=t("compress.detail"),
-            font=self.ui["small_font"],
-            text_color=self.ui["muted"],
-        ).pack(pady=(12, 4), padx=20)
 
         self.content_frame = ctk.CTkFrame(self.main_card, fg_color="transparent")
         self.content_frame.pack(pady=10, padx=20, fill="both", expand=True)
@@ -76,96 +63,71 @@ class CompressPdfWindow(ctk.CTkToplevel):
         for widget in self.content_frame.winfo_children():
             widget.destroy()
 
-        ctk.CTkLabel(self.content_frame, text="⟱", font=("Segoe UI Symbol", 56)).pack()
-        ctk.CTkLabel(
+        drop = build_drop_zone(
             self.content_frame,
-            text=t("compress.empty"),
-            font=("Segoe UI Semibold", 14, "bold"),
-            text_color=self.ui["muted"],
-        ).pack(pady=10)
+            on_paths=lambda paths: self.ingest_paths(paths),
+            on_browse=self.select_file,
+            extensions={".pdf"},
+        )
+        drop.pack(fill="both", expand=True)
 
-        ctk.CTkButton(
-            self.content_frame,
-            text=t("app.select_file"),
-            width=120,
-            fg_color=self.ui["accent"],
-            hover_color=self.ui["accent_hover"],
-            command=self.select_file,
-        ).pack(pady=10)
+    def ingest_paths(self, paths: list[str]) -> None:
+        if not paths:
+            return
+        path = paths[0]
+        try:
+            password = None
+            is_encrypted = False
+            if hasattr(self.pdf_engine, "is_pdf_encrypted"):
+                is_encrypted = self.pdf_engine.is_pdf_encrypted(path)
+            if is_encrypted:
+
+                def validate_password(value):
+                    try:
+                        if hasattr(self.pdf_engine, "validate_pdf_password") and self.pdf_engine.validate_pdf_password(path, value):
+                            return True
+                        return t("pdf_password.invalid_password")
+                    except Exception as e:
+                        return str(e)
+
+                dialog = PdfPasswordDialog(
+                    self,
+                    self.ortalama_func,
+                    os.path.basename(path),
+                    password_validator=validate_password,
+                )
+                self.wait_window(dialog)
+                if dialog.action == "skip" or not dialog.result:
+                    self.lift()
+                    return
+                password = dialog.result
+            self.selected_file = path
+            self.selected_password = password
+            self.selected_is_encrypted = is_encrypted
+            self.update_ui()
+        except Exception as e:
+            messagebox.showerror(t("app.error"), str(e))
+        self.lift()
 
     def select_file(self):
         file = filedialog.askopenfilename(parent=self, filetypes=[("PDF", "*.pdf")])
         if file:
-            try:
-                password = None
-                is_encrypted = False
-                if hasattr(self.pdf_engine, "is_pdf_encrypted"):
-                    is_encrypted = self.pdf_engine.is_pdf_encrypted(file)
-                if is_encrypted:
-                    def validate_password(value):
-                        try:
-                            if hasattr(self.pdf_engine, "validate_pdf_password") and self.pdf_engine.validate_pdf_password(file, value):
-                                return True
-                            return t("pdf_password.invalid_password")
-                        except Exception as e:
-                            return str(e)
-
-                    dialog = PdfPasswordDialog(
-                        self,
-                        self.ortalama_func,
-                        os.path.basename(file),
-                        password_validator=validate_password,
-                    )
-                    self.wait_window(dialog)
-                    if dialog.action == "skip" or not dialog.result:
-                        self.lift()
-                        return
-                    password = dialog.result
-                self.selected_file = file
-                self.selected_password = password
-                self.selected_is_encrypted = is_encrypted
-                self.update_ui()
-            except Exception as e:
-                messagebox.showerror(t("app.error"), str(e))
-        self.lift()
+            self.ingest_paths([file])
+        else:
+            self.lift()
 
     def update_ui(self):
         for widget in self.content_frame.winfo_children():
             widget.destroy()
 
-        fname = os.path.basename(self.selected_file)
-        f_box = ctk.CTkFrame(
+        badge = t("app.encrypted_badge") if self.selected_is_encrypted else None
+        build_file_card(
             self.content_frame,
-            fg_color=self.ui["panel_alt"],
-            corner_radius=10,
-            border_width=1,
-            border_color=self.ui["border"],
+            self.selected_file,
+            badge_text=badge,
+            badge_warning=bool(self.selected_is_encrypted),
+            on_change=self.select_file,
         )
-        f_box.pack(pady=20, padx=20, fill="x")
-
-        ctk.CTkLabel(f_box, text=t("app.selected_file"), font=self.ui["small_font"], text_color=self.ui["accent"]).pack(pady=(12, 0))
-        ctk.CTkLabel(f_box, text=fname, font=("Segoe UI Semibold", 13, "bold"), text_color=self.ui["text"]).pack(pady=10)
-        if self.selected_is_encrypted:
-            badge = badge_colors("warning")
-            ctk.CTkLabel(
-                f_box,
-                text=t("app.encrypted_badge"),
-                font=self.ui["badge_font"],
-                text_color=badge["text"],
-                fg_color=badge["fg"],
-                corner_radius=8,
-            ).pack(pady=(0, 8))
-
-        ctk.CTkButton(
-            f_box,
-            text=t("app.change"),
-            width=90,
-            height=28,
-            fg_color=self.ui["panel_soft"],
-            hover_color=self.ui["border"],
-            text_color=self.ui["text"],
-            command=self.select_file,
-        ).pack(pady=(0, 10))
 
         self.btn_run.configure(state="normal")
 

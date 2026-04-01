@@ -3,16 +3,32 @@ from __future__ import annotations
 import base64
 import ctypes
 from dataclasses import dataclass
-import hashlib
 import json
 import os
-import platform
+import threading
+import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 import webbrowser
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any, Optional
-import winreg
+
+from modules.desktop_security_runtime import (
+    AUTH_CHANGE_PASSWORD,
+    AUTH_LOGIN,
+    AUTH_PROFILE,
+    CONTACT,
+    LICENSE_AUTHORIZE,
+    LICENSE_CHECK,
+    PAYMENT_CREATE,
+    SUBSCRIPTION_CURRENT,
+    SUBSCRIPTION_PLANS,
+    SUBSCRIPTION_STATUS,
+    USER_PROFILE,
+)
+from modules.device_identity import get_device_id
 
 
 class _DataBlob(ctypes.Structure):
@@ -27,6 +43,37 @@ class DesktopNetworkError(DesktopAuthError):
     pass
 
 
+def _is_connection_refused(url_error: urllib.error.URLError) -> bool:
+    """Windows 10061 / Linux 111 — hedef portta dinleyen süreç yok."""
+    reason = url_error.reason
+    if isinstance(reason, OSError):
+        errno = getattr(reason, "winerror", None) or getattr(reason, "errno", None)
+        if errno in (10061, 111):
+            return True
+    text = str(reason).lower()
+    return (
+        "10061" in text
+        or "actively refused" in text
+        or "connection refused" in text
+        or "reddettiğinden" in text
+        or "bağlantı kurulamadı" in text
+    )
+
+
+def _format_network_error(url_error: urllib.error.URLError) -> str:
+    detail = str(url_error.reason)
+    if _is_connection_refused(url_error):
+        return (
+            "Kimlik API’ye ulaşılamıyor (bağlantı reddedildi / WinError 10061). "
+            "Bu adreste sunucu dinlemiyor olabilir.\n\n"
+            "• Proje kökünde `npm run dev` çalıştırın veya ayrı terminalde `cd web\\api` → `npm run dev` (port 4000).\n"
+            "• `desktop_auth_config.json` içinde `api_base_url` doğru mu kontrol edin (örn. http://127.0.0.1:4000/api).\n"
+            "• Uzak sunucu kullanıyorsanız güvenlik duvarı ve VPN’i kontrol edin.\n\n"
+            f"(Teknik: {detail})"
+        )
+    return f"Sunucuya bağlanılamadı: {detail}"
+
+
 class DesktopAuthExpiredError(DesktopAuthError):
     pass
 
@@ -36,6 +83,19 @@ class DesktopAccessBlockedError(DesktopAuthError):
 
 
 DEFAULT_GUEST_OPERATION_LIMIT = 3
+
+
+def normalize_api_base_url(url: str) -> str:
+    """
+    Kimlik API kökü: .../api ile bitmeli (örn. http://127.0.0.1:4000/api).
+    Sadece host:port verilmişse /api eklenir; aksi halde /auth/login yanlış yola gider.
+    """
+    u = (url or "").strip().rstrip("/")
+    if not u:
+        return "http://127.0.0.1:4000/api"
+    if u.endswith("/api"):
+        return u
+    return f"{u}/api"
 
 
 def _project_root() -> Path:
@@ -59,11 +119,13 @@ def load_desktop_auth_config() -> dict[str, Any]:
     elif root_file.is_file():
         file_data.update(_load_json_file(root_file))
 
-    api_base_url = (
-        os.environ.get("NB_SAAS_API_BASE_URL")
-        or file_data.get("api_base_url")
-        or "http://localhost:4000/api"
-    ).strip().rstrip("/")
+    api_base_url = normalize_api_base_url(
+        str(
+            os.environ.get("NB_SAAS_API_BASE_URL")
+            or file_data.get("api_base_url")
+            or "http://127.0.0.1:4000/api",
+        ),
+    )
     web_app_url = (
         os.environ.get("NB_WEB_APP_URL")
         or file_data.get("web_app_url")
@@ -72,12 +134,15 @@ def load_desktop_auth_config() -> dict[str, Any]:
     register_url = (
         os.environ.get("NB_WEB_REGISTER_URL")
         or file_data.get("register_url")
-        or f"{web_app_url}?view=register"
+        or f"{web_app_url}/register"
     ).strip()
     upgrade_url = (
         os.environ.get("NB_WEB_UPGRADE_URL")
         or file_data.get("upgrade_url")
-        or f"{web_app_url}#pricing"
+        or f"{web_app_url}/workspace"
+    ).strip()
+    update_manifest_url = (
+        os.environ.get("NB_UPDATE_MANIFEST_URL") or str(file_data.get("update_manifest_url") or "")
     ).strip()
 
     return {
@@ -85,6 +150,7 @@ def load_desktop_auth_config() -> dict[str, Any]:
         "web_app_url": web_app_url,
         "register_url": register_url,
         "upgrade_url": upgrade_url,
+        "update_manifest_url": update_manifest_url,
     }
 
 
@@ -273,7 +339,7 @@ class GuestUsageStore:
 
 class DesktopAuthClient:
     def __init__(self, api_base_url: str, device_id: str, timeout_seconds: float = 30.0):
-        self.api_base_url = api_base_url.rstrip("/")
+        self.api_base_url = normalize_api_base_url(api_base_url).rstrip("/")
         self.device_id = device_id
         self.timeout_seconds = timeout_seconds
 
@@ -328,14 +394,14 @@ class DesktopAuthClient:
                 raise DesktopAccessBlockedError(message or "Bu cihaz için erişim engellendi.") from error
             raise DesktopAuthError(message) from error
         except urllib.error.URLError as error:
-            raise DesktopNetworkError(f"Sunucuya bağlanılamadı: {error.reason}") from error
+            raise DesktopNetworkError(_format_network_error(error)) from error
         except json.JSONDecodeError as error:
             raise DesktopAuthError(f"Geçersiz sunucu yanıtı: {error}") from error
 
     def login(self, email: str, password: str) -> dict[str, Any]:
         response = self._request(
             "POST",
-            "/auth/login",
+            AUTH_LOGIN,
             body={"email": email.strip().lower(), "password": password},
             login_attempt=True,
         )
@@ -343,21 +409,61 @@ class DesktopAuthClient:
             raise DesktopAuthError("Oturum açma yanıtı beklenen formatta değil.")
         return response
 
-    def validate_license(self, access_token: str) -> dict[str, Any]:
-        response = self._request("GET", "/license/validate", access_token=access_token, forbidden_as_blocked=True)
+    def check_license(self, access_token: str) -> dict[str, Any]:
+        """GET /api/license/check — required desktop gate; device header enforced server-side."""
+        response = self._request("GET", LICENSE_CHECK, access_token=access_token, forbidden_as_blocked=True)
         if not isinstance(response, dict):
             raise DesktopAuthError("Lisans doğrulama yanıtı beklenen formatta değil.")
         return response
 
+    def validate_license(self, access_token: str) -> dict[str, Any]:
+        """Alias for check_license (backward compatibility)."""
+        return self.check_license(access_token)
+
     def subscription_status(self, access_token: str) -> dict[str, Any]:
         """Web ile aynı kaynak: sunucu tarihine göre plan ve kalan gün (GET /api/subscription/status)."""
-        response = self._request("GET", "/subscription/status", access_token=access_token, forbidden_as_blocked=True)
+        response = self._request("GET", SUBSCRIPTION_STATUS, access_token=access_token, forbidden_as_blocked=True)
         if not isinstance(response, dict):
             raise DesktopAuthError("Abonelik durumu yanıtı beklenen formatta değil.")
         return response
 
+    def fetch_subscription_plans(self) -> list[dict[str, Any]]:
+        """GET /api/subscription/plans — web ile aynı plan listesi (JWT gerekmez)."""
+        response = self._request("GET", SUBSCRIPTION_PLANS, access_token=None, forbidden_as_blocked=False)
+        if not isinstance(response, dict) or not isinstance(response.get("plans"), list):
+            raise DesktopAuthError("Plan listesi beklenen formatta değil.")
+        return response["plans"]
+
+    def fetch_subscription_current(self, access_token: str) -> dict[str, Any]:
+        """GET /api/subscription/current — web dashboard ile aynı özet (günlük kullanım dahil)."""
+        response = self._request("GET", SUBSCRIPTION_CURRENT, access_token=access_token, forbidden_as_blocked=True)
+        if not isinstance(response, dict):
+            raise DesktopAuthError("Abonelik özeti beklenen formatta değil.")
+        return response
+
+    def update_profile(self, access_token: str, first_name: str, last_name: str) -> dict[str, Any]:
+        response = self._request(
+            "PATCH",
+            AUTH_PROFILE,
+            body={"firstName": first_name.strip(), "lastName": last_name.strip()},
+            access_token=access_token,
+        )
+        if not isinstance(response, dict) or not isinstance(response.get("user"), dict):
+            raise DesktopAuthError("Profil güncelleme yanıtı beklenen formatta değil.")
+        return response["user"]
+
+    def change_password(self, access_token: str, current_password: str, new_password: str) -> None:
+        response = self._request(
+            "POST",
+            AUTH_CHANGE_PASSWORD,
+            body={"current_password": current_password, "new_password": new_password},
+            access_token=access_token,
+        )
+        if response is not None and not isinstance(response, dict):
+            raise DesktopAuthError("Şifre değişikliği yanıtı beklenen formatta değil.")
+
     def fetch_profile(self, access_token: str) -> dict[str, Any]:
-        response = self._request("GET", "/user/profile", access_token=access_token, forbidden_as_blocked=True)
+        response = self._request("GET", USER_PROFILE, access_token=access_token, forbidden_as_blocked=True)
         if not isinstance(response, dict) or not isinstance(response.get("user"), dict):
             raise DesktopAuthError("Profil yanıtı beklenen formatta değil.")
         return response["user"]
@@ -373,7 +479,7 @@ class DesktopAuthClient:
 
         response = self._request(
             "POST",
-            "/license/authorize",
+            LICENSE_AUTHORIZE,
             body={
                 "featureKey": feature_key,
                 "fileCount": max(1, len(file_paths)),
@@ -385,10 +491,25 @@ class DesktopAuthClient:
             raise DesktopAuthError("Lisans yetkilendirme yanıtı beklenen formatta değil.")
         return response
 
+    def create_payment_checkout(self, access_token: str, plan: str) -> dict[str, Any]:
+        """iyzico ödeme oturumu (web ile aynı POST /api/payment/create)."""
+        plan_key = plan.strip().upper()
+        if plan_key not in ("PRO", "BUSINESS"):
+            raise DesktopAuthError("Plan PRO veya BUSINESS olmalıdır.")
+        response = self._request(
+            "POST",
+            PAYMENT_CREATE,
+            body={"plan": plan_key},
+            access_token=access_token,
+        )
+        if not isinstance(response, dict):
+            raise DesktopAuthError("Ödeme oturumu yanıtı beklenen formatta değil.")
+        return response
+
     def submit_contact(self, name: str, email: str, message: str) -> dict[str, Any]:
         response = self._request(
             "POST",
-            "/contact",
+            CONTACT,
             body={
                 "name": name.strip(),
                 "email": email.strip().lower(),
@@ -402,12 +523,80 @@ class DesktopAuthClient:
         return response
 
 
-def build_session_payload(access_token: str, user: dict[str, Any], license_info: dict[str, Any]) -> dict[str, Any]:
+def build_session_payload(access_token: str, user: dict[str, Any], license_info: dict[str, Any] | None = None) -> dict[str, Any]:
+    """
+    Persist only the access token and user profile snapshot on disk.
+
+    License, plan, and usage are never stored for trust: after every launch the app must call
+    GET /api/subscription/status and GET /api/license/check with the token. The ``license_info``
+    argument is accepted for call-site compatibility but is not written to storage.
+    """
     return {
         "accessToken": access_token,
         "user": user,
-        "license": license_info,
     }
+
+
+def build_google_oauth_start_url(api_base_url: str, lang: str, desktop_port: int) -> str:
+    """Tarayıcıda açılacak GET /api/auth/google?lang=&desktop_port= (callback 127.0.0.1:port/oauth?token=)."""
+    base = normalize_api_base_url(api_base_url).rstrip("/")
+    q = urllib.parse.urlencode({"lang": lang, "desktop_port": str(int(desktop_port))})
+    return f"{base}/auth/google?{q}"
+
+
+def capture_google_oauth_token(api_base_url: str, lang: str, timeout_seconds: float = 300.0) -> Optional[str]:
+    """
+    Yerel HTTP sunucusu açar, Google OAuth tamamlanınca sunucunun yönlendirdiği token'ı alır.
+    Kullanıcı tarayıcıda Google ile giriş yapar; callback http://127.0.0.1:<port>/oauth?token=... adresine döner.
+    """
+    token_holder: dict[str, Optional[str]] = {"token": None}
+    done = threading.Event()
+
+    class _OAuthHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            parsed = urllib.parse.urlparse(self.path)
+            if parsed.path != "/oauth":
+                self.send_error(404)
+                return
+            qs = urllib.parse.parse_qs(parsed.query)
+            tok = (qs.get("token") or [None])[0]
+            if tok:
+                token_holder["token"] = tok
+            self.send_response(200)
+            self.send_header("Content-type", "text/html; charset=utf-8")
+            self.end_headers()
+            page = (
+                "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>NB PDF TOOLS</title></head>"
+                "<body style=\"font-family:system-ui,sans-serif;padding:2rem;text-align:center;background:#0f172a;color:#e2e8f0;\">"
+                "<p>Giriş tamamlandı. Bu sekmeyi kapatabilirsiniz.</p>"
+                "<p style=\"color:#94a3b8;font-size:14px;\">Sign-in complete. You may close this tab.</p>"
+                "</body></html>"
+            )
+            self.wfile.write(page.encode("utf-8"))
+            done.set()
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            return
+
+    server = HTTPServer(("127.0.0.1", 0), _OAuthHandler)
+    port = int(server.server_address[1])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        start_url = build_google_oauth_start_url(api_base_url, lang, port)
+        webbrowser.open(start_url)
+        if not done.wait(timeout=timeout_seconds):
+            return None
+        return token_holder["token"]
+    finally:
+        try:
+            server.shutdown()
+        except Exception:
+            pass
+        try:
+            server.server_close()
+        except Exception:
+            pass
 
 
 def open_register_page(register_url: str) -> None:
@@ -422,12 +611,19 @@ def open_upgrade_page(upgrade_url: str) -> None:
     webbrowser.open(upgrade_url)
 
 
-def get_device_id() -> str:
-    try:
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Cryptography") as key:
-            machine_guid, _ = winreg.QueryValueEx(key, "MachineGuid")
-    except OSError:
-        machine_guid = platform.node() or "unknown-device"
-
-    raw = f"NBPDFTOOLS::{machine_guid}::{platform.system()}::{platform.machine()}"
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+def open_payment_checkout_in_browser(checkout_result: dict[str, Any]) -> None:
+    """iyzico dönüşü: doğrudan ödeme URL'si veya gömülü form HTML."""
+    url = checkout_result.get("paymentPageUrl")
+    if isinstance(url, str) and url.strip():
+        webbrowser.open(url.strip())
+        return
+    html = checkout_result.get("checkoutFormContent")
+    if isinstance(html, str) and html.strip():
+        fd, path = tempfile.mkstemp(suffix=".html", prefix="nbpdf-iyzico-", text=False)
+        try:
+            os.write(fd, html.encode("utf-8"))
+        finally:
+            os.close(fd)
+        webbrowser.open(Path(path).as_uri())
+        return
+    raise DesktopAuthError("Ödeme sayfası (URL veya form) sunucudan gelmedi. iyzico anahtarlarını kontrol edin.")

@@ -1,9 +1,11 @@
+import { envHttpUrlIsLoopback, isNonLocalDeployedHost } from "../lib/runtimeApiOrigin";
+
 /**
  * Kimlik ve SaaS API (Express, varsayılan :4000) kök adresi.
  * - Geliştirmede `http://localhost:4000` / `127.0.0.1:4000` gibi yerel adresler yok sayılır → göreli `/api/...` (Vite proxy).
  *   Aksi halde tarayıcı doğrudan :4000’e gider; UI API’den önce açılınca sıkça ERR_CONNECTION_REFUSED olur.
  * - Uzak veya özel adres (ör. staging URL) geliştirmede de kullanılır.
- * - Üretimde boşsa `http://localhost:4000`.
+ * - Üretimde boşsa veya Vercel gibi gerçek hostta localhost gömülüyse → göreli `/api/...` (aynı origin).
  */
 function isLocalhostSaasDevUrl(trimmed: string): boolean {
   try {
@@ -28,6 +30,9 @@ export function getSaasApiBase(): string {
   }
 
   if (trimmed !== "") {
+    if (import.meta.env.PROD && isNonLocalDeployedHost() && envHttpUrlIsLoopback(trimmed)) {
+      return "";
+    }
     return trimmed.replace(/\/$/, "");
   }
   if (import.meta.env.DEV) {
@@ -40,5 +45,5 @@ export function getSaasApiBase(): string {
       return "";
     }
   }
-  return "http://localhost:4000";
+  return "";
 }

@@ -17,12 +17,23 @@ THEMES = {
         "panel": "#1e293b",
         "panel_alt": "#243447",
         "panel_soft": "#334155",
+        "border_subtle": "#334155",
+        "nav_bar": "#1e293b",
+        "sidebar_bg": "#1e293b",
+        "nav_active_bg": "#1e3a5f",
+        "nav_active_border": "#2563eb",
+        "sidebar_hover": "#334155",
         "border": "#334155",
         "text": "#f8fafc",
         "muted": "#94a3b8",
         "accent": "#2563eb",
         "accent_hover": "#1d4ed8",
         "accent_soft": "#38bdf8",
+        "accent_mid": "#3b82f6",
+        "gradient_hero_top": "#1d4ed8",
+        "gradient_hero_bottom": "#1e293b",
+        "gradient_card_top": "#2563eb",
+        "gradient_card_bottom": "#1e293b",
         "success": "#2ecc71",
         "warning": "#f39c12",
         "danger": "#e74c3c",
@@ -37,28 +48,44 @@ THEMES = {
         "badge_font": ("Segoe UI", 10, "bold"),
     },
     "modern": {
-        "bg": "#0f172a",
-        "panel": "#1e293b",
-        "panel_alt": "#243447",
-        "panel_soft": "#334155",
-        "border": "#334155",
-        "text": "#f8fafc",
+        # Web app.css tokens (--nb-* / dashboard shell)
+        "bg": "#060a12",
+        "panel": "#131c2e",
+        "panel_alt": "#1a2740",
+        "panel_soft": "#0e1628",
+        "border": "#243044",
+        "border_subtle": "#1f2937",
+        "text": "#f1f5f9",
         "muted": "#94a3b8",
         "accent": "#2563eb",
         "accent_hover": "#1d4ed8",
-        "accent_soft": "#38bdf8",
+        "accent_soft": "#93c5fd",
+        "accent_mid": "#3b82f6",
+        "nav_bar": "#0a101c",
+        "sidebar_bg": "#0c1424",
+        "nav_active_bg": "#152238",
+        "nav_active_border": "#3b82f6",
+        "sidebar_hover": "#1a2336",
         "success": "#22c55e",
-        "warning": "#f59e0b",
+        "warning": "#eab308",
         "danger": "#f87171",
         "button_text": "#ffffff",
-        "input_bg": "#0f172a",
-        "input_border": "#475569",
+        "input_bg": "#0a101c",
+        "input_border": "#334155",
         "app_title_font": ("Segoe UI Semibold", 48, "bold"),
-        "title_font": ("Segoe UI Semibold", 24, "bold"),
+        "title_font": ("Segoe UI Semibold", 22, "bold"),
         "subtitle_font": ("Segoe UI Semibold", 13, "bold"),
         "body_font": ("Segoe UI", 12),
         "small_font": ("Segoe UI", 11),
         "badge_font": ("Segoe UI Semibold", 10, "bold"),
+        "nav_height": 56,
+        "sidebar_width": 240,
+        "radius_lg": 16,
+        "radius_md": 12,
+        "gradient_hero_top": "#1e40af",
+        "gradient_hero_bottom": "#131c2e",
+        "gradient_card_top": "#2563eb",
+        "gradient_card_bottom": "#0c1424",
     },
 }
 
@@ -98,14 +125,22 @@ def add_footer(
         fg_color=ui["panel"],
         border_width=1,
         border_color=ui["border"],
-        corner_radius=20,
-        height=48,
+        corner_radius=14,
+        height=52,
     )
-    footer.pack(fill="x", padx=30, pady=(8, 16))
+    footer.pack(fill="x", padx=28, pady=(10, 18))
     footer.pack_propagate(False)
 
+    try:
+        from modules.ui_polish import thin_accent_line
+
+        _gline = thin_accent_line(footer, ui, width=1600, height=2)
+        _gline.pack(fill="x", padx=10, pady=(5, 0))
+    except Exception:
+        pass
+
     content = ctk.CTkFrame(footer, fg_color="transparent")
-    content.pack(fill="both", expand=True, padx=14, pady=7)
+    content.pack(fill="both", expand=True, padx=14, pady=(4, 7))
 
     left_frame = ctk.CTkFrame(content, fg_color="transparent")
     left_frame.pack(side="left", fill="y")

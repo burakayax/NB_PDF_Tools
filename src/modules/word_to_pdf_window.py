@@ -5,12 +5,15 @@ import threading
 from queue import Queue, Empty
 
 from modules.i18n import t
+from modules.pdf_tool_ui import build_drop_zone, build_file_card, build_tool_header
 from modules.progress_dialog import ProgressDialog
-from modules.ui_theme import badge_colors, theme
+from modules.ui_theme import theme
 
 
 class WordToPdfWindow(ctk.CTkToplevel):
     """WORD -> PDF: .docx/.doc seçilir, PDF kaydedilir (Microsoft Word + docx2pdf)."""
+
+    _WORD_EXT = {".doc", ".docx"}
 
     def __init__(self, master, ortalama_func, engine, success_dialog_class, access_controller=None):
         super().__init__(master)
@@ -22,18 +25,11 @@ class WordToPdfWindow(ctk.CTkToplevel):
         self.selected_file = None
 
         self.title(t("word_to_pdf.window_title"))
-        self.ortalama_func(self, 600, 500)
+        self.ortalama_func(self, 620, 580)
         self.grab_set()
         self.configure(fg_color=self.ui["bg"])
 
-        header_frame = ctk.CTkFrame(self, fg_color=self.ui["accent"], height=60, corner_radius=0)
-        header_frame.pack(fill="x", side="top")
-        ctk.CTkLabel(
-            header_frame,
-            text=t("word_to_pdf.header"),
-            font=self.ui["title_font"],
-            text_color="white",
-        ).pack(pady=15)
+        build_tool_header(self, t("word_to_pdf.header"))
 
         self.main_card = ctk.CTkFrame(
             self,
@@ -45,7 +41,7 @@ class WordToPdfWindow(ctk.CTkToplevel):
         self.main_card.pack(pady=15, padx=30, fill="both", expand=True)
 
         self.content_frame = ctk.CTkFrame(self.main_card, fg_color="transparent")
-        self.content_frame.pack(pady=40, padx=20, fill="both", expand=True)
+        self.content_frame.pack(pady=24, padx=20, fill="both", expand=True)
 
         self.show_empty_state()
 
@@ -66,23 +62,21 @@ class WordToPdfWindow(ctk.CTkToplevel):
         for widget in self.content_frame.winfo_children():
             widget.destroy()
 
-        ctk.CTkLabel(self.content_frame, text="⇠", font=("Segoe UI Symbol", 56)).pack()
-        ctk.CTkLabel(
+        drop = build_drop_zone(
             self.content_frame,
-            text=t("word_to_pdf.empty"),
-            font=("Segoe UI Semibold", 14, "bold"),
-            text_color=self.ui["muted"],
-        ).pack(pady=10)
-
-        btn_select = ctk.CTkButton(
-            self.content_frame,
-            text=t("app.select_file"),
-            width=120,
-            fg_color=self.ui["accent"],
-            hover_color=self.ui["accent_hover"],
-            command=self.select_file,
+            on_paths=lambda paths: self.ingest_paths(paths),
+            on_browse=self.select_file,
+            extensions=self._WORD_EXT,
         )
-        btn_select.pack(pady=10)
+        drop.pack(fill="both", expand=True)
+
+    def ingest_paths(self, paths: list[str]) -> None:
+        if not paths:
+            return
+        path = paths[0]
+        self.selected_file = path
+        self.update_ui()
+        self.lift()
 
     def select_file(self):
         file = filedialog.askopenfilename(
@@ -94,49 +88,20 @@ class WordToPdfWindow(ctk.CTkToplevel):
             ],
         )
         if file:
-            self.selected_file = file
-            self.update_ui()
-        self.lift()
+            self.ingest_paths([file])
+        else:
+            self.lift()
 
     def update_ui(self):
         for widget in self.content_frame.winfo_children():
             widget.destroy()
 
-        fname = os.path.basename(self.selected_file)
-
-        f_box = ctk.CTkFrame(
+        build_file_card(
             self.content_frame,
-            fg_color=self.ui["panel_alt"],
-            corner_radius=8,
-            border_width=1,
-            border_color=self.ui["border"],
+            self.selected_file,
+            badge_text=t("word_to_pdf.word_file"),
+            on_change=self.select_file,
         )
-        f_box.pack(pady=20, padx=20, fill="x")
-
-        ctk.CTkLabel(f_box, text=t("app.selected_file"), font=("Segoe UI", 11), text_color=self.ui["accent"]).pack(pady=(10, 0))
-        ctk.CTkLabel(f_box, text=fname, font=("Segoe UI Semibold", 13, "bold"), text_color=self.ui["text"]).pack(pady=10)
-
-        badge = badge_colors("neutral")
-        ctk.CTkLabel(
-            f_box,
-            text=t("word_to_pdf.word_file"),
-            font=self.ui["badge_font"],
-            text_color=badge["text"],
-            fg_color=badge["fg"],
-            corner_radius=8,
-        ).pack(pady=(0, 8))
-
-        btn_change = ctk.CTkButton(
-            f_box,
-            text=t("app.change"),
-            width=80,
-            height=25,
-            fg_color=self.ui["panel_soft"],
-            hover_color=self.ui["border"],
-            text_color=self.ui["text"],
-            command=self.select_file,
-        )
-        btn_change.pack(pady=(0, 10))
 
         self.btn_convert.configure(state="normal")
 

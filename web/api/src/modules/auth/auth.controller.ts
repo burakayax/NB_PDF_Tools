@@ -358,7 +358,11 @@ export async function googleOAuthStartController(request: Request, response: Res
       ? `${state}|${preferredLanguage}|desktop|${desktopLocalPort}`
       : `${state}|${preferredLanguage}`;
   response.cookie(OAUTH_STATE_COOKIE, oauthCookieValue, getOAuthStateCookieOptions());
-  const authorizeUrl = buildGoogleAuthorizeUrl(state);
+  // Embed desktop port in Google `state` so redirect still works if the OAuth cookie is dropped
+  // (browser privacy / cross-site edge cases). CSRF token is the hex prefix before ".d<port>".
+  const stateForGoogle =
+    desktopLocalPort !== null ? `${state}.d${desktopLocalPort}` : state;
+  const authorizeUrl = buildGoogleAuthorizeUrl(stateForGoogle);
   console.log(`${GOOGLE_OAUTH_LOG} start → redirect to Google accounts`, {
     preferredLanguage,
     redirectUri: getGoogleRedirectUri(),
@@ -435,7 +439,23 @@ export async function googleOAuthCallbackController(request: Request, response: 
       desktopLocalPort = parsed;
     }
   }
-  if (!expectedState || state !== expectedState) {
+
+  const stateFromQuery = typeof request.query.state === "string" ? request.query.state : "";
+  let stateCsrf = stateFromQuery;
+  let portFromEmbeddedState: number | null = null;
+  const embeddedPort = /\.d(\d+)$/.exec(stateFromQuery);
+  if (embeddedPort) {
+    stateCsrf = stateFromQuery.slice(0, -embeddedPort[0].length);
+    const p = Number.parseInt(embeddedPort[1] ?? "", 10);
+    if (!Number.isNaN(p) && p >= 1024 && p <= 65_535) {
+      portFromEmbeddedState = p;
+    }
+  }
+  if (desktopLocalPort === null && portFromEmbeddedState !== null) {
+    desktopLocalPort = portFromEmbeddedState;
+  }
+
+  if (!expectedState || stateCsrf !== expectedState) {
     logGoogleOAuth({ outcome: "failure", step: "callback", reason: "state_mismatch", ...meta });
     console.error(`${GOOGLE_OAUTH_LOG} callback: state mismatch (possible CSRF or stale session)`, {
       ...meta,

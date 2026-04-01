@@ -12,21 +12,49 @@ function requireUserId(request: Request) {
   return userId;
 }
 
+/**
+ * Desktop clients must send a non-empty X-NB-Device-Id; web callers omit it.
+ */
+function resolveDesktopDeviceIdForRequest(request: Request): string | undefined {
+  if (!isDesktopClient(request.headers)) {
+    return undefined;
+  }
+  const deviceId = getDesktopDeviceIdFromHeaders(request.headers);
+  if (!deviceId) {
+    throw new HttpError(400, "Desktop device identifier is required.");
+  }
+  return deviceId;
+}
+
 export async function validateLicenseController(request: Request, response: Response) {
   const userId = requireUserId(request);
-  const deviceId = isDesktopClient(request.headers) ? getDesktopDeviceIdFromHeaders(request.headers) : "";
-  const result = await validateDesktopLicense(userId, deviceId || undefined);
+  const deviceId = resolveDesktopDeviceIdForRequest(request);
+  const result = await validateDesktopLicense(userId, deviceId);
+  response.json(result);
+}
+
+/** Desktop-only gate (device header required). Web apps continue to use GET /license/validate. */
+export async function checkLicenseController(request: Request, response: Response) {
+  const userId = requireUserId(request);
+  if (!isDesktopClient(request.headers)) {
+    throw new HttpError(400, "GET /license/check is for desktop clients only. Use GET /license/validate from web.");
+  }
+  const deviceId = resolveDesktopDeviceIdForRequest(request);
+  const result = await validateDesktopLicense(userId, deviceId);
   response.json(result);
 }
 
 export async function authorizeDesktopOperationController(request: Request, response: Response) {
   const userId = requireUserId(request);
+  if (!isDesktopClient(request.headers)) {
+    throw new HttpError(400, "This endpoint requires a desktop client (X-NB-Client-Type: desktop).");
+  }
   const parsed = desktopAuthorizeSchema.safeParse(request.body);
   if (!parsed.success) {
     throw new HttpError(400, parsed.error.issues[0]?.message ?? "Desktop authorization payload is invalid.");
   }
 
-  const deviceId = isDesktopClient(request.headers) ? getDesktopDeviceIdFromHeaders(request.headers) : "";
-  const result = await authorizeDesktopOperation(userId, parsed.data, deviceId || undefined);
+  const deviceId = resolveDesktopDeviceIdForRequest(request);
+  const result = await authorizeDesktopOperation(userId, parsed.data, deviceId);
   response.json(result);
 }

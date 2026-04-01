@@ -1,9 +1,17 @@
 import { randomBytes } from "node:crypto";
 
+import type { Plan } from "@prisma/client";
+
 import { HttpError } from "../../lib/http-error.js";
 import { prisma } from "../../lib/prisma.js";
 import { hashToken } from "../../lib/token.js";
 
+/** Masaüstü: tüm planlarda en fazla iki kayıtlı cihaz (sunucu kaynağı doğrulaması zorunlu). */
+export function getDesktopDeviceLimitForPlan(_plan: Plan): number {
+  return 2;
+}
+
+/** Geriye dönük uyumluluk (ör. sabit mesajlar); üst sınır Business kotasıdır. */
 export const MAX_DESKTOP_DEVICES = 2;
 
 /** Yeni cihaz kaydı için sunucu tarafı tek seferlik kimlik (istemci yerelde saklar, X-NB-Device-Id ile gönderir). */
@@ -66,6 +74,15 @@ export async function ensureDesktopDeviceAccess(
   requireDevice = false,
   options: EnsureDesktopDeviceOptions = {},
 ) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { plan: true },
+  });
+  if (!user) {
+    throw new HttpError(404, "User not found.");
+  }
+  const deviceLimit = getDesktopDeviceLimitForPlan(user.plan);
+
   if (!rawDeviceId) {
     if (requireDevice) {
       throw new HttpError(400, "Desktop device identifier is required.");
@@ -73,7 +90,7 @@ export async function ensureDesktopDeviceAccess(
     return {
       currentDeviceRegistered: false,
       activeDeviceCount: 0,
-      deviceLimit: MAX_DESKTOP_DEVICES,
+      deviceLimit,
     };
   }
 
@@ -109,7 +126,7 @@ export async function ensureDesktopDeviceAccess(
     return {
       currentDeviceRegistered: true,
       activeDeviceCount,
-      deviceLimit: MAX_DESKTOP_DEVICES,
+      deviceLimit,
     };
   }
 
@@ -123,8 +140,8 @@ export async function ensureDesktopDeviceAccess(
     },
   });
 
-  if (activeDevices.length >= MAX_DESKTOP_DEVICES && !options.bypassDeviceLimit) {
-    throw new HttpError(403, `Device limit exceeded. This account can be used on up to ${MAX_DESKTOP_DEVICES} desktop devices.`);
+  if (activeDevices.length >= deviceLimit && !options.bypassDeviceLimit) {
+    throw new HttpError(403, `Device limit exceeded. This account can be used on up to ${deviceLimit} desktop device(s).`);
   }
 
   await prisma.desktopDevice.create({
@@ -137,6 +154,6 @@ export async function ensureDesktopDeviceAccess(
   return {
     currentDeviceRegistered: true,
     activeDeviceCount: activeDevices.length + 1,
-    deviceLimit: MAX_DESKTOP_DEVICES,
+    deviceLimit,
   };
 }

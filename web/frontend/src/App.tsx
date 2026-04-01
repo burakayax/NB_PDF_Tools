@@ -422,7 +422,6 @@ function App() {
     accessToken,
     isAuthenticated,
     isRestoring,
-    login,
     logout,
     register,
     updatePreferredLanguage,
@@ -1433,9 +1432,17 @@ function App() {
         setView("login");
         return;
       } else {
-        const loggedInUser = await login(payload.email, payload.password);
-        setLanguage(loggedInUser.preferredLanguage || detectInitialLanguage());
-        showToast("success", "Giriş başarılı", "Çalışma alanına yönlendiriliyorsunuz.");
+        /** Geçici: e-posta girişinde API yok; bakım mesajı (Vercel / onay süreci). */
+        const maintenanceMs = 1400;
+        await new Promise((r) => setTimeout(r, maintenanceMs));
+        showToast(
+          "info",
+          language === "tr" ? "Bakımdayız" : "Under maintenance",
+          language === "tr"
+            ? "Sistemimiz şu an bakım aşamasındadır, kısa süre sonra tekrar deneyiniz."
+            : "Our system is currently under maintenance. Please try again in a little while.",
+        );
+        return;
       }
 
       setSelectedFeatureId("split");
@@ -1791,6 +1798,12 @@ function App() {
           onOpenTerms={() => openLegalPage("terms")}
           onOpenPrivacy={() => openLegalPage("privacy")}
         />
+        {toast ? (
+          <div className={`toast toast--${toast.type}`}>
+            <div className="toast__title">{toast.title}</div>
+            <div className="toast__detail">{toast.detail}</div>
+          </div>
+        ) : null}
         <CookieNotice
           language={language}
           visible={shouldShowCookieNotice}

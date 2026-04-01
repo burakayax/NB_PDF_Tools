@@ -6,9 +6,10 @@ import threading
 from queue import Queue, Empty
 
 from modules.i18n import t
-from modules.progress_dialog import ProgressDialog
 from modules.pdf_password_dialog import PdfPasswordDialog
-from modules.ui_theme import badge_colors, theme
+from modules.pdf_tool_ui import build_drop_zone, build_merge_file_row, build_tool_header, register_file_drop
+from modules.progress_dialog import ProgressDialog
+from modules.ui_theme import theme
 
 
 def reorder_list(lst, from_idx, to_idx):
@@ -47,21 +48,11 @@ class MergeWindow(ctk.CTkToplevel):
 
         self.title(t("merge.window_title"))
         # Pencere boyutunu her şeyin sığacağı klasik ölçüye çektik
-        self.ortalama_func(self, 800, 750)
+        self.ortalama_func(self, 800, 780)
         self.grab_set()
         self.configure(fg_color=self.ui["bg"])
 
-        # 1. ÜST BAŞLIK (Klasik Mavi)
-        header_frame = ctk.CTkFrame(self, fg_color=self.ui["accent"], height=60, corner_radius=0)
-        header_frame.pack(fill="x", side="top")
-        ctk.CTkLabel(header_frame, text=t("merge.header"),
-                     font=self.ui["title_font"], text_color="white").pack(pady=8)
-
-        # Kullanıcıya küçük not
-        note = ctk.CTkLabel(header_frame,
-                            text=t("merge.note"),
-                            font=self.ui["small_font"], text_color="#eef4ff")
-        note.pack(pady=(0, 8))
+        build_tool_header(self, t("merge.header"), t("merge.note"))
 
         # 2. ANA LİSTE KARTI (Klasik Koyu Gri)
         self.main_card = ctk.CTkFrame(
@@ -72,20 +63,19 @@ class MergeWindow(ctk.CTkToplevel):
             border_color=self.ui["border"],
         )
         self.main_card.pack(pady=15, padx=30, fill="both", expand=True)
+        register_file_drop(self.main_card, self._on_drop_paths, {".pdf"})
 
         # Boş Görünüm
         self.empty_view = ctk.CTkFrame(self.main_card, fg_color="transparent")
-        self.empty_view.pack(pady=80, padx=20, fill="both", expand=True)
-        ctk.CTkLabel(self.empty_view, text="📚", font=("Segoe UI", 50)).pack()
-        ctk.CTkLabel(self.empty_view, text=t("merge.empty"),
-                     font=("Segoe UI Semibold", 14, "bold"), text_color=self.ui["muted"]).pack(pady=10)
+        self.empty_view.pack(pady=24, padx=20, fill="both", expand=True)
+        self._refresh_empty_view()
 
         # Kaydırılabilir Izgara Alanı
         self.scroll_frame = ctk.CTkScrollableFrame(self.main_card, fg_color="transparent")
         # Sürükle-bırak animasyonunu düzgün yapmak için kartları scroll_frame içinde tek bir container'e "place" ile diziyoruz.
         self.items_container = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         self.items_container.pack(fill="both", expand=True)
-        self.card_height = 82
+        self.card_height = 78
         self.card_pad_x = 8
         self.card_pad_y = 6
         self.card_step = self.card_height + (2 * self.card_pad_y)
@@ -109,6 +99,62 @@ class MergeWindow(ctk.CTkToplevel):
                                      height=60, fg_color=self.ui["panel_alt"],
                                      state="disabled", command=self.run_merge)
         self.btn_run.pack(fill="x", pady=(10, 0))
+
+    def _refresh_empty_view(self) -> None:
+        for w in self.empty_view.winfo_children():
+            w.destroy()
+        ctk.CTkLabel(
+            self.empty_view,
+            text=t("merge.empty"),
+            font=("Segoe UI Semibold", 13, "bold"),
+            text_color=self.ui["muted"],
+        ).pack(pady=(0, 10))
+        dz = build_drop_zone(
+            self.empty_view,
+            on_paths=self._on_drop_paths,
+            on_browse=self.add_files,
+            extensions=None,
+        )
+        dz.pack(fill="both", expand=True)
+
+    def _on_drop_paths(self, paths: list[str]) -> None:
+        for p in paths:
+            self._try_add_pdf(p)
+        if paths:
+            self.update_ui()
+
+    def _try_add_pdf(self, f: str) -> None:
+        try:
+            encrypted = False
+            if hasattr(self.pdf_engine, "is_pdf_encrypted"):
+                encrypted = self.pdf_engine.is_pdf_encrypted(f)
+
+            if encrypted:
+                password_result = self._request_password_for_file(f, show_success=False)
+                if password_result == "skip":
+                    return
+                if not password_result:
+                    return
+
+            self.file_encrypted[f] = encrypted
+            self.file_passwords.setdefault(f, None)
+            if f not in self.file_list:
+                self.file_list.append(f)
+        except Exception as e:
+            messagebox.showerror(
+                t("app.error"),
+                t("merge.file_read_error", file=os.path.basename(f), error=e),
+            )
+
+    def _bind_merge_row_drag(self, root, path):
+        def walk(w):
+            if isinstance(w, ctk.CTkButton):
+                return
+            self._bind_drag_area(w, path)
+            for c in w.winfo_children():
+                walk(c)
+
+        walk(root)
 
     def _get_card_width(self) -> int:
         """place ile yerleştirilen kartlar için kullanılacak genişliği döndürür."""
@@ -155,9 +201,13 @@ class MergeWindow(ctk.CTkToplevel):
         for path, w in self.widget_map.items():
             try:
                 if path == self.dragging_path:
-                    w.configure(fg_color="#375aeb", border_color="#ffd166", border_width=2)
+                    w.configure(fg_color=self.ui["accent"], border_color=self.ui["warning"], border_width=2)
                 else:
-                    w.configure(fg_color="#2a2a2a", border_color="#444", border_width=1)
+                    w.configure(
+                        fg_color=self.ui["panel_alt"],
+                        border_color=self.ui.get("border_subtle", self.ui["border"]),
+                        border_width=1,
+                    )
             except Exception:
                 pass
 
@@ -209,27 +259,7 @@ class MergeWindow(ctk.CTkToplevel):
         files = filedialog.askopenfilenames(parent=self, filetypes=[("PDF", "*.pdf")])
         if files:
             for f in files:
-                try:
-                    encrypted = False
-                    if hasattr(self.pdf_engine, "is_pdf_encrypted"):
-                        encrypted = self.pdf_engine.is_pdf_encrypted(f)
-
-                    if encrypted:
-                        password_result = self._request_password_for_file(f, show_success=False)
-                        if password_result == "skip":
-                            continue
-                        if not password_result:
-                            continue
-
-                    self.file_encrypted[f] = encrypted
-                    self.file_passwords.setdefault(f, None)
-                    if f not in self.file_list:
-                        self.file_list.append(f)
-                except Exception as e:
-                    messagebox.showerror(
-                        t("app.error"),
-                        t("merge.file_read_error", file=os.path.basename(f), error=e),
-                    )
+                self._try_add_pdf(f)
             self.update_ui()
         self.lift()
 
@@ -261,15 +291,9 @@ class MergeWindow(ctk.CTkToplevel):
         self.file_passwords[path] = password
         if show_success:
                     messagebox.showinfo(t("app.name"), f"{os.path.basename(path)}: {t('app.encrypted_badge').strip()}")
-        self.update_ui()
+        if path in self.file_list:
+            self.update_ui()
         return True
-
-    def _get_status_text(self, path):
-        if self.file_encrypted.get(path):
-            if self.file_passwords.get(path):
-                return "🔐 ✓", "#f39c12"
-            return "🔐", "#e74c3c"
-        return "", "#888888"
 
     def clear_list(self):
         self.file_list = []
@@ -303,7 +327,8 @@ class MergeWindow(ctk.CTkToplevel):
             self.scroll_frame.pack_forget()
             self.btn_clear.pack_forget()
             self.empty_view.pack(fill="both", expand=True)
-            self.btn_run.configure(state="disabled", fg_color="#34495e")
+            self.btn_run.configure(state="disabled", fg_color=self.ui["panel_alt"])
+            self._refresh_empty_view()
             return
 
         # Kaydırılabilir listeyi görünür yapar.
@@ -317,65 +342,27 @@ class MergeWindow(ctk.CTkToplevel):
 
         # Yeni dosya öğeleri için kart bileşenlerini kurar.
         for i, path in enumerate(self.file_list):
-            fname = os.path.basename(path)
-            display_name = (fname[:40] + '..') if len(fname) > 42 else fname
-            status_text, _status_color = self._get_status_text(path)
+            st_line = None
+            st_ok = True
+            if self.file_encrypted.get(path):
+                if self.file_passwords.get(path):
+                    st_line = t("merge.status_unlocked")
+                    st_ok = True
+                else:
+                    st_line = t("merge.status_need_password")
+                    st_ok = False
 
-            # Kartları items_container içine "place" ediyoruz; scroll_frame içinde tek container kullanalım.
-            f_box = ctk.CTkFrame(self.items_container, fg_color=self.ui["panel_alt"], corner_radius=8,
-                                 height=self.card_height, border_width=1, border_color=self.ui["border"])
-            f_box.pack_propagate(False)
-            f_box.grid_columnconfigure(0, weight=1)
-
-            text_frame = ctk.CTkFrame(f_box, fg_color="transparent")
-            text_frame.pack(side="left", fill="both", expand=True, padx=12, pady=8)
-
-            text_inner = ctk.CTkFrame(text_frame, fg_color="transparent")
-            text_inner.pack(fill="both", expand=True)
-
-            label = ctk.CTkLabel(
-                text_inner,
-                text=display_name,
-                font=("Segoe UI Semibold", 12, "bold"),
-                anchor="w",
-                justify="left",
+            f_box = build_merge_file_row(
+                self.items_container,
+                path,
+                status_line=st_line,
+                status_ok=st_ok,
+                on_remove=lambda p=path: self.remove_single_file(p),
+                on_up=lambda idx=i: self.move_up(idx),
+                on_down=lambda idx=i: self.move_down(idx),
             )
-            label.pack(anchor="w", expand=True)
-            if status_text:
-                badge = badge_colors("success" if "✓" in status_text else "warning")
-                status_label = ctk.CTkLabel(
-                    text_inner,
-                    text=f"  {status_text}  ",
-                    font=("Segoe UI", 10, "bold"),
-                    text_color=badge["text"],
-                    fg_color=badge["fg"],
-                    corner_radius=8,
-                    anchor="w",
-                )
-                status_label.pack(anchor="w", pady=(4, 0))
-            else:
-                status_label = ctk.CTkLabel(text_frame, text="", font=("Segoe UI", 10, "bold"), anchor="w")
-                status_label.pack(anchor="w", pady=(4, 0))
-
-            # Yukarı / Aşağı butonları
-            btn_up = ctk.CTkButton(f_box, text="↑", width=30, height=30, fg_color=self.ui["panel_alt"],
-                                   command=lambda idx=i: self.move_up(idx))
-            btn_up.pack(side="right", padx=(6, 12))
-
-            btn_down = ctk.CTkButton(f_box, text="↓", width=30, height=30, fg_color=self.ui["panel_alt"],
-                                     command=lambda idx=i: self.move_down(idx))
-            btn_down.pack(side="right", padx=(6, 0))
-
-            # Kaldır butonu
-            btn_remove = ctk.CTkButton(f_box, text=t("merge.remove"), width=80, height=30, fg_color=self.ui["danger"],
-                                       command=lambda p=path: self.remove_single_file(p))
-            btn_remove.pack(side="right", padx=(6, 0), pady=10)
-
-            self._bind_drag_area(f_box, path)
-            self._bind_drag_area(text_frame, path)
-            self._bind_drag_area(text_inner, path)
-            self._bind_drag_area(label, path)
-            self._bind_drag_area(status_label, path)
+            f_box.configure(height=self.card_height)
+            self._bind_merge_row_drag(f_box, path)
 
             self.widget_map[path] = f_box
 
@@ -383,7 +370,7 @@ class MergeWindow(ctk.CTkToplevel):
         self.refresh_order()
         self._layout_items(animated=True)
 
-        self.btn_run.configure(state="normal", fg_color="#2ecc71", text_color="#1a1a1a")
+        self.btn_run.configure(state="normal", fg_color=self.ui["success"], text_color="#1a1a1a")
 
     def remove_single_file(self, path):
         if path in self.file_list:
@@ -474,7 +461,7 @@ class MergeWindow(ctk.CTkToplevel):
                                                  defaultextension=".pdf",
                                                  filetypes=[("PDF", "*.pdf")])
         if save_path:
-            self.btn_run.configure(state="disabled", fg_color="#34495e")
+            self.btn_run.configure(state="disabled", fg_color=self.ui["panel_alt"])
 
             total = len(self.file_list)
             q = Queue()
@@ -526,7 +513,7 @@ class MergeWindow(ctk.CTkToplevel):
                             finished["value"] = True
                             progress_dialog.destroy()
                             messagebox.showerror(t("app.error"), msg[1])
-                            self.btn_run.configure(state="normal", fg_color="#2ecc71", text_color="#1a1a1a")
+                            self.btn_run.configure(state="normal", fg_color=self.ui["success"], text_color="#1a1a1a")
                             return
                 except Empty:
                     pass

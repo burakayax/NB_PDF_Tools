@@ -18,6 +18,7 @@ pnpm-debug.log*
 
 # --- Derleme çıktıları ---
 dist/
+dist_installer/
 build/
 out/
 .next/

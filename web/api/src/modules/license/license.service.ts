@@ -2,9 +2,9 @@ import type { Plan } from "@prisma/client";
 import { HttpError } from "../../lib/http-error.js";
 import { prisma } from "../../lib/prisma.js";
 import { isAdminUser } from "../../lib/user-role.js";
-import { MAX_DESKTOP_DEVICES, ensureDesktopDeviceAccess } from "../device/device.service.js";
+import { ensureDesktopDeviceAccess } from "../device/device.service.js";
 import { ensurePaidSubscriptionActiveOrDowngrade } from "../subscription/subscription.service.js";
-import type { FeatureKey } from "../subscription/subscription.config.js";
+import { featureCatalog, planDefinitions, type FeatureKey } from "../subscription/subscription.config.js";
 import type { DesktopAuthorizeInput } from "./license.schema.js";
 
 type DesktopEntitlements = {
@@ -19,6 +19,11 @@ type DesktopEntitlements = {
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function blockedFeaturesForPlan(plan: Plan): FeatureKey[] {
+  const allowed = new Set(planDefinitions[plan].allowedFeatures);
+  return featureCatalog.filter((f) => !allowed.has(f));
 }
 
 function getDesktopPlanRules(plan: Plan) {
@@ -45,11 +50,12 @@ function getDesktopPlanRules(plan: Plan) {
     default:
       return {
         status: "active" as const,
-        dailyLimit: 5,
+        dailyLimit: planDefinitions.FREE.dailyLimit,
         canUseEncryption: false,
-        canUseBatchProcessing: false,
+        /** Web’de Free için birleştirme açık; çoklu dosya (ör. birleştirme) için gerekli. */
+        canUseBatchProcessing: true,
         maxFileSizeMb: 15,
-        blockedFeatures: ["merge", "encrypt"] as FeatureKey[],
+        blockedFeatures: blockedFeaturesForPlan("FREE"),
       };
   }
 }
@@ -115,23 +121,23 @@ export async function validateDesktopLicense(userId: string, deviceId?: string) 
     entitlements,
     devices: {
       activeCount: deviceAccess.activeDeviceCount,
-      limit: MAX_DESKTOP_DEVICES,
+      limit: deviceAccess.deviceLimit,
     },
-    upgradeMessage:
-      admin
-        ? null
-        : user.plan === "FREE"
-          ? "Upgrade to Pro to unlock encryption, batch processing, and larger files."
-          : null,
+    upgradeMessage: null,
   };
 }
 
 function assertDesktopOperationAllowed(input: DesktopAuthorizeInput, entitlements: DesktopEntitlements) {
+  const fk = input.featureKey as FeatureKey;
+  if (entitlements.blockedFeatures.includes(fk)) {
+    throw new HttpError(403, "This feature is not available on your current plan.");
+  }
+
   if (input.featureKey === "encrypt" && !entitlements.canUseEncryption) {
     throw new HttpError(403, "Encryption is available on Pro and Business plans. Upgrade to Pro to continue.");
   }
 
-  if ((input.featureKey === "merge" || input.fileCount > 1) && !entitlements.canUseBatchProcessing) {
+  if (input.fileCount > 1 && !entitlements.canUseBatchProcessing) {
     throw new HttpError(403, "Batch processing is available on Pro and Business plans. Upgrade to Pro to continue.");
   }
 
@@ -180,7 +186,7 @@ export async function authorizeDesktopOperation(userId: string, input: DesktopAu
       entitlements,
       devices: {
         activeCount: deviceAccess.activeDeviceCount,
-        limit: MAX_DESKTOP_DEVICES,
+        limit: deviceAccess.deviceLimit,
       },
     };
   }
@@ -223,7 +229,7 @@ export async function authorizeDesktopOperation(userId: string, input: DesktopAu
     entitlements: nextEntitlements,
     devices: {
       activeCount: deviceAccess.activeDeviceCount,
-      limit: MAX_DESKTOP_DEVICES,
+      limit: deviceAccess.deviceLimit,
     },
   };
 }

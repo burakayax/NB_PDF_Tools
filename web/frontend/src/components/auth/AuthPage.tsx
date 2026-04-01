@@ -304,9 +304,21 @@ export function AuthPage({
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex min-h-[3.25rem] w-full items-center justify-center rounded-xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-6 text-base font-semibold text-white shadow-[0_16px_40px_-12px_rgba(37,99,235,0.45)] transition duration-200 ease-out hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-[3.25rem] w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-6 text-base font-semibold text-white shadow-[0_16px_40px_-12px_rgba(37,99,235,0.45)] transition duration-200 ease-out hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {submitting ? (language === "tr" ? "İşleniyor..." : "Processing...") : copy.screen.submit}
+              {submitting && mode === "login" ? (
+                <>
+                  <span
+                    className="h-[1.125rem] w-[1.125rem] shrink-0 animate-spin rounded-full border-2 border-white/25 border-t-white"
+                    aria-hidden
+                  />
+                  <span>{language === "tr" ? "Yükleniyor..." : "Loading..."}</span>
+                </>
+              ) : submitting ? (
+                <span>{language === "tr" ? "İşleniyor..." : "Processing..."}</span>
+              ) : (
+                copy.screen.submit
+              )}
             </button>
           </form>
 

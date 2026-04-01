@@ -39,9 +39,14 @@ class ProgressDialog(ctk.CTkToplevel):
         self.after(100, self.lift)
         self.configure(fg_color=ui["bg"])
 
-        header = ctk.CTkFrame(self, fg_color=ui["accent"], height=60, corner_radius=0)
+        header = ctk.CTkFrame(self, fg_color=ui["panel"], height=58, corner_radius=0)
         header.pack(fill="x", side="top")
-        ctk.CTkLabel(header, text=t("progress.header"), font=ui["title_font"], text_color="white").pack(pady=10)
+        ctk.CTkLabel(
+            header,
+            text=t("progress.header"),
+            font=("Segoe UI Semibold", 17, "bold"),
+            text_color=ui.get("accent_soft", ui["accent"]),
+        ).pack(side="left", padx=20, pady=16)
 
         self.card = ctk.CTkFrame(self, fg_color=ui["panel"], corner_radius=18, border_width=1, border_color=ui["border"])
         self.card.pack(fill="both", expand=True, padx=18, pady=18)
@@ -123,6 +128,11 @@ class ProgressDialog(ctk.CTkToplevel):
         if eta_text != self._last_eta:
             self.eta_label.configure(text=eta_text)
             self._last_eta = eta_text
+
+        phase = int(elapsed * 2.4) % 4
+        dots = "." * phase
+        status_core = t("progress.status", current=self._current_value, total=self._current_total)
+        self.status_label.configure(text=f"{status_core}  ·  {t('tool_ui.processing')}{dots}")
 
         self._tick_after_id = self.after(75, self._tick_animation)
 
