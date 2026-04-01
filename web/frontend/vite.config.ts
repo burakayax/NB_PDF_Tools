@@ -102,7 +102,9 @@ export default defineConfig(({ command, mode }) => {
   const saasApiPrefixes = ["auth", "subscription", "payment", "contact", "analytics", "user", "device", "license", "errors"];
 
   const isProd = mode === "production";
-  const disableObfuscation = env.VITE_DISABLE_OBFUSCATION === "true";
+  /** Vercel’de obfuscation sık OOM / zaman aşımı üretir; yerelde VITE_DISABLE_OBFUSCATION=true ile de kapatılabilir. */
+  const disableObfuscation =
+    env.VITE_DISABLE_OBFUSCATION === "true" || process.env.VERCEL === "1";
 
   return {
     plugins: [
