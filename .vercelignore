@@ -1,0 +1,6 @@
+**/*.py
+web/api/
+desktop/
+scripts/
+api/
+backend/
