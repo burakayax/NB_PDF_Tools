@@ -1,6 +1,5 @@
-**/*.py
-web/api/
-desktop/
-scripts/
-api/
-backend/
+# Kök Python masaüstü paketi Vercel yüklemesine dahil edilmesin (Python runtime tetiklenmesin).
+pyproject.toml
+requirements.txt
+requirements-build.txt
+src
