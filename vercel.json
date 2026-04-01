@@ -1,0 +1,25 @@
+{
+  "builds": [
+    {
+      "src": "web/frontend/package.json",
+      "use": "@vercel/static-build"
+    },
+    {
+      "src": "web/api/*.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "web/api/index.py"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "web/frontend/$1"
+    }
+  ]
+}
