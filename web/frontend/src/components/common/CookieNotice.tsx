@@ -26,7 +26,7 @@ export function CookieNotice({ language, visible, onAccept, onOpenPrivacy }: Coo
           <button
             type="button"
             onClick={onAccept}
-            className="inline-flex min-h-12 items-center justify-center rounded-xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-5 text-sm font-semibold text-white shadow-[0_12px_32px_-8px_rgba(37,99,235,0.4)] transition duration-200 ease-out hover:brightness-110"
+            className="inline-flex min-h-12 items-center justify-center rounded-xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-5 text-sm font-semibold text-slate-950 shadow-[0_12px_32px_-8px_rgba(34,211,238,0.4)] transition duration-200 ease-out hover:brightness-110"
           >
             {copy.accept}
           </button>

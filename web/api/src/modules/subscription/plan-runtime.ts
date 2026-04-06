@@ -1,14 +1,12 @@
 import type { Plan } from "@prisma/client";
-import { prisma } from "../../lib/prisma.js";
+import { getResolvedPackagesConfig, invalidateResolvedPackagesConfig } from "../../lib/packages-config.service.js";
 import {
+  featureCatalog,
   planDefinitions,
   type FeatureKey,
   type PlanDefinition,
   isFeatureKey,
 } from "./subscription.config.js";
-
-let cache: { t: number; v: Record<Plan, PlanDefinition> } | null = null;
-const TTL_MS = 20_000;
 
 const PLANS: Plan[] = ["FREE", "PRO", "BUSINESS"];
 
@@ -48,27 +46,23 @@ function mergePlan(base: PlanDefinition, patch: unknown): PlanDefinition {
 }
 
 export async function getPlanDefinitionsResolved(): Promise<Record<Plan, PlanDefinition>> {
-  if (cache && Date.now() - cache.t < TTL_MS) {
-    return cache.v;
-  }
   let out = cloneBase();
-  const row = await prisma.siteSetting.findUnique({ where: { key: "plans.override" } });
-  if (row?.value) {
-    try {
-      const parsed = JSON.parse(row.value) as Partial<Record<Plan, unknown>>;
-      for (const plan of PLANS) {
-        if (parsed[plan] !== undefined) {
-          out[plan] = mergePlan(planDefinitions[plan], parsed[plan]);
-        }
+  const { plansOverride: parsed } = await getResolvedPackagesConfig();
+  try {
+    const partial = parsed as Partial<Record<Plan, unknown>>;
+    for (const plan of PLANS) {
+      if (partial[plan] !== undefined) {
+        out[plan] = mergePlan(planDefinitions[plan], partial[plan]);
       }
-    } catch {
-      /* ignore invalid JSON */
     }
+  } catch {
+    /* ignore invalid shape */
   }
-  cache = { t: Date.now(), v: out };
+  /* Free tier: never restrict tools via packages.config — monetization is soft friction only. */
+  out.FREE = { ...out.FREE, allowedFeatures: [...featureCatalog] };
   return out;
 }
 
 export function invalidatePlanRuntimeCache() {
-  cache = null;
+  invalidateResolvedPackagesConfig();
 }

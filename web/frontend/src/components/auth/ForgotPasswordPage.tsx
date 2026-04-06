@@ -82,8 +82,8 @@ export function ForgotPasswordPage({ language, onBackToLogin, onCompleted }: For
     if (!policy.ok) {
       const msg =
         language === "tr"
-          ? policy.issues.map((i) => i.tr).join(" · ")
-          : policy.issues.map((i) => i.en).join(" · ");
+          ? policy.issues.map((i) => i.tr).join(" Â· ")
+          : policy.issues.map((i) => i.en).join(" Â· ");
       setError(msg);
       return;
     }
@@ -105,8 +105,8 @@ export function ForgotPasswordPage({ language, onBackToLogin, onCompleted }: For
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-nb-bg font-sans text-nb-text antialiased">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_100%_70%_at_50%_-18%,rgba(37,99,235,0.2),transparent_55%)]" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[40vh] bg-[radial-gradient(ellipse_80%_60%_at_50%_100%,rgba(56,189,248,0.09),transparent_65%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_100%_70%_at_50%_-18%,rgba(34,211,238,0.2),transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[40vh] bg-[radial-gradient(ellipse_80%_60%_at_50%_100%,rgba(129,140,232,0.09),transparent_65%)]" />
 
       <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-[480px] flex-col justify-center px-5 py-14 sm:px-8">
         <button
@@ -114,18 +114,18 @@ export function ForgotPasswordPage({ language, onBackToLogin, onCompleted }: For
           onClick={onBackToLogin}
           className="group mb-10 inline-flex min-h-11 w-fit items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm font-semibold text-nb-text shadow-sm transition duration-200 ease-out hover:border-nb-primary/30 hover:bg-white/[0.08] hover:text-white"
         >
-          <span className="mr-1 transition group-hover:-translate-x-0.5">←</span>
+          <span className="mr-1 transition group-hover:-translate-x-0.5">â†</span>
           {copy.backToLogin}
         </button>
 
         <div className="rounded-[28px] border border-white/[0.08] bg-nb-panel/55 p-8 shadow-[0_50px_100px_-24px_rgba(0,0,0,0.65),0_0_0_1px_rgba(255,255,255,0.04)_inset] backdrop-blur-xl sm:p-10">
-          <p className="text-center text-[11px] font-semibold uppercase tracking-[0.38em] text-sky-300/90">NB Global Studio</p>
+          <p className="text-center text-[11px] font-semibold uppercase tracking-[0.38em] text-cyan-300/90">NB Global Studio</p>
           <h1 className="mt-5 text-center text-2xl font-semibold tracking-tight text-white sm:text-[1.75rem] sm:leading-tight">{copy.title}</h1>
           <h2 className="mt-6 text-center text-lg font-semibold text-white/95">{stepTitle}</h2>
           <p className="mx-auto mt-2 max-w-[340px] text-center text-sm leading-relaxed text-nb-muted">{stepHint}</p>
 
           {info && step === "code" ? (
-            <div className="mt-5 rounded-xl border border-sky-500/25 bg-sky-500/[0.1] px-4 py-3 text-sm text-sky-50">{info}</div>
+            <div className="mt-5 rounded-xl border border-cyan-500/25 bg-cyan-500/[0.1] px-4 py-3 text-sm text-cyan-50">{info}</div>
           ) : null}
 
           {error ? (
@@ -148,9 +148,9 @@ export function ForgotPasswordPage({ language, onBackToLogin, onCompleted }: For
               <button
                 type="submit"
                 disabled={submitting}
-                className="inline-flex min-h-[3.25rem] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-6 text-base font-semibold text-white shadow-[0_16px_40px_-12px_rgba(37,99,235,0.45)] transition duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex min-h-[3.25rem] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-6 text-base font-semibold text-slate-950 shadow-[0_16px_40px_-12px_rgba(34,211,238,0.45)] transition duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {submitting ? (language === "tr" ? "Gönderiliyor…" : "Sending…") : copy.sendCode}
+                {submitting ? (language === "tr" ? "GÃ¶nderiliyorâ€¦" : "Sendingâ€¦") : copy.sendCode}
               </button>
             </form>
           ) : null}
@@ -173,9 +173,9 @@ export function ForgotPasswordPage({ language, onBackToLogin, onCompleted }: For
               <button
                 type="submit"
                 disabled={submitting}
-                className="inline-flex min-h-[3.25rem] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-6 text-base font-semibold text-white shadow-[0_16px_40px_-12px_rgba(37,99,235,0.45)] transition duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex min-h-[3.25rem] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-6 text-base font-semibold text-slate-950 shadow-[0_16px_40px_-12px_rgba(34,211,238,0.45)] transition duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {submitting ? (language === "tr" ? "Kontrol…" : "Checking…") : copy.verifyCode}
+                {submitting ? (language === "tr" ? "Kontrolâ€¦" : "Checkingâ€¦") : copy.verifyCode}
               </button>
             </form>
           ) : null}
@@ -190,7 +190,7 @@ export function ForgotPasswordPage({ language, onBackToLogin, onCompleted }: For
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className={inputClassName}
-                  placeholder="••••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                 />
               </label>
               <label className="block">
@@ -201,15 +201,15 @@ export function ForgotPasswordPage({ language, onBackToLogin, onCompleted }: For
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className={inputClassName}
-                  placeholder="••••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                 />
               </label>
               <button
                 type="submit"
                 disabled={submitting}
-                className="inline-flex min-h-[3.25rem] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-6 text-base font-semibold text-white shadow-[0_16px_40px_-12px_rgba(37,99,235,0.45)] transition duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex min-h-[3.25rem] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-6 text-base font-semibold text-slate-950 shadow-[0_16px_40px_-12px_rgba(34,211,238,0.45)] transition duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {submitting ? (language === "tr" ? "Kaydediliyor…" : "Saving…") : copy.savePassword}
+                {submitting ? (language === "tr" ? "Kaydediliyorâ€¦" : "Savingâ€¦") : copy.savePassword}
               </button>
             </form>
           ) : null}

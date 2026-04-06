@@ -1,7 +1,13 @@
 import type { NextFunction, Request, Response } from "express";
 import rateLimit from "express-rate-limit";
-import { env } from "../config/env.js";
 import { logSuspiciousActivity } from "../lib/app-logger.js";
+import {
+  apiRateLimitForRequest,
+  getApiSecurityResolved,
+  logicalApiPath,
+  rateLimitCountsTowardAbuseBlock,
+  rateLimitTierForRequest,
+} from "../lib/api-security-settings.js";
 import { requireAuth } from "./auth.middleware.js";
 
 /** Express req.ip / socket; proxy güvenilirse X-Forwarded-For ile uyumludur. */
@@ -32,7 +38,7 @@ function pruneAbuseMap() {
   }
 }
 
-function recordRateLimitViolation(ip: string) {
+function recordRateLimitViolation(ip: string, abuseThreshold: number, abuseBlockMinutes: number) {
   pruneAbuseMap();
   const now = Date.now();
   let s = abuseByIp.get(ip);
@@ -40,8 +46,8 @@ function recordRateLimitViolation(ip: string) {
     s = { rateLimitHits: 0, windowStart: now, blockedUntil: 0 };
   }
   s.rateLimitHits += 1;
-  if (s.rateLimitHits >= env.API_ABUSE_THRESHOLD) {
-    s.blockedUntil = now + env.API_ABUSE_BLOCK_MINUTES * 60 * 1000;
+  if (s.rateLimitHits >= abuseThreshold) {
+    s.blockedUntil = now + abuseBlockMinutes * 60 * 1000;
     logSuspiciousActivity({
       type: "ip_blocked",
       ip,
@@ -51,7 +57,7 @@ function recordRateLimitViolation(ip: string) {
   abuseByIp.set(ip, s);
 }
 
-/** Tekrarlı rate limit ihlallerinden sonra IP geçici blok (API_ABUSE_*). */
+/** Tekrarlı rate limit ihlallerinden sonra IP geçici blok (süre, kayıt anındaki `site.settings.apiSecurity`). */
 export function abuseBlockMiddleware(request: Request, response: Response, next: NextFunction) {
   const ip = getClientIp(request);
   const s = abuseByIp.get(ip);
@@ -70,107 +76,18 @@ export function abuseBlockMiddleware(request: Request, response: Response, next:
   next();
 }
 
-/** /api altındaki mantıksal yol: /api/health → /health */
-function logicalApiPath(request: Request): string {
-  const combined = ((request.baseUrl ?? "") + (request.path ?? "/")).replace(/\/+$/, "") || "/";
-  if (combined.startsWith("/api/")) {
-    return combined.slice(4) || "/";
-  }
-  return combined;
-}
-
-function apiRateLimitForPath(request: Request): number {
-  const path = logicalApiPath(request);
-  if (path === "/health") {
-    return 120;
-  }
-  if (path.startsWith("/license")) {
-    return 120;
-  }
-  /** Dil tercihi vb. hafif PATCH; genel varsayılan kotadan ayrı sayaç (SPA’da 10/dk tüm uçlara yetmezdi). */
-  if (path.startsWith("/auth/preferences")) {
-    return 120;
-  }
-  if (path.startsWith("/payment")) {
-    return 120;
-  }
-  if (path.startsWith("/auth/forgot-password")) {
-    return 15;
-  }
-  /** Giriş denemeleri genel API kotasından ayrı (yanlış şifreler workspace isteklerini tüketmesin). */
-  if (path === "/auth/login" && request.method === "POST") {
-    return 30;
-  }
-  /** Oturum açık şifre değiştirme; giriş kotasından bağımsız sayaç. */
-  if (path === "/auth/change-password" && request.method === "POST") {
-    return 90;
-  }
-  if (path === "/auth/set-password" && request.method === "POST") {
-    return 90;
-  }
-  if (path === "/auth/password" && request.method === "PATCH") {
-    return 90;
-  }
-  return env.API_RATE_LIMIT_PER_MINUTE;
-}
-
-function rateLimitTier(request: Request): string {
-  const path = logicalApiPath(request);
-  if (path === "/health") {
-    return "health";
-  }
-  if (path.startsWith("/license")) {
-    return "license";
-  }
-  if (path.startsWith("/auth/preferences")) {
-    return "preferences";
-  }
-  if (path === "/auth/login" && request.method === "POST") {
-    return "auth-login";
-  }
-  if (path === "/auth/change-password" && request.method === "POST") {
-    return "auth-password";
-  }
-  if (path === "/auth/set-password" && request.method === "POST") {
-    return "auth-password";
-  }
-  if (path === "/auth/password" && request.method === "PATCH") {
-    return "auth-password";
-  }
-  return "default";
-}
-
-/** Bu yollarda 429 kötüye kullanım sayacına yazılmaz (dil kaydı yeniden denemeleri IP blokuna yol açmasın). */
-function rateLimitCountsTowardAbuseBlock(request: Request): boolean {
-  const p = logicalApiPath(request);
-  const m = request.method;
-  if (p.startsWith("/auth/preferences")) {
-    return false;
-  }
-  if (p === "/payment/callback") {
-    return false;
-  }
-  /** Mevcut şifre yanlış denemeleri giriş kotasından ayrı; tekrarlı 429 ile IP blokuna gitmesin. */
-  if (p === "/auth/change-password" && m === "POST") {
-    return false;
-  }
-  if (p === "/auth/set-password" && m === "POST") {
-    return false;
-  }
-  if (p === "/auth/password" && m === "PATCH") {
-    return false;
-  }
-  return true;
-}
-
 export const globalApiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  limit: (req) => apiRateLimitForPath(req),
+  limit: async (req) => {
+    const cfg = await getApiSecurityResolved();
+    return apiRateLimitForRequest(req, cfg);
+  },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => `${getClientIp(req)}:${rateLimitTier(req)}`,
+  keyGenerator: (req) => `${getClientIp(req)}:${rateLimitTierForRequest(req)}`,
   message: { message: "Too many requests from this IP. Please try again shortly." },
-  handler: (request, response, _next, options) => {
+  handler: async (request, response, _next, options) => {
+    const cfg = await getApiSecurityResolved();
     const ip = getClientIp(request);
     logSuspiciousActivity({
       type: "rate_limit_exceeded",
@@ -181,7 +98,7 @@ export const globalApiLimiter = rateLimit({
       detail: `limit=${options.limit}`,
     });
     if (rateLimitCountsTowardAbuseBlock(request)) {
-      recordRateLimitViolation(ip);
+      recordRateLimitViolation(ip, cfg.abuseThreshold, cfg.abuseBlockMinutes);
     }
     response.status(options.statusCode ?? 429).json(options.message ?? { message: "Too many requests." });
   },
@@ -199,7 +116,6 @@ export function isPublicApiPath(method: string, path: string): boolean {
   if (p.startsWith("/public/") && method === "GET") {
     return true;
   }
-  /** Sayfa görüntüleme: oturum açmadan da (çerez onayı + istemci) gönderilebilir; userId için isteğe bağlı Bearer. */
   if (p === "/analytics/page-view" && method === "POST") {
     return true;
   }
@@ -232,7 +148,6 @@ export function isPublicApiPath(method: string, path: string): boolean {
       return true;
     }
   }
-  /** iyzico ödeme dönüşü (JWT yok; token ile retrieve doğrulanır). */
   if (p === "/payment/callback" && method === "POST") {
     return true;
   }

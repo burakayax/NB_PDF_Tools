@@ -1,32 +1,36 @@
 import { useEffect, useMemo, useState } from "react";
 import { submitContactForm } from "../../api/contact";
-import { fetchPlans, type PlanDefinition } from "../../api/subscription";
+import type { PublicPricingPayload } from "../../api/public";
 import { getSaasApiBase } from "../../api/saasBase";
-import { livePriceForLandingRow } from "../../lib/landingLivePricing";
-import { mergeLandingWithCms, resolveCmsAssetUrl } from "../../lib/landingCmsMerge";
+import { useSettings } from "../../hooks/useSettings";
+import {
+  getWindowsDownloadUrlFromCms,
+  mergeLandingWithCms,
+  resolveCmsAssetUrl,
+} from "../../lib/landingCmsMerge";
+import { ADMIN_PREVIEW_HIGHLIGHT, isCmsPreviewActive } from "../../lib/cmsPreview";
 import { landingTranslations, type Language } from "../../i18n/landing";
 import { LandingIcon } from "./LandingIcon";
+import { LandingPricingSection } from "./LandingPricingSection";
 
 type LandingPageProps = {
   language: Language;
+  pricing: PublicPricingPayload;
   onLanguageChange: (language: Language) => void;
-  windowsDownloadUrl: string;
   onUseWebApp: () => void;
   isAuthenticated: boolean;
-  /** Giriş yapılmışsa: "Merhaba, Ahmet" / "Hello, Alex" (yalnızca ad). */
+  /** GiriÅŸ yapÄ±lmÄ±ÅŸsa: "Merhaba, Ahmet" / "Hello, Alex" (yalnÄ±zca ad). */
   authGreeting?: string;
   onLogin: () => void;
   onRegister: () => void;
   onOpenTerms: () => void;
   onOpenPrivacy: () => void;
-  /** Public CMS (`cms.content`) merged into copy; optional. */
-  cmsContent?: Record<string, unknown> | null;
 };
 
 export function LandingPage({
   language,
+  pricing,
   onLanguageChange,
-  windowsDownloadUrl,
   onUseWebApp,
   isAuthenticated,
   authGreeting,
@@ -34,18 +38,46 @@ export function LandingPage({
   onRegister,
   onOpenTerms,
   onOpenPrivacy,
-  cmsContent,
 }: LandingPageProps) {
+  const { cms: cmsContent, flags: runtimeFlags } = useSettings();
+  const contactFormEnabled = runtimeFlags.featureFlags?.contactForm !== false;
+  const windowsDownloadUrl = useMemo(() => getWindowsDownloadUrlFromCms(cmsContent), [cmsContent]);
+
   const { copy, heroImageSrc, logoSrc } = useMemo(() => {
     const base = landingTranslations[language];
     const merged = mergeLandingWithCms(base, cmsContent ?? null, language);
     const apiBase = getSaasApiBase();
-    const assets = cmsContent?.assets as { heroImageUrl?: string; logoUrl?: string } | undefined;
+    const assets = cmsContent?.assets as {
+      heroImageUrl?: string;
+      logoUrl?: string;
+      screenshot1Url?: string;
+      screenshot2Url?: string;
+    } | undefined;
     const hero =
       resolveCmsAssetUrl(assets?.heroImageUrl, apiBase) ??
       "/app-preview-main.png";
     const logo = resolveCmsAssetUrl(assets?.logoUrl, apiBase);
-    return { copy: merged, heroImageSrc: hero, logoSrc: logo };
+    const s1 = resolveCmsAssetUrl(assets?.screenshot1Url, apiBase);
+    const s2 = resolveCmsAssetUrl(assets?.screenshot2Url, apiBase);
+    let copyOut = merged;
+    if (s1 || s2) {
+      copyOut = {
+        ...merged,
+        screenshots: {
+          ...merged.screenshots,
+          items: merged.screenshots.items.map((item, i) => {
+            if (i === 0 && s1) {
+              return { ...item, src: s1 };
+            }
+            if (i === 1 && s2) {
+              return { ...item, src: s2 };
+            }
+            return item;
+          }),
+        },
+      };
+    }
+    return { copy: copyOut, heroImageSrc: hero, logoSrc: logo };
   }, [cmsContent, language]);
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
@@ -54,12 +86,29 @@ export function LandingPage({
   const [contactError, setContactError] = useState("");
   const [contactSuccess, setContactSuccess] = useState("");
   const [contactSubmitting, setContactSubmitting] = useState(false);
-  const [publicPlans, setPublicPlans] = useState<PlanDefinition[] | null>(null);
 
   useEffect(() => {
-    void fetchPlans()
-      .then((list) => setPublicPlans(list))
-      .catch(() => setPublicPlans(null));
+    if (!isCmsPreviewActive()) {
+      return;
+    }
+    const onMsg = (ev: MessageEvent) => {
+      if (ev.origin !== window.location.origin) {
+        return;
+      }
+      const d = ev.data as { type?: string; section?: string } | null;
+      if (!d || d.type !== ADMIN_PREVIEW_HIGHLIGHT || typeof d.section !== "string") {
+        return;
+      }
+      document.querySelectorAll(".nb-preview-flash").forEach((node) => node.classList.remove("nb-preview-flash"));
+      const el = document.querySelector(`[data-nb-preview="${d.section.replace(/["\\]/g, "")}"]`);
+      if (el instanceof HTMLElement) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("nb-preview-flash");
+        window.setTimeout(() => el.classList.remove("nb-preview-flash"), 2200);
+      }
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
   }, []);
 
   async function handleContactSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -120,13 +169,13 @@ export function LandingPage({
 
   return (
     <div className="min-h-screen overflow-hidden bg-nb-bg font-sans text-nb-text antialiased">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[min(720px,85vh)] bg-[radial-gradient(ellipse_90%_60%_at_50%_-10%,rgba(37,99,235,0.22),transparent_52%),radial-gradient(circle_at_85%_15%,rgba(56,189,248,0.08),transparent_35%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[min(720px,85vh)] bg-[radial-gradient(ellipse_90%_60%_at_50%_-10%,rgba(34,211,238,0.22),transparent_52%),radial-gradient(circle_at_85%_15%,rgba(129,140,232,0.08),transparent_35%)]" />
 
       <main className="relative mx-auto flex w-full max-w-7xl flex-col px-6 pb-16 pt-8 sm:px-8 lg:px-12">
         <section className="mb-12 rounded-[28px] border border-white/[0.08] bg-gradient-to-br from-white/[0.06] to-white/[0.02] px-5 py-5 shadow-[0_32px_80px_-12px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.05)_inset] backdrop-blur-md xl:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-blue-400/30 bg-gradient-to-br from-blue-500/20 to-slate-900/40 shadow-[0_0_48px_rgba(37,99,235,0.25)]">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/35 bg-gradient-to-br from-cyan-500/18 to-indigo-500/12 shadow-[0_0_48px_rgba(34,211,238,0.2)]">
                 <img
                   src={logoSrc ?? "/nb_pdf_tools_icon.png"}
                   alt="NB PDF TOOLS"
@@ -134,7 +183,7 @@ export function LandingPage({
                 />
               </div>
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.38em] text-sky-200/75">NB Global Studio</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.38em] text-cyan-200/75">{copy.navbar.studioTagline}</p>
                 <h1 className="text-lg font-semibold tracking-[0.14em] text-white">{copy.navbar.productLabel}</h1>
               </div>
             </div>
@@ -166,12 +215,14 @@ export function LandingPage({
                 </button>
               </div>
 
-              <a
-                href="#contact"
-                className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:bg-white/5"
-              >
-                {copy.navbar.contact}
-              </a>
+              {contactFormEnabled ? (
+                <a
+                  href="#contact"
+                  className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:bg-white/5"
+                >
+                  {copy.navbar.contact}
+                </a>
+              ) : null}
 
               {isAuthenticated ? (
                 <>
@@ -208,7 +259,10 @@ export function LandingPage({
           </div>
         </section>
 
-        <section className="grid gap-14 py-10 lg:grid-cols-[minmax(0,1.08fr)_minmax(420px,0.92fr)] lg:items-center lg:py-20">
+        <section
+          data-nb-preview="hero"
+          className="grid gap-14 py-10 lg:grid-cols-[minmax(0,1.08fr)_minmax(420px,0.92fr)] lg:items-center lg:py-20"
+        >
           <div className="max-w-3xl">
             <div className="mb-6 flex flex-wrap gap-3">
               {copy.hero.audience.map((item) => (
@@ -221,17 +275,17 @@ export function LandingPage({
               ))}
             </div>
 
-            <p className="mb-5 text-sm font-semibold uppercase tracking-[0.32em] text-sky-300">{copy.hero.kicker}</p>
+            <p className="mb-5 text-sm font-semibold uppercase tracking-[0.32em] text-cyan-300">{copy.hero.kicker}</p>
             <h2 className="max-w-4xl text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-6xl lg:leading-[1.02]">
               {copy.hero.headline}
             </h2>
             <p className="mt-6 max-w-2xl text-base leading-8 text-slate-300 sm:text-lg">{copy.hero.description}</p>
 
-            <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+            <div data-nb-preview="hero-buttons" className="mt-8 flex flex-col gap-4 sm:flex-row">
               <button
                 type="button"
                 onClick={onUseWebApp}
-                className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-7 text-base font-semibold text-white shadow-[0_20px_50px_-10px_rgba(37,99,235,0.5)] transition duration-300 ease-out hover:-translate-y-0.5 hover:brightness-110"
+                className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-7 text-base font-semibold text-slate-950 shadow-[0_20px_50px_-10px_rgba(34,211,238,0.5)] transition duration-300 ease-out hover:-translate-y-0.5 hover:brightness-110"
               >
                 {copy.hero.primaryCta}
               </button>
@@ -260,8 +314,8 @@ export function LandingPage({
             </div>
           </div>
 
-          <div className="relative">
-            <div className="absolute -left-10 top-10 hidden h-40 w-40 rounded-full bg-sky-400/10 blur-3xl lg:block" />
+          <div data-nb-preview="visuals" className="relative">
+            <div className="absolute -left-10 top-10 hidden h-40 w-40 rounded-full bg-cyan-400/10 blur-3xl lg:block" />
             <div className="absolute -right-12 bottom-0 hidden h-44 w-44 rounded-full bg-indigo-400/10 blur-3xl lg:block" />
 
             <div className="relative rounded-[32px] border border-white/[0.08] bg-slate-900/70 p-4 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.65),0_0_0_1px_rgba(255,255,255,0.04)_inset] backdrop-blur-xl">
@@ -278,10 +332,10 @@ export function LandingPage({
                   <div
                     key={item.title}
                     className={`rounded-2xl border p-4 ${
-                      index === 0 ? "border-sky-400/20 bg-sky-500/10" : "border-emerald-400/20 bg-emerald-500/10"
+                      index === 0 ? "border-cyan-400/20 bg-cyan-500/10" : "border-indigo-400/22 bg-indigo-500/10"
                     }`}
                   >
-                    <p className={`text-xs font-semibold uppercase tracking-[0.24em] ${index === 0 ? "text-sky-200" : "text-emerald-200"}`}>
+                    <p className={`text-xs font-semibold uppercase tracking-[0.24em] ${index === 0 ? "text-cyan-200" : "text-indigo-200"}`}>
                       {item.title}
                     </p>
                     <p className="mt-2 text-sm leading-6 text-slate-200">{item.description}</p>
@@ -292,9 +346,9 @@ export function LandingPage({
           </div>
         </section>
 
-        <section className="py-8 xl:py-12">
+        <section data-nb-preview="features" className="py-8 xl:py-12">
           <div className="mb-8 max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-sky-300">{copy.features.kicker}</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-300">{copy.features.kicker}</p>
             <h3 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{copy.features.title}</h3>
           </div>
 
@@ -302,9 +356,9 @@ export function LandingPage({
             {copy.features.items.map((item) => (
               <article
                 key={item.title}
-                className="group rounded-[28px] border border-white/10 bg-white/[0.045] p-7 transition duration-300 ease-out hover:-translate-y-1 hover:border-nb-primary/35 hover:bg-white/[0.07] hover:shadow-[0_20px_50px_-20px_rgba(37,99,235,0.2)]"
+                className="group rounded-[28px] border border-white/10 bg-white/[0.045] p-7 transition duration-300 ease-out hover:-translate-y-1 hover:border-nb-primary/35 hover:bg-white/[0.07] hover:shadow-[0_20px_50px_-20px_rgba(34,211,238,0.2)]"
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-blue-500/20 bg-blue-500/10">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-500/25 bg-cyan-500/10">
                   <LandingIcon kind={item.icon} />
                 </div>
                 <h4 className="mt-6 text-xl font-semibold text-white">{item.title}</h4>
@@ -316,14 +370,14 @@ export function LandingPage({
 
         <section className="grid gap-8 py-10 lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)] lg:items-start">
           <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-8">
-            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-sky-300">{copy.trust.kicker}</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-300">{copy.trust.kicker}</p>
             <h3 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{copy.trust.title}</h3>
             <p className="mt-5 text-base leading-8 text-slate-300">{copy.trust.description}</p>
 
             <div className="mt-8 space-y-4">
               {copy.trust.points.map((item, index) => (
                 <div key={item.title} className="flex items-start gap-4 rounded-2xl border border-white/8 bg-slate-950/50 p-4">
-                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl border border-blue-500/20 bg-blue-500/10 text-sm font-semibold text-sky-200">
+                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl border border-indigo-400/25 bg-indigo-500/10 text-sm font-semibold text-indigo-200">
                     0{index + 1}
                   </div>
                   <div>
@@ -337,7 +391,7 @@ export function LandingPage({
 
           <div className="grid gap-5 md:grid-cols-2">
             <div className="md:col-span-2">
-              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-sky-300">{copy.screenshots.kicker}</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-300">{copy.screenshots.kicker}</p>
               <h3 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{copy.screenshots.title}</h3>
               <p className="mt-4 max-w-3xl text-base leading-8 text-slate-300">{copy.screenshots.description}</p>
             </div>
@@ -345,7 +399,7 @@ export function LandingPage({
             {copy.screenshots.items.map((shot, index) => (
               <article
                 key={shot.title}
-                className={`group rounded-[30px] border border-white/10 bg-white/[0.045] p-4 transition duration-300 ease-out hover:-translate-y-1 hover:border-nb-primary/35 hover:shadow-[0_20px_50px_-20px_rgba(37,99,235,0.18)] ${
+                className={`group rounded-[30px] border border-white/10 bg-white/[0.045] p-4 transition duration-300 ease-out hover:-translate-y-1 hover:border-nb-primary/35 hover:shadow-[0_20px_50px_-20px_rgba(34,211,238,0.18)] ${
                   index === 0 ? "md:col-span-2" : ""
                 }`}
               >
@@ -376,68 +430,20 @@ export function LandingPage({
           </div>
         </section>
 
-        <section className="py-10">
-          <div className="mb-8 max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-sky-300">{copy.pricing.kicker}</p>
-            <h3 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{copy.pricing.title}</h3>
-            <p className="mt-4 text-base leading-8 text-slate-300">{copy.pricing.description}</p>
-          </div>
+        <LandingPricingSection
+          language={language}
+          pricing={pricing}
+          kicker={copy.pricing.kicker}
+          title={copy.pricing.title}
+          description={copy.pricing.description}
+          onUseWebApp={onUseWebApp}
+        />
 
-          <div className="grid gap-6 lg:grid-cols-3">
-            {copy.pricing.plans.map((plan) => (
-              <article
-                key={plan.name}
-                className={`rounded-[30px] border p-8 ${
-                  plan.highlighted
-                    ? "border-blue-500/35 bg-blue-600/[0.1] shadow-[0_28px_80px_-16px_rgba(37,99,235,0.22)]"
-                    : "border-white/10 bg-white/[0.045]"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">{plan.name}</p>
-                    <h4 className="mt-4 text-4xl font-semibold tracking-tight text-white">
-                      {livePriceForLandingRow(plan.name, publicPlans, language, plan.price)}
-                    </h4>
-                  </div>
-                  {plan.badge ? (
-                    <span className="rounded-full border border-blue-500/25 bg-blue-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-200">
-                      {plan.badge}
-                    </span>
-                  ) : null}
-                </div>
-
-                <p className="mt-5 text-sm leading-7 text-slate-300">{plan.description}</p>
-
-                <div className="mt-6 space-y-3">
-                  {plan.features.map((feature) => (
-                    <div key={feature} className="flex items-start gap-3 text-sm leading-6 text-slate-200">
-                      <span className="mt-1 h-2 w-2 rounded-full bg-sky-400" />
-                      <span>{feature}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={onUseWebApp}
-                  className={`mt-8 inline-flex min-h-12 w-full items-center justify-center rounded-2xl px-5 text-sm font-semibold transition ${
-                    plan.highlighted
-                      ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30 transition duration-300 hover:bg-blue-500"
-                      : "border border-white/[0.1] bg-white/[0.05] text-white transition duration-300 hover:border-white/15 hover:bg-white/[0.08]"
-                  }`}
-                >
-                  {plan.cta}
-                </button>
-              </article>
-            ))}
-          </div>
-        </section>
-
+        {contactFormEnabled ? (
         <section id="contact" className="scroll-mt-8 py-10">
           <div className="grid gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-sky-300">{copy.contactSection.kicker}</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-300">{copy.contactSection.kicker}</p>
               <h3 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{copy.contactSection.title}</h3>
               <p className="mt-4 max-w-2xl text-base leading-8 text-slate-300">{copy.contactSection.description}</p>
             </div>
@@ -496,7 +502,7 @@ export function LandingPage({
                 ) : null}
 
                 {contactSuccess ? (
-                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                  <div className="rounded-2xl border border-cyan-400/25 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
                     {contactSuccess}
                   </div>
                 ) : null}
@@ -504,7 +510,7 @@ export function LandingPage({
                 <button
                   type="submit"
                   disabled={contactSubmitting}
-                  className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-7 text-base font-semibold text-white shadow-[0_16px_40px_-12px_rgba(37,99,235,0.45)] transition duration-300 ease-out hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-7 text-base font-semibold text-slate-950 shadow-[0_16px_40px_-12px_rgba(34,211,238,0.45)] transition duration-300 ease-out hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {contactSubmitting ? copy.contactSection.submitting : copy.contactSection.submit}
                 </button>
@@ -512,11 +518,12 @@ export function LandingPage({
             </form>
           </div>
         </section>
+        ) : null}
 
-        <section className="py-10">
-          <div className="rounded-[34px] border border-white/[0.08] bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(15,23,42,0.92),rgba(56,189,248,0.1))] p-9 shadow-[0_36px_100px_-20px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.04)_inset] sm:p-11 lg:flex lg:items-center lg:justify-between lg:gap-12">
+        <section data-nb-preview="final-cta" className="py-10">
+          <div className="rounded-[34px] border border-white/[0.08] bg-[linear-gradient(135deg,rgba(34,211,238,0.16),rgba(15,23,42,0.92),rgba(129,140,232,0.1))] p-9 shadow-[0_36px_100px_-20px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.04)_inset] sm:p-11 lg:flex lg:items-center lg:justify-between lg:gap-12">
             <div className="max-w-2xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-200">{copy.finalCta.kicker}</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-200">{copy.finalCta.kicker}</p>
               <h3 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{copy.finalCta.title}</h3>
               <p className="mt-4 text-base leading-8 text-slate-200/85">{copy.finalCta.description}</p>
             </div>
@@ -547,10 +554,10 @@ export function LandingPage({
         </section>
       </main>
 
-      <footer className="relative border-t border-white/[0.06] bg-nb-bg-soft/95">
+      <footer data-nb-preview="footer" className="relative border-t border-white/[0.06] bg-nb-bg-soft/95">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-6 py-8 text-sm text-slate-400 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-12">
           <div>
-            <p className="font-semibold tracking-[0.18em] text-slate-200">NB PDF TOOLS</p>
+            <p className="font-semibold tracking-[0.18em] text-slate-200">{copy.navbar.productLabel}</p>
             <p className="mt-1">{copy.footer.description}</p>
           </div>
           <div className="flex flex-wrap items-center gap-4">
@@ -561,21 +568,20 @@ export function LandingPage({
               onClick={onOpenTerms}
               className="text-slate-200 transition hover:text-white"
             >
-              {language === "tr" ? "Hizmet Şartları" : "Terms of Service"}
+              {copy.footer.termsLabel}
             </button>
             <button
               type="button"
               onClick={onOpenPrivacy}
               className="text-slate-200 transition hover:text-white"
             >
-              {language === "tr" ? "Gizlilik Politikası" : "Privacy Policy"}
+              {copy.footer.privacyLabel}
             </button>
-            <a
-              href="#contact"
-              className="text-slate-200 transition hover:text-white"
-            >
-              {copy.footer.contact}
-            </a>
+            {contactFormEnabled ? (
+              <a href="#contact" className="text-slate-200 transition hover:text-white">
+                {copy.footer.contact}
+              </a>
+            ) : null}
           </div>
         </div>
       </footer>

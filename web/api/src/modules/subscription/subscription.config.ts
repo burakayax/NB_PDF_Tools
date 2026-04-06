@@ -1,5 +1,8 @@
+/**
+ * Feature key union and built-in plan defaults used when `SiteSetting` / `packages.config`
+ * has no overlay. Runtime entitlements resolve via `getPlanDefinitionsResolved()` (DB + fallback).
+ */
 import type { Plan } from "@prisma/client";
-
 export const featureCatalog = [
   "split",
   "merge",
@@ -26,9 +29,9 @@ export const planDefinitions: Record<Plan, PlanDefinition> = {
   FREE: {
     name: "FREE",
     displayName: "Free",
-    description: "Starter access for trying core document workflows with a daily limit.",
-    dailyLimit: 5,
-    allowedFeatures: ["split", "merge", "pdf-to-word", "compress"],
+    description: "Full toolkit with unlimited daily use; later runs may be slower until you upgrade.",
+    dailyLimit: null,
+    allowedFeatures: [...featureCatalog],
     multiUser: false,
   },
   PRO: {
@@ -41,8 +44,8 @@ export const planDefinitions: Record<Plan, PlanDefinition> = {
   },
   BUSINESS: {
     name: "BUSINESS",
-    displayName: "Business",
-    description: "Unlimited access with business-ready entitlement structure for teams.",
+    displayName: "Basic",
+    description: "Unlimited operations and full toolkit for individual productivity (Basic tier).",
     dailyLimit: null,
     allowedFeatures: [...featureCatalog],
     multiUser: true,

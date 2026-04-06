@@ -19,6 +19,7 @@ export async function createPaymentController(request: Request, response: Respon
   const session = await createPaymentCheckoutSession({
     userId,
     plan: parsed.data.plan,
+    billing: parsed.data.billing ?? "monthly",
     clientIp: getClientIp(request),
   });
 

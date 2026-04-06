@@ -56,6 +56,8 @@ export type PlanDefinition = {
   multiUser: boolean;
   /** Aylık abonelik fiyatı (TRY), ücretli planlar için API’den gelir. */
   monthlyPriceTry?: string | null;
+  /** PRO yıllık paket (TRY), yalnızca PRO satırında. */
+  annualPriceTry?: string | null;
 };
 
 export type UsageWarningCode = "approaching_80" | "at_free_cap" | "beyond_free";
@@ -69,11 +71,36 @@ export type UpgradeCta = {
 
 export type ConversionTracking = {
   freeLimitExceeded: boolean;
+  /** True when this response applied progressive delay (Free soft friction). */
+  softFrictionActive?: boolean;
   operationsToday: number;
-  dailyLimit: number;
+  dailyLimit: number | null;
+  /** First N operations on Free without server-side delay (`postLimitThrottle.freeOpsBeforeThrottle`). */
+  softFrictionAfterOps?: number;
   postLimitExtraOps: number;
   postLimitThrottleEventsToday: number;
   freeLimitFirstExceededAt: string | null;
+  /** Lifetime server-applied delay events (same source as `User.totalThrottleEventsCount`). */
+  lifetimeDelaysExperienced?: number;
+  /** Lifetime upgrade CTA impressions (delays + post-limit copy). */
+  lifetimeUpgradeCtaImpressions?: number;
+};
+
+/** FREE: lifetime counters + top tools for adaptive UI nudges (API `behaviorMonetization`). */
+export type BehaviorMonetization = {
+  totalOperationsLifetime: number;
+  totalThrottleEventsLifetime: number;
+  totalUpgradeCtaImpressionsLifetime?: number;
+  toolUsageTop: { featureKey: FeatureKey; count: number }[];
+};
+
+/** PDF API / Node assert-feature: delay + CTA forwarded to the web client. */
+export type SaasFrictionPayload = {
+  message?: string | null;
+  upgradeCta?: UpgradeCta;
+  conversionTracking?: ConversionTracking | null;
+  delayMs?: number;
+  usageSummary?: string | null;
 };
 
 export type SubscriptionSummary = {
@@ -88,6 +115,8 @@ export type SubscriptionSummary = {
     postLimitExtraOps?: number;
     /** Delayed assert/authorize events today (post–free-cap). */
     postLimitThrottleEventsToday?: number;
+    /** Free unlimited: delay kicks in after this many fast runs (server tools config). */
+    softFrictionAfterOps?: number | null;
     usageWarningCode?: UsageWarningCode | null;
     softUsageWarning?: string | null;
     strongUsageWarning?: string | null;
@@ -95,6 +124,12 @@ export type SubscriptionSummary = {
     upgradeCta?: UpgradeCta;
     conversionSummary?: string;
     conversionTracking?: ConversionTracking | null;
+    behaviorMonetization?: BehaviorMonetization | null;
+    /** PRO/Business: premium PDF API lane (no server delay, full quality). */
+    processingTier?: "premium" | "standard";
+    priorityProcessing?: boolean;
+    /** False for paid when monetization delays are off or N/A. */
+    serverThrottleApplies?: boolean;
   };
   allowedFeatures: FeatureKey[];
 };
@@ -139,6 +174,8 @@ export type SubscriptionStatus = {
   plan: PlanName;
   remaining_days: number | null;
   plan_downgraded?: boolean;
+  processingTier?: "premium" | "standard";
+  priorityProcessing?: boolean;
 };
 
 async function ensureOk(response: Response, defaultMessage: string) {
@@ -202,14 +239,19 @@ export async function fetchSubscriptionStatus(accessToken: string) {
 export async function assertFeatureBeforeAction(
   accessToken: string,
   featureKey: FeatureKey,
+  options?: { totalSizeBytes?: number },
 ): Promise<AssertFeatureResult> {
   const token = readLatestAccessToken(accessToken);
+  const body: { featureKey: FeatureKey; totalSizeBytes?: number } = { featureKey };
+  if (options?.totalSizeBytes != null && options.totalSizeBytes >= 0) {
+    body.totalSizeBytes = Math.floor(options.totalSizeBytes);
+  }
   const response = await saasAuthorizedFetch(token, (t) =>
     fetch(`${getSaasApiBase()}/api/subscription/assert-feature`, {
       method: "POST",
       headers: createHeaders(t),
       credentials: "include",
-      body: JSON.stringify({ featureKey }),
+      body: JSON.stringify(body),
     }),
   );
   await ensureOk(response, "This action is not allowed on your current plan.");

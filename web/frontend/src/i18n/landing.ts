@@ -29,6 +29,7 @@ type TrustPoint = {
 
 export type LandingTranslation = {
   navbar: {
+    studioTagline: string;
     productLabel: string;
     platformTag: string;
     contact: string;
@@ -85,6 +86,8 @@ export type LandingTranslation = {
     availability: string;
     security: string;
     contact: string;
+    termsLabel: string;
+    privacyLabel: string;
   };
   contactSection: {
     kicker: string;
@@ -112,6 +115,7 @@ export type LandingTranslation = {
 export const landingTranslations: Record<Language, LandingTranslation> = {
   en: {
     navbar: {
+      studioTagline: "NB Global Studio",
       productLabel: "NB PDF TOOLS",
       platformTag: "Professional PDF Workflow Platform",
       contact: "Contact",
@@ -237,34 +241,10 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
     },
     pricing: {
       kicker: "Pricing",
-      title: "Choose the access level that matches your workflow.",
+      title: "Simple plans for individuals and power users worldwide.",
       description:
-        "Start with a lightweight plan, upgrade for unlimited access, or equip multiple team members with a business setup.",
-      plans: [
-        {
-          name: "Free",
-          price: "$0",
-          description: "For individual evaluation and lightweight daily tasks.",
-          features: ["Up to 5 operations per day", "Core PDF tools", "Web access"],
-          cta: "Start Free",
-        },
-        {
-          name: "Pro",
-          price: "$19/mo",
-          description: "For professionals who need unlimited document work.",
-          badge: "Most Popular",
-          features: ["Unlimited operations", "All premium PDF tools", "Windows desktop access"],
-          cta: "Choose Pro",
-          highlighted: true,
-        },
-        {
-          name: "Business",
-          price: "Custom",
-          description: "For teams that need shared access and account control.",
-          features: ["Multi-user access", "Centralized billing", "Priority onboarding"],
-          cta: "Talk to Sales",
-        },
-      ],
+        "Regional pricing in TRY or USD. Checkout runs in TRY through our payment partner; international cards may show a converted amount.",
+      plans: [],
     },
     finalCta: {
       kicker: "Start with the right format for your team",
@@ -278,6 +258,8 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
       availability: "Web + Windows availability",
       security: "Secure document operations",
       contact: "Contact",
+      termsLabel: "Terms of Service",
+      privacyLabel: "Privacy Policy",
     },
     contactSection: {
       kicker: "Contact",
@@ -303,6 +285,7 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
   },
   tr: {
     navbar: {
+      studioTagline: "NB Global Studio",
       productLabel: "NB PDF TOOLS",
       platformTag: "Profesyonel PDF İş Akışı Platformu",
       contact: "İletişim",
@@ -428,34 +411,10 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
     },
     pricing: {
       kicker: "Fiyatlandırma",
-      title: "Çalışma düzeninize uygun erişim seviyesini seçin.",
+      title: "Bireyler ve yoğun kullanıcılar için net planlar.",
       description:
-        "Temel kullanımla başlayın, limitsiz erişim için yükselin veya ekibiniz için çok kullanıcılı bir iş yapısı kurun.",
-      plans: [
-        {
-          name: "Ücretsiz",
-          price: "$0",
-          description: "Bireysel deneme ve hafif günlük kullanım için.",
-          features: ["Günde 5 işleme kadar", "Temel PDF araçları", "Web erişimi"],
-          cta: "Ücretsiz Başla",
-        },
-        {
-          name: "Pro",
-          price: "$19/ay",
-          description: "Limitsiz belge işlemi ihtiyacı olan profesyoneller için.",
-          badge: "En Çok Tercih Edilen",
-          features: ["Limitsiz işlem", "Tüm premium PDF araçları", "Windows masaüstü erişimi"],
-          cta: "Pro'yu Seç",
-          highlighted: true,
-        },
-        {
-          name: "Business",
-          price: "Özel",
-          description: "Paylaşımlı kullanım ve hesap yönetimi gereken ekipler için.",
-          features: ["Çok kullanıcılı erişim", "Merkezi faturalandırma", "Öncelikli kurulum desteği"],
-          cta: "Satış ile Görüş",
-        },
-      ],
+        "Bölgenize göre TRY veya USD gösterimi. Ödeme güvenli ödeme ortağı üzerinden TRY ile alınır; yurtdışı kartlarda bankanız dönüştürülmüş tutar gösterebilir.",
+      plans: [],
     },
     finalCta: {
       kicker: "Ekibiniz için doğru kullanım modelini seçin",
@@ -469,6 +428,8 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
       availability: "Web + Windows kullanımı",
       security: "Güvenli belge operasyonları",
       contact: "İletişim",
+      termsLabel: "Hizmet Şartları",
+      privacyLabel: "Gizlilik Politikası",
     },
     contactSection: {
       kicker: "İletişim",

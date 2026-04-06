@@ -316,3 +316,79 @@ export async function uploadAdminMedia(accessToken: string, file: File): Promise
   }
   return r.json() as Promise<AdminMediaItem>;
 }
+
+export type AdminControlMeta = {
+  featureFlagCatalog: readonly { key: string; label: string; description: string }[];
+  betaFlagCatalog: readonly { key: string; label: string; description: string }[];
+  resettableScopes: readonly string[];
+};
+
+export async function fetchAdminControlMeta(accessToken: string): Promise<AdminControlMeta> {
+  const r = await adminFetch(accessToken, "/control/meta");
+  if (!r.ok) {
+    throw new Error(await r.text());
+  }
+  return r.json() as Promise<AdminControlMeta>;
+}
+
+export type AdminAuditRow = {
+  id: string;
+  createdAt: string;
+  userId: string | null;
+  userEmail: string;
+  action: string;
+  targetKey: string | null;
+  summary: string;
+  meta: unknown;
+};
+
+export async function fetchAdminAuditLog(accessToken: string, limit = 120): Promise<{ items: AdminAuditRow[] }> {
+  const r = await adminFetch(accessToken, `/audit-log?limit=${limit}`);
+  if (!r.ok) {
+    throw new Error(await r.text());
+  }
+  return r.json() as Promise<{ items: AdminAuditRow[] }>;
+}
+
+export type AdminRevisionRow = {
+  id: string;
+  createdAt: string;
+  scope: string;
+  userEmail: string;
+  summary: string | null;
+};
+
+export async function fetchAdminRevisions(
+  accessToken: string,
+  scope: string,
+  limit = 40,
+): Promise<{ items: AdminRevisionRow[] }> {
+  const q = new URLSearchParams({ scope, limit: String(limit) });
+  const r = await adminFetch(accessToken, `/revisions?${q}`);
+  if (!r.ok) {
+    throw new Error(await r.text());
+  }
+  return r.json() as Promise<{ items: AdminRevisionRow[] }>;
+}
+
+export async function postAdminRollbackRevision(accessToken: string, revisionId: string): Promise<{ ok: boolean; scope: string }> {
+  const r = await adminFetch(accessToken, "/revisions/rollback", {
+    method: "POST",
+    body: JSON.stringify({ revisionId }),
+  });
+  if (!r.ok) {
+    throw new Error(await r.text());
+  }
+  return r.json() as Promise<{ ok: boolean; scope: string }>;
+}
+
+export async function postAdminSystemReset(accessToken: string, scopes: string[]): Promise<{ ok: boolean; scopes: string[] }> {
+  const r = await adminFetch(accessToken, "/system/reset", {
+    method: "POST",
+    body: JSON.stringify({ scopes, confirm: "RESET" as const }),
+  });
+  if (!r.ok) {
+    throw new Error(await r.text());
+  }
+  return r.json() as Promise<{ ok: boolean; scopes: string[] }>;
+}

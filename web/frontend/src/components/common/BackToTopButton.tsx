@@ -29,7 +29,7 @@ export function BackToTopButton() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  const label = document.documentElement.lang === "tr" ? "Yukarı çık" : "Back to top";
+  const label = document.documentElement.lang === "tr" ? "YukarÄ± Ã§Ä±k" : "Back to top";
 
   return (
     <button
@@ -37,7 +37,7 @@ export function BackToTopButton() {
       aria-label={label}
       title={label}
       onClick={scrollToTop}
-      className={`fixed bottom-[max(7rem,calc(env(safe-area-inset-bottom)+5.5rem))] right-5 z-[55] flex h-11 w-11 items-center justify-center rounded-full border border-white/[0.12] bg-nb-panel/90 text-nb-text shadow-[0_8px_32px_-4px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.06)_inset] backdrop-blur-md transition-[opacity,transform,box-shadow,border-color] duration-300 ease-out hover:border-nb-primary/40 hover:bg-nb-bg-elevated/95 hover:text-white hover:shadow-[0_12px_40px_-8px_rgba(37,99,235,0.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nb-primary/60 active:scale-95 sm:bottom-10 sm:right-6 ${
+      className={`fixed bottom-[max(7rem,calc(env(safe-area-inset-bottom)+5.5rem))] right-5 z-[55] flex h-11 w-11 items-center justify-center rounded-full border border-white/[0.12] bg-nb-panel/90 text-nb-text shadow-[0_8px_32px_-4px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.06)_inset] backdrop-blur-md transition-[opacity,transform,box-shadow,border-color] duration-300 ease-out hover:border-nb-primary/40 hover:bg-nb-bg-elevated/95 hover:text-white hover:shadow-[0_12px_40px_-8px_rgba(34,211,238,0.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nb-primary/60 active:scale-95 sm:bottom-10 sm:right-6 ${
         visible ? "pointer-events-auto translate-y-0 scale-100 opacity-100" : "pointer-events-none translate-y-2 scale-95 opacity-0"
       }`}
     >

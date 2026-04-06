@@ -47,6 +47,10 @@ export async function assertFeatureController(request: Request, response: Respon
   }
 
   await assertSubscriptionAllowsOperation(userId, parsed.data.featureKey);
+  const laneStatus = await getSubscriptionStatus(userId);
+  response.setHeader("X-NB-Processing-Tier", laneStatus.processingTier);
+  response.setHeader("X-NB-Priority-Processing", laneStatus.priorityProcessing ? "1" : "0");
+
   const throttle = await getPostLimitThrottleForUser(userId, parsed.data.featureKey, {
     totalSizeBytes: parsed.data.totalSizeBytes,
   });
@@ -55,7 +59,11 @@ export async function assertFeatureController(request: Request, response: Respon
     await sleepMs(throttle.delayMs);
     const dbUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { freeLimitFirstExceededAt: true },
+      select: {
+        freeLimitFirstExceededAt: true,
+        totalThrottleEventsCount: true,
+        totalUpgradeCtaImpressionsCount: true,
+      },
     });
     response.status(200).json({
       throttleApplied: true,
@@ -69,6 +77,8 @@ export async function assertFeatureController(request: Request, response: Respon
         ...throttle.conversionTracking,
         postLimitThrottleEventsToday,
         freeLimitFirstExceededAt: dbUser?.freeLimitFirstExceededAt?.toISOString() ?? null,
+        lifetimeDelaysExperienced: dbUser?.totalThrottleEventsCount ?? 0,
+        lifetimeUpgradeCtaImpressions: dbUser?.totalUpgradeCtaImpressionsCount ?? 0,
       },
     });
     return;

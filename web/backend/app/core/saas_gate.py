@@ -4,11 +4,26 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import Any
 
 import httpx
 from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
+
+
+def _friction_from_assert_body(data: dict[str, Any]) -> dict[str, Any] | None:
+    """Node 200 gövdesinden PDF API / istemciye iletilecek dönüşüm alanları."""
+    if not data.get("throttleApplied"):
+        return None
+    out: dict[str, Any] = {
+        "message": data.get("message"),
+        "upgradeCta": data.get("upgradeCta"),
+        "conversionTracking": data.get("conversionTracking"),
+        "delayMs": data.get("delayMs"),
+        "usageSummary": data.get("usageSummary"),
+    }
+    return out
 
 
 def saas_api_base() -> str:
@@ -49,11 +64,12 @@ async def saas_assert_feature(
     feature_key: str,
     *,
     total_size_bytes: int | None = None,
-) -> bool:
+) -> tuple[bool, dict[str, Any] | None, str]:
     """
     İşlem öncesi: plan + günlük kota (Node ile tek kaynak).
     Sunucu gecikmesi (ücretsiz kota aşımı) burada uygulanır.
-    Dönüş: True ise PDF motoru düşük kalite / hızlı OCR modu kullanabilir (pdf-to-word).
+    Dönüş: (reduced_output_quality, friction_payload | None, processing_tier).
+    processing_tier: Node `X-NB-Processing-Tier` — premium | standard.
     """
     base = saas_api_base()
     body: dict = {"featureKey": feature_key}
@@ -67,19 +83,23 @@ async def saas_assert_feature(
             json=body,
         )
         if r.status_code == 204:
-            return False
+            tier = (r.headers.get("X-NB-Processing-Tier") or "standard").strip() or "standard"
+            return False, None, tier
         if r.status_code == 401:
             raise HTTPException(status_code=401, detail=_detail_from_response(r))
         if r.status_code == 403:
             raise HTTPException(status_code=403, detail=_detail_from_response(r))
         if r.status_code == 200:
+            tier = (r.headers.get("X-NB-Processing-Tier") or "standard").strip() or "standard"
             try:
                 data = r.json()
-                if isinstance(data, dict) and data.get("reducedOutputQuality"):
-                    return True
+                if isinstance(data, dict):
+                    reduced = bool(data.get("reducedOutputQuality"))
+                    friction = _friction_from_assert_body(data)
+                    return reduced, friction, tier
             except Exception:
                 logger.debug("assert-feature 200 body parse skipped", exc_info=True)
-            return False
+            return False, None, tier
         raise HTTPException(
             status_code=502,
             detail=f"Plan doğrulaması başarısız: {_detail_from_response(r)}",

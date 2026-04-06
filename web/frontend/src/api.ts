@@ -1,4 +1,34 @@
 import { envHttpUrlIsLoopback, isNonLocalDeployedHost } from "./lib/runtimeApiOrigin";
+import type { SaasFrictionPayload } from "./api/subscription";
+
+function parseProcessingTierFromResponse(response: Response): "premium" | "standard" | null {
+  const t = (response.headers.get("X-NB-Processing-Tier") ?? "").trim().toLowerCase();
+  if (t === "premium") {
+    return "premium";
+  }
+  if (t === "standard") {
+    return "standard";
+  }
+  return null;
+}
+
+function parseSaasFrictionFromResponse(response: Response): SaasFrictionPayload | null {
+  const raw = response.headers.get("X-NB-SaaS-Friction");
+  if (!raw?.trim()) {
+    return null;
+  }
+  try {
+    const binary = atob(raw.trim());
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const text = new TextDecoder("utf-8").decode(bytes);
+    return JSON.parse(text) as SaasFrictionPayload;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * PDF API kök adresi.
@@ -498,6 +528,10 @@ export type ToolDownloadResult = {
   replay?: () => void;
   /** Bellekteki object URL’yi serbest bırakır; panel kapanırken çağrılmalı. */
   dispose?: () => void;
+  /** Ücretsiz gecikme sonrası Node’dan iletilen yükseltme CTA + mesaj (PDF API yanıt başlığı). */
+  saasFriction?: SaasFrictionPayload | null;
+  /** PDF API: Node assert-feature öncelik hattı (premium = Pro/Business). */
+  processingTier?: "premium" | "standard" | null;
 };
 
 async function triggerDownloadFromResponse(
@@ -505,6 +539,8 @@ async function triggerDownloadFromResponse(
   fallbackName: string,
   options?: { retainBlob?: boolean },
 ): Promise<ToolDownloadResult> {
+  const saasFriction = parseSaasFrictionFromResponse(response);
+  const processingTier = parseProcessingTierFromResponse(response);
   let blob: Blob;
   try {
     blob = await response.blob();
@@ -534,7 +570,7 @@ async function triggerDownloadFromResponse(
 
   if (!options?.retainBlob) {
     URL.revokeObjectURL(blobUrl);
-    return {};
+    return { saasFriction, processingTier };
   }
 
   const replay = () => {
@@ -547,7 +583,7 @@ async function triggerDownloadFromResponse(
     a.remove();
   };
   const dispose = () => URL.revokeObjectURL(blobUrl);
-  return { replay, dispose };
+  return { replay, dispose, saasFriction, processingTier };
 }
 
 export async function fetchCapabilities() {
@@ -585,7 +621,11 @@ export async function createMergeJob(formData: FormData, accessToken?: string | 
     headers: saasAuthHeaders(accessToken),
   });
   await ensureOk(response, "Birleştirme başlatılamadı.");
-  return response.json() as Promise<{ job_id: string }>;
+  return response.json() as Promise<{
+    job_id: string;
+    saasFriction?: SaasFrictionPayload;
+    processingTier?: string;
+  }>;
 }
 
 export async function fetchMergeJob(jobId: string, accessToken?: string | null) {

@@ -28,6 +28,10 @@ type DashboardSidebarProps = {
   onUsageUpgradeClick?: () => void;
   /** Yalnızca ADMIN: istatistik modali. */
   onOpenAdminDashboard?: () => void;
+  /** Sunucu `tools.config.disabledFeatures` sonrası görünen araçlar; verilmezse tam liste. */
+  enabledToolIds?: FeatureKey[];
+  /** CMS / çalışma alanı araç başlığı; verilmezse `sidebarToolLabel`. */
+  resolveToolLabel?: (id: FeatureKey) => string;
 };
 
 export function DashboardSidebar({
@@ -41,10 +45,15 @@ export function DashboardSidebar({
   userRole,
   onUsageUpgradeClick,
   onOpenAdminDashboard,
+  enabledToolIds,
+  resolveToolLabel,
 }: DashboardSidebarProps) {
   const L = ws(language);
+  const toolOrder = enabledToolIds?.length ? enabledToolIds : SIDEBAR_TOOL_ORDER;
+  const labelForTool = resolveToolLabel ?? ((id: FeatureKey) => sidebarToolLabel(id, language));
   const showUsageChip =
-    userRole !== "ADMIN" && subscriptionSummary && subscriptionSummary.usage.dailyLimit !== null;
+    userRole !== "ADMIN" && subscriptionSummary && subscriptionSummary.currentPlan.name === "FREE";
+  const usageFrictionActive = Boolean(subscriptionSummary?.usage.conversionTracking?.freeLimitExceeded);
 
   return (
     <aside className="fixed bottom-0 left-0 top-14 z-40 hidden w-60 flex-col border-r border-white/[0.08] bg-gradient-to-b from-nb-bg-elevated/92 via-[#0c1424]/95 to-nb-bg-elevated/92 shadow-[4px_0_32px_-6px_rgba(0,0,0,0.55)] backdrop-blur-xl backdrop-saturate-150 md:flex">
@@ -67,10 +76,10 @@ export function DashboardSidebar({
             {language === "tr" ? "Yönetim paneli" : "Admin Dashboard"}
           </button>
         ) : null}
-        {SIDEBAR_TOOL_ORDER.map((id) => {
+        {toolOrder.map((id) => {
           const isActive = active === id;
           const locked = lockedFeatures.has(id);
-          const label = sidebarToolLabel(id, language);
+          const label = labelForTool(id);
           return (
             <button
               key={id}
@@ -135,37 +144,47 @@ export function DashboardSidebar({
           <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-nb-muted">{L.usageDailyHeading}</p>
           <div
             className={`rounded-2xl border px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-sm ${
-              subscriptionSummary!.usage.remainingToday === 0
+              usageFrictionActive
                 ? "border-amber-500/40 bg-gradient-to-b from-amber-950/40 to-nb-panel/70"
                 : "border-white/[0.1] bg-nb-panel/55"
             }`}
           >
             <p className="text-[13px] font-semibold leading-snug text-nb-text">
-              {L.usageUsedTodayLine(
-                subscriptionSummary!.usage.usedToday,
-                subscriptionSummary!.usage.dailyLimit ?? 0,
-              )}
+              {subscriptionSummary!.usage.dailyLimit != null
+                ? L.usageUsedTodayLine(
+                    subscriptionSummary!.usage.usedToday,
+                    subscriptionSummary!.usage.dailyLimit,
+                  )
+                : L.usageSoftTierLine(
+                    subscriptionSummary!.usage.usedToday,
+                    subscriptionSummary!.usage.softFrictionAfterOps ?? 5,
+                  )}
             </p>
             <p
               className={`mt-1 text-xs font-semibold tabular-nums ${
-                subscriptionSummary!.usage.remainingToday === 0 ? "text-amber-200/95" : "text-sky-300/95"
+                usageFrictionActive ? "text-amber-200/95" : "text-cyan-300/95"
               }`}
             >
-              {L.usageRemainingLine(subscriptionSummary!.usage.remainingToday ?? 0)}
+              {subscriptionSummary!.usage.dailyLimit != null
+                ? L.usageRemainingLine(subscriptionSummary!.usage.remainingToday ?? 0)
+                : L.usageNoDailyCapLine}
             </p>
             <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-black/35">
               <div
                 className={`h-full rounded-full transition-[width] duration-300 ${
-                  subscriptionSummary!.usage.remainingToday === 0
+                  usageFrictionActive
                     ? "bg-gradient-to-r from-amber-600 to-amber-400"
-                    : "bg-gradient-to-r from-nb-primary to-sky-400"
+                    : "bg-gradient-to-r from-nb-primary to-nb-secondary"
                 }`}
                 style={{
                   width: `${Math.min(
                     100,
-                    ((subscriptionSummary!.usage.dailyLimit ?? 1) > 0
-                      ? subscriptionSummary!.usage.usedToday / (subscriptionSummary!.usage.dailyLimit ?? 1)
-                      : 0) * 100,
+                    subscriptionSummary!.usage.dailyLimit != null &&
+                      (subscriptionSummary!.usage.dailyLimit ?? 0) > 0
+                      ? (subscriptionSummary!.usage.usedToday / (subscriptionSummary!.usage.dailyLimit ?? 1)) * 100
+                      : ((subscriptionSummary!.usage.softFrictionAfterOps ?? 5) > 0
+                          ? subscriptionSummary!.usage.usedToday / (subscriptionSummary!.usage.softFrictionAfterOps ?? 5)
+                          : 0) * 100,
                   )}%`,
                 }}
               />
@@ -228,9 +247,13 @@ export function DashboardSidebarMobileRail({
   lockedFeatures,
   userRole,
   onOpenAdminDashboard,
+  enabledToolIds,
+  resolveToolLabel,
 }: DashboardSidebarProps) {
   const L = ws(language);
-  const labelFor = (id: FeatureKey) => sidebarToolLabel(id, language);
+  const toolOrder = enabledToolIds?.length ? enabledToolIds : SIDEBAR_TOOL_ORDER;
+  const labelForTool = resolveToolLabel ?? ((id: FeatureKey) => sidebarToolLabel(id, language));
+  const labelFor = (id: FeatureKey) => labelForTool(id);
 
   return (
     <div className="sticky top-14 z-30 border-b border-white/[0.06] bg-nb-bg/95 backdrop-blur-md md:hidden">
@@ -244,10 +267,10 @@ export function DashboardSidebarMobileRail({
             {language === "tr" ? "Yönetim" : "Admin"}
           </button>
         ) : null}
-        {SIDEBAR_TOOL_ORDER.map((id) => {
+        {toolOrder.map((id) => {
           const isActive = active === id;
           const locked = lockedFeatures.has(id);
-          const short = sidebarToolLabel(id, language).replace(/\s+/g, "");
+          const short = labelForTool(id).replace(/\s+/g, "");
           return (
             <button
               key={id}

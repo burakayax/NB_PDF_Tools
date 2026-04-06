@@ -62,3 +62,21 @@ export const adminBlockedEmailBodySchema = z.object({
 export const adminBlockedEmailQuerySchema = z.object({
   email: z.string().email(),
 });
+
+export const adminAuditQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).optional().default(120),
+});
+
+export const adminRevisionsQuerySchema = z.object({
+  scope: z.string().min(1).max(120),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(40),
+});
+
+export const adminRollbackBodySchema = z.object({
+  revisionId: z.string().min(1),
+});
+
+export const adminResetBodySchema = z.object({
+  scopes: z.array(z.string().min(1).max(120)).min(1).max(16),
+  confirm: z.literal("RESET"),
+});

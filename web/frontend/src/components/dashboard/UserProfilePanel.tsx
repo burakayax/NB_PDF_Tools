@@ -28,11 +28,11 @@ function planNameFromUser(plan: string): PlanName {
 
 function formatSubscriptionExpiry(iso: string | null | undefined, language: Language): string {
   if (!iso) {
-    return "—";
+    return "â€”";
   }
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) {
-    return "—";
+    return "â€”";
   }
   return d.toLocaleDateString(language === "tr" ? "tr-TR" : "en-US", { dateStyle: "long" });
 }
@@ -81,30 +81,30 @@ export function UserProfilePanel({ user, language, updateProfile, showToast, onO
     }
     const policy = validateNewPasswordPolicy(setPwdNew);
     if (!policy.ok) {
-      const msg = tr ? policy.issues.map((i) => i.tr).join(" · ") : policy.issues.map((i) => i.en).join(" · ");
-      showToast("error", tr ? "Şifre gücü" : "Password strength", msg);
+      const msg = tr ? policy.issues.map((i) => i.tr).join(" Â· ") : policy.issues.map((i) => i.en).join(" Â· ");
+      showToast("error", tr ? "Åifre gÃ¼cÃ¼" : "Password strength", msg);
       return;
     }
     if (setPwdNew !== setPwdConfirm) {
-      showToast("error", tr ? "Şifre" : "Password", tr ? "Şifreler eşleşmiyor." : "Passwords do not match.");
+      showToast("error", tr ? "Åifre" : "Password", tr ? "Åifreler eÅŸleÅŸmiyor." : "Passwords do not match.");
       return;
     }
     setSetPwdSubmitting(true);
     try {
       const next = await setInitialPassword(setPwdNew);
       if (!next) {
-        showToast("error", tr ? "Şifre" : "Password", tr ? "Oturum bulunamadı; yeniden giriş yapın." : "Session not found; please sign in again.");
+        showToast("error", tr ? "Åifre" : "Password", tr ? "Oturum bulunamadÄ±; yeniden giriÅŸ yapÄ±n." : "Session not found; please sign in again.");
         return;
       }
       setSetPwdNew("");
       setSetPwdConfirm("");
       showToast(
         "success",
-        tr ? "Şifre" : "Password",
-        tr ? "Hesap şifreniz kaydedildi; e-posta ve şifre ile de giriş yapabilirsiniz." : "Your account password is set; you can also sign in with email and password.",
+        tr ? "Åifre" : "Password",
+        tr ? "Hesap ÅŸifreniz kaydedildi; e-posta ve ÅŸifre ile de giriÅŸ yapabilirsiniz." : "Your account password is set; you can also sign in with email and password.",
       );
     } catch (error) {
-      showToast("error", tr ? "Şifre" : "Password", error instanceof Error ? error.message : tr ? "Şifre kaydedilemedi." : "Could not save password.");
+      showToast("error", tr ? "Åifre" : "Password", error instanceof Error ? error.message : tr ? "Åifre kaydedilemedi." : "Could not save password.");
     } finally {
       setSetPwdSubmitting(false);
     }
@@ -128,14 +128,14 @@ export function UserProfilePanel({ user, language, updateProfile, showToast, onO
         showToast(
           "success",
           tr ? "Profil" : "Profile",
-          tr ? "Ad ve soyadınız güncellendi." : "Your name was updated.",
+          tr ? "Ad ve soyadÄ±nÄ±z gÃ¼ncellendi." : "Your name was updated.",
         );
       }
     } catch (error) {
       showToast(
         "error",
         tr ? "Profil" : "Profile",
-        error instanceof Error ? error.message : tr ? "Güncellenemedi." : "Update failed.",
+        error instanceof Error ? error.message : tr ? "GÃ¼ncellenemedi." : "Update failed.",
       );
     } finally {
       setProfileSubmitting(false);
@@ -146,7 +146,7 @@ export function UserProfilePanel({ user, language, updateProfile, showToast, onO
     <div className="space-y-8">
       <section className="rounded-2xl border border-white/[0.08] bg-nb-panel/50 p-6 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.45)] backdrop-blur-sm">
         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-nb-muted">{tr ? "Profil" : "Profile"}</p>
-        <h2 className="mt-1 text-xl font-semibold tracking-tight text-nb-text">{tr ? "Kişisel bilgiler" : "Personal details"}</h2>
+        <h2 className="mt-1 text-xl font-semibold tracking-tight text-nb-text">{tr ? "KiÅŸisel bilgiler" : "Personal details"}</h2>
 
         <form className="mt-6 space-y-4" onSubmit={(e) => void handleProfileSubmit(e)}>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -163,15 +163,15 @@ export function UserProfilePanel({ user, language, updateProfile, showToast, onO
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-nb-muted">{tr ? "E-posta" : "Email"}</span>
             <input type="email" value={user.email} readOnly className={`${inputClass} cursor-not-allowed opacity-80`} />
-            <span className="mt-1 block text-xs text-nb-muted">{tr ? "E-posta değiştirilemez." : "Email cannot be changed here."}</span>
+            <span className="mt-1 block text-xs text-nb-muted">{tr ? "E-posta deÄŸiÅŸtirilemez." : "Email cannot be changed here."}</span>
           </label>
 
           <button
             type="submit"
             disabled={profileSubmitting}
-            className="rounded-xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_32px_-10px_rgba(37,99,235,0.45)] transition duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-55"
+            className="rounded-xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-[0_12px_32px_-10px_rgba(34,211,238,0.45)] transition duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-55"
           >
-            {profileSubmitting ? (tr ? "Kaydediliyor…" : "Saving…") : tr ? "Adı güncelle" : "Update name"}
+            {profileSubmitting ? (tr ? "Kaydediliyorâ€¦" : "Savingâ€¦") : tr ? "AdÄ± gÃ¼ncelle" : "Update name"}
           </button>
         </form>
       </section>
@@ -185,13 +185,13 @@ export function UserProfilePanel({ user, language, updateProfile, showToast, onO
             <dd className="font-medium text-nb-text">{localizedPlanDisplayName(planNameFromUser(user.plan), language)}</dd>
           </div>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <dt className="text-nb-muted">{tr ? "Abonelik bitişi" : "Subscription ends"}</dt>
+            <dt className="text-nb-muted">{tr ? "Abonelik bitiÅŸi" : "Subscription ends"}</dt>
             <dd className="font-medium text-nb-text">{formatSubscriptionExpiry(user.subscription_expiry, language)}</dd>
           </div>
         </dl>
         <p className="mt-4 text-xs leading-relaxed text-nb-muted">
           {tr
-            ? "Abonelik bitişi, ücretli plan satın alındığında veya yenilendiğinde güncellenir."
+            ? "Abonelik bitiÅŸi, Ã¼cretli plan satÄ±n alÄ±ndÄ±ÄŸÄ±nda veya yenilendiÄŸinde gÃ¼ncellenir."
             : "Subscription end date is set when you purchase or renew a paid plan."}
         </p>
       </section>
@@ -200,20 +200,20 @@ export function UserProfilePanel({ user, language, updateProfile, showToast, onO
         id="profile-password-section"
         className="rounded-2xl border border-white/[0.08] bg-nb-panel/50 p-6 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.45)] backdrop-blur-sm"
       >
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-nb-muted">{tr ? "Güvenlik" : "Security"}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-nb-muted">{tr ? "GÃ¼venlik" : "Security"}</p>
         <h2 className="mt-1 text-xl font-semibold tracking-tight text-nb-text">
-          {hasPassword ? (tr ? "Şifre değiştir" : "Change password") : tr ? "Şifre belirle" : "Set password"}
+          {hasPassword ? (tr ? "Åifre deÄŸiÅŸtir" : "Change password") : tr ? "Åifre belirle" : "Set password"}
         </h2>
 
         {!hasPassword ? (
           <form className="mt-6 space-y-4" onSubmit={(e) => void handleSetPasswordSubmit(e)}>
             <p className="text-sm leading-relaxed text-nb-muted">
               {tr
-                ? "Google ile giriş yaptınız; isteğe bağlı olarak bu e-posta için bir hesap şifresi belirleyebilirsiniz."
+                ? "Google ile giriÅŸ yaptÄ±nÄ±z; isteÄŸe baÄŸlÄ± olarak bu e-posta iÃ§in bir hesap ÅŸifresi belirleyebilirsiniz."
                 : "You signed in with Google. Optionally set a password for this email to sign in with email and password as well."}
             </p>
             <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-nb-muted">{tr ? "Yeni şifre" : "New password"}</span>
+              <span className="mb-1.5 block text-xs font-medium text-nb-muted">{tr ? "Yeni ÅŸifre" : "New password"}</span>
               <input
                 type="password"
                 autoComplete="new-password"
@@ -224,7 +224,7 @@ export function UserProfilePanel({ user, language, updateProfile, showToast, onO
               />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-nb-muted">{tr ? "Yeni şifre (tekrar)" : "Confirm new password"}</span>
+              <span className="mb-1.5 block text-xs font-medium text-nb-muted">{tr ? "Yeni ÅŸifre (tekrar)" : "Confirm new password"}</span>
               <input
                 type="password"
                 autoComplete="new-password"
@@ -237,16 +237,16 @@ export function UserProfilePanel({ user, language, updateProfile, showToast, onO
             <button
               type="submit"
               disabled={setPwdSubmitting}
-              className="rounded-xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_32px_-10px_rgba(37,99,235,0.45)] transition duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-55"
+              className="rounded-xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-[0_12px_32px_-10px_rgba(34,211,238,0.45)] transition duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-55"
             >
-              {setPwdSubmitting ? (tr ? "Kaydediliyor…" : "Saving…") : tr ? "Şifreyi kaydet" : "Save password"}
+              {setPwdSubmitting ? (tr ? "Kaydediliyorâ€¦" : "Savingâ€¦") : tr ? "Åifreyi kaydet" : "Save password"}
             </button>
           </form>
         ) : (
           <div className="mt-6">
             <p className="text-sm leading-relaxed text-nb-muted">
               {tr
-                ? "Hesap şifrenizi güncellemek için aşağıdaki düğmeyi kullanın."
+                ? "Hesap ÅŸifrenizi gÃ¼ncellemek iÃ§in aÅŸaÄŸÄ±daki dÃ¼ÄŸmeyi kullanÄ±n."
                 : "Use the button below to update your account password."}
             </p>
             <button
@@ -254,7 +254,7 @@ export function UserProfilePanel({ user, language, updateProfile, showToast, onO
               onClick={onOpenChangePassword}
               className="nb-transition mt-4 rounded-xl border border-white/[0.1] bg-nb-panel/70 px-5 py-2.5 text-sm font-semibold text-nb-text hover:border-nb-primary/35 hover:bg-nb-panel"
             >
-              {tr ? "Şifre değiştir" : "Change password"}
+              {tr ? "Åifre deÄŸiÅŸtir" : "Change password"}
             </button>
           </div>
         )}

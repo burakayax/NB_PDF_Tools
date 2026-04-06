@@ -3,7 +3,7 @@ type LandingIconProps = {
   className?: string;
 };
 
-export function LandingIcon({ kind, className = "h-5 w-5 text-sky-200" }: LandingIconProps) {
+export function LandingIcon({ kind, className = "h-5 w-5 text-cyan-200" }: LandingIconProps) {
   switch (kind) {
     case "merge":
       return (

@@ -12,10 +12,13 @@ import {
 } from "./api";
 import { submitContactForm } from "./api/contact";
 import { CookieNotice } from "./components/common/CookieNotice";
+import { SystemNotificationBanner } from "./components/common/SystemNotificationBanner";
 import { DashboardSidebar, DashboardSidebarMobileRail, type SidebarToolId } from "./components/dashboard/DashboardSidebar";
 import { DashboardTopNav } from "./components/dashboard/DashboardTopNav";
 import { ChangePasswordModal } from "./components/dashboard/ChangePasswordModal";
 import { AdminPanel } from "./admin/AdminPanel";
+import { DelayConversionBanner } from "./components/dashboard/DelayConversionBanner";
+import { ConversionUpgradeModal } from "./components/dashboard/ConversionUpgradeModal";
 import { UpgradeModal } from "./components/dashboard/UpgradeModal";
 import { UserProfilePanel } from "./components/dashboard/UserProfilePanel";
 import { userGreetingLine } from "./components/dashboard/userDisplayName";
@@ -26,32 +29,44 @@ import { LandingPage } from "./components/landing/LandingPage";
 import { LegalPage } from "./components/legal/LegalPage";
 import { createPaymentCheckout } from "./api/payment";
 import {
-  fetchPlans,
   fetchSubscriptionStatus,
   fetchSubscriptionSummary,
   type FeatureKey,
   type PlanDefinition,
   type SubscriptionStatus,
+  type SaasFrictionPayload,
   type SubscriptionSummary,
 } from "./api/subscription";
+import {
+  canAutoShowConversionModal,
+  conversionModalAutoQualifies,
+  conversionModalClickThroughRate,
+  CONV_MODAL_HEAVY_DELAY_MS,
+  CONV_MODAL_SNOOZE_MS,
+  CONV_MODAL_SNOOZE_UNTIL_KEY,
+  HEAVY_CONVERSION_FEATURES,
+  pushConversionModalAnalytics,
+  recordConversionModalDismiss,
+  recordConversionModalPrimaryClick,
+  recordConversionModalShown,
+  type ConversionFrictionSignal,
+} from "./lib/conversionModalTriggers";
 import { translateAuthApiMessage } from "./i18n/auth";
 import { localizedPlanDescription, localizedPlanDisplayName } from "./i18n/plans";
 import {
+  computeUpgradeNudgeTierWeb,
   featureCopy,
+  sidebarToolLabel,
   validatePagesFormat,
   validatePagesMax,
   ws,
 } from "./i18n/workspace";
-import { fetchPublicCms, fetchPublicSiteConfig } from "./api/public";
 import { getCmsWorkspaceBanner } from "./lib/landingCmsMerge";
+import { buildWorkspaceFeaturesFromCms, type WorkspaceFeatureUi } from "./lib/workspaceFeatures";
 import { useAnalyticsTracking } from "./hooks/useAnalyticsTracking";
-
-function formatTryPerMonth(price: string | null | undefined, tr: boolean): string | null {
-  if (price == null || price === "") return null;
-  const n = price.replace(/\.00$/, "");
-  return tr ? `${n} ₺/ay` : `${n} TRY/mo`;
-}
 import { useAuthSession } from "./hooks/useAuthSession";
+import { useSettings } from "./hooks/useSettings";
+import { formatRegionalPlanPrice } from "./lib/formatRegionalPrice";
 import { useCookieConsent } from "./hooks/useCookieConsent";
 import { useErrorLogging } from "./hooks/useErrorLogging";
 import { usePreferredLanguage } from "./hooks/usePreferredLanguage";
@@ -82,110 +97,12 @@ type UploadItem = {
   mergePasswordVerified: boolean;
 };
 
-type Feature = {
-  id: FeatureId;
-  title: string;
-  icon: string;
-  description: string;
-  endpoint: string;
-  buttonText: string;
-  accept: string;
-  multiple?: boolean;
-  fallbackFilename: string;
-};
+type Feature = WorkspaceFeatureUi;
 
 // PDF ön incelemesi (şifreli mi) gerektiren modül kimlikleri; inspect isteği bu listeye göre tetiklenir.
 // Parola alanlarının görünürlüğü modül bazında olduğundan hangi işlemlerin inceleme istediği açıkça seçilmelidir.
 // Liste backend veya UI ile senkron bozulursa şifreli dosyada parola alanı çıkmaz veya gereksiz istek atılır.
 const pdfInspectionFeatures: FeatureId[] = ["split", "merge", "pdf-to-word", "pdf-to-excel", "compress", "encrypt"];
-const windowsDownloadUrl = "#";
-
-// Ana menüdeki PDF özellik kartlarının tek veri kaynağı; metinler ve API endpoint buradan beslenir.
-// Yeni araç eklemek veya kopyayı güncellemek için öncelikle bu dizi düzenlenmelidir.
-// endpoint değeri backend rotasıyla eşleşmezse form gönderimi 404 veya hatalı işleme düşer.
-const features: Feature[] = [
-  {
-    id: "split",
-    title: "SAYFA AYIR",
-    icon: "📄",
-    description: "Seçilen PDF içinden istediğiniz sayfaları düzenli ve güvenli biçimde ayırır.",
-    endpoint: "split",
-    buttonText: "SAYFALARI AYIR",
-    accept: ".pdf,application/pdf",
-    fallbackFilename: "ayrılan-sayfalar.pdf",
-  },
-  {
-    id: "merge",
-    title: "PDF BİRLEŞTİR",
-    icon: "🗂",
-    description: "Birden fazla PDF dosyasını istediğiniz sıraya göre tek dosyada birleştirir.",
-    endpoint: "merge",
-    buttonText: "PDF'LERİ BİRLEŞTİR",
-    accept: ".pdf,application/pdf",
-    multiple: true,
-    fallbackFilename: "birleştirilmiş.pdf",
-  },
-  {
-    id: "pdf-to-word",
-    title: "PDF -> WORD",
-    icon: "📝",
-    description: "PDF dosyasını düzenlenebilir Word belgesine dönüştürür.",
-    endpoint: "pdf-to-word",
-    buttonText: "WORD DOSYASINI İNDİR",
-    accept: ".pdf,application/pdf",
-    fallbackFilename: "çıktı.docx",
-  },
-  {
-    id: "word-to-pdf",
-    title: "WORD -> PDF",
-    icon: "🧾",
-    description: "Word belgesini PDF biçiminde dışa aktarır.",
-    endpoint: "word-to-pdf",
-    buttonText: "PDF OLARAK İNDİR",
-    accept: ".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    fallbackFilename: "çıktı.pdf",
-  },
-  {
-    id: "excel-to-pdf",
-    title: "EXCEL -> PDF",
-    icon: "📊",
-    description: "Excel tablolarını PDF biçimine dönüştürür.",
-    endpoint: "excel-to-pdf",
-    buttonText: "PDF OLARAK İNDİR",
-    accept: ".xlsx,.xlsm,.xltx,.xltm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    fallbackFilename: "çıktı.pdf",
-  },
-  {
-    id: "pdf-to-excel",
-    title: "PDF -> EXCEL",
-    icon: "📈",
-    description: "PDF tablo yapısını korumaya odaklanarak Excel çıktısı oluşturur.",
-    endpoint: "pdf-to-excel",
-    buttonText: "EXCEL DOSYASINI İNDİR",
-    accept: ".pdf,application/pdf",
-    fallbackFilename: "çıktı.xlsx",
-  },
-  {
-    id: "compress",
-    title: "PDF SIKIŞTIR",
-    icon: "🗜",
-    description: "PDF akışını optimize ederek dosya boyutunu küçültmeye çalışır.",
-    endpoint: "compress",
-    buttonText: "SIKIŞTIRILMIŞ PDF İNDİR",
-    accept: ".pdf,application/pdf",
-    fallbackFilename: "sıkıştırılmış.pdf",
-  },
-  {
-    id: "encrypt",
-    title: "PDF ŞİFRELE",
-    icon: "🔒",
-    description: "PDF dosyasına güvenli bir açılış parolası uygular.",
-    endpoint: "encrypt",
-    buttonText: "ŞİFRELİ PDF İNDİR",
-    accept: ".pdf,application/pdf",
-    fallbackFilename: "şifreli.pdf",
-  },
-];
 
 function EmptyStateIllustration() {
   return (
@@ -239,7 +156,16 @@ function genericToolPhaseLabel(
   percent: number,
   indeterminate: boolean,
   W: ReturnType<typeof ws>,
+  freeQueuePhase: boolean,
 ): string {
+  if (freeQueuePhase) {
+    if (indeterminate) {
+      return W.toolProgressPhaseQueueFree;
+    }
+    if (percent < 22) {
+      return W.toolProgressPhaseHandoff;
+    }
+  }
   if (indeterminate) {
     return W.toolProgressPhaseAnalyzing;
   }
@@ -253,6 +179,44 @@ function genericToolPhaseLabel(
     return W.toolProgressPhaseProcessing;
   }
   return W.toolProgressPhaseFinishing;
+}
+
+function UpgradeNudgeInline({
+  tier,
+  W,
+  onContinueFree,
+  onUpgrade,
+}: {
+  tier: 1 | 2 | 3;
+  W: ReturnType<typeof ws>;
+  onContinueFree: () => void;
+  onUpgrade: () => void;
+}) {
+  return (
+    <div
+      className="mt-3 rounded-xl border border-cyan-500/25 bg-gradient-to-br from-cyan-950/45 to-nb-bg-elevated/35 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+      role="region"
+      aria-label={W.upgradeNudgeAria}
+    >
+      <p className="text-[12px] font-medium leading-relaxed text-cyan-100/90">{W.upgradeNudgeTierBody(tier)}</p>
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          className="nb-transition rounded-lg border border-white/12 bg-white/[0.06] px-2.5 py-1.5 text-[11px] font-semibold text-nb-muted hover:border-cyan-500/35 hover:bg-cyan-500/10 hover:text-cyan-100"
+          onClick={onContinueFree}
+        >
+          {W.upgradeNudgeContinueFree}
+        </button>
+        <button
+          type="button"
+          className="nb-transition rounded-lg border border-cyan-400/40 bg-cyan-500/12 px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide text-cyan-50 hover:bg-cyan-500/22"
+          onClick={onUpgrade}
+        >
+          {W.upgradeNudgeUpgradeInstant}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function mergeToolPhaseLabel(job: MergeJobStatus, indeterminate: boolean, W: ReturnType<typeof ws>): string {
@@ -458,6 +422,7 @@ function App() {
     refreshSession,
   } = useAuthSession();
   const { hasConsent, isReady: isCookieConsentReady, acceptConsent } = useCookieConsent();
+  const { cms, site, plans, toolsPublic, flags, pricing } = useSettings();
   const [view, setView] = useState<AppView>(getInitialViewFromLocation);
   const [legalBackView, setLegalBackView] = useState<NonLegalView>("landing");
   const [selectedFeatureId, setSelectedFeatureId] = useState<FeatureId>("split");
@@ -467,7 +432,6 @@ function App() {
   const [authSubmitting, setAuthSubmitting] = useState(false);
   const [authError, setAuthError] = useState("");
   const [registrationSuccessBanner, setRegistrationSuccessBanner] = useState<string | null>(null);
-  const [plans, setPlans] = useState<PlanDefinition[]>([]);
   const [subscriptionSummary, setSubscriptionSummary] = useState<SubscriptionSummary | null>(null);
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
@@ -511,14 +475,23 @@ function App() {
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [changePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [conversionUpgradeModalOpen, setConversionUpgradeModalOpen] = useState(false);
+  const [delayConversionFriction, setDelayConversionFriction] = useState<SaasFrictionPayload | null>(null);
+  const conversionFrictionSignalRef = useRef<ConversionFrictionSignal | null>(null);
+  const conversionModalShowSourceRef = useRef<"auto" | "manual">("manual");
+  const [upgradeNudgeLoadingHidden, setUpgradeNudgeLoadingHidden] = useState(false);
+  const [upgradeNudgePostSuccessHidden, setUpgradeNudgePostSuccessHidden] = useState(false);
+  const [postRunUpgradeHintVisible, setPostRunUpgradeHintVisible] = useState(false);
+  const [postRunUpgradeHintDismissed, setPostRunUpgradeHintDismissed] = useState(false);
+  const frictionConversionFollowUpRef = useRef(false);
+  const subscriptionSummaryRef = useRef<SubscriptionSummary | null>(null);
+  const userRef = useRef(user);
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactMessage, setContactMessage] = useState("");
   const [contactWebsite, setContactWebsite] = useState("");
   const [contactError, setContactError] = useState("");
   const [contactSubmitting, setContactSubmitting] = useState(false);
-  const [publicCms, setPublicCms] = useState<Record<string, unknown> | null>(null);
-  const [serverAnalyticsEnabled, setServerAnalyticsEnabled] = useState(true);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const inspectRunRef = useRef(0);
@@ -537,33 +510,55 @@ function App() {
     setView("web");
   }, []);
 
-  const selectedFeature = useMemo(() => {
-    const base = features.find((feature) => feature.id === selectedFeatureId) ?? features[0];
-    const c = featureCopy(base.id, language);
-    return { ...base, title: c.title, description: c.description, buttonText: c.button };
-  }, [selectedFeatureId, language]);
+  const workspaceFeatures = useMemo(
+    () => buildWorkspaceFeaturesFromCms(language, cms, toolsPublic.disabledFeatures),
+    [language, cms, toolsPublic.disabledFeatures],
+  );
+
+  const selectedFeature = useMemo((): Feature => {
+    const hit =
+      workspaceFeatures.find((feature) => feature.id === selectedFeatureId) ?? workspaceFeatures[0];
+    if (hit) {
+      return hit;
+    }
+    const fb = featureCopy(selectedFeatureId, language);
+    return {
+      id: selectedFeatureId,
+      title: fb.title,
+      icon: "📄",
+      description: fb.description,
+      endpoint: selectedFeatureId,
+      buttonText: fb.button,
+      accept: ".pdf,application/pdf",
+      fallbackFilename: "çıktı.pdf",
+    };
+  }, [workspaceFeatures, selectedFeatureId, language]);
 
   const lockedFeatures = useMemo(() => {
     const next = new Set<FeatureKey>();
     if (!isAuthenticated || !subscriptionSummary || subscriptionLoading) {
       return next;
     }
-    for (const f of features) {
+    if (subscriptionSummary.currentPlan.name === "FREE") {
+      return next;
+    }
+    for (const f of workspaceFeatures) {
       if (!subscriptionSummary.allowedFeatures.includes(f.id)) {
         next.add(f.id);
       }
     }
     return next;
-  }, [isAuthenticated, subscriptionSummary, subscriptionLoading]);
+  }, [isAuthenticated, subscriptionSummary, subscriptionLoading, workspaceFeatures]);
 
-  const proTryLine = useMemo(
-    () => formatTryPerMonth(plans.find((p) => p.name === "PRO")?.monthlyPriceTry, language === "tr"),
-    [plans, language],
+  const enabledToolIds = useMemo(() => workspaceFeatures.map((f) => f.id), [workspaceFeatures]);
+  const resolveToolLabel = useCallback(
+    (id: FeatureKey) => workspaceFeatures.find((f) => f.id === id)?.title ?? sidebarToolLabel(id, language),
+    [workspaceFeatures, language],
   );
-  const businessTryLine = useMemo(
-    () => formatTryPerMonth(plans.find((p) => p.name === "BUSINESS")?.monthlyPriceTry, language === "tr"),
-    [plans, language],
-  );
+
+  const proTryLine = useMemo(() => formatRegionalPlanPrice(pricing, "proMonthly", language), [pricing, language]);
+  const businessTryLine = useMemo(() => formatRegionalPlanPrice(pricing, "basicMonthly", language), [pricing, language]);
+  const proAnnualLine = useMemo(() => formatRegionalPlanPrice(pricing, "proAnnual", language), [pricing, language]);
 
   const primaryUpload = uploads[0] ?? null;
   const currentPdfIsEncrypted = Boolean(primaryUpload?.encrypted);
@@ -575,24 +570,31 @@ function App() {
     if (subscriptionLoading || !subscriptionSummary) {
       return true;
     }
+    if (subscriptionSummary.currentPlan.name === "FREE") {
+      return true;
+    }
     return subscriptionSummary.allowedFeatures.includes(selectedFeatureId);
   }, [isAuthenticated, subscriptionLoading, subscriptionSummary, selectedFeatureId]);
   const shouldShowCookieNotice = isCookieConsentReady && !hasConsent;
   const trackedView = getTrackedViewName(view);
   const trackedPath = getTrackedPath(view);
-  const workspaceBanner = useMemo(() => getCmsWorkspaceBanner(publicCms), [publicCms]);
+  const workspaceBanner = useMemo(() => getCmsWorkspaceBanner(cms), [cms]);
+  const serverAnalyticsEnabled = site.analyticsEnabled !== false;
 
   useEffect(() => {
-    void fetchPublicCms()
-      .then((d) => setPublicCms(d.content))
-      .catch(() => setPublicCms(null));
-  }, []);
+    if (workspaceFeatures.length === 0) {
+      return;
+    }
+    if (!workspaceFeatures.some((f) => f.id === selectedFeatureId)) {
+      const first = workspaceFeatures[0]!.id;
+      setSelectedFeatureId(first);
+      setActiveSidebar(first);
+    }
+  }, [workspaceFeatures, selectedFeatureId]);
 
   useEffect(() => {
-    void fetchPublicSiteConfig()
-      .then((c) => setServerAnalyticsEnabled(c.analyticsEnabled !== false))
-      .catch(() => setServerAnalyticsEnabled(true));
-  }, []);
+    setDelayConversionFriction(null);
+  }, [selectedFeatureId]);
 
   useAnalyticsTracking({
     enabled: hasConsent,
@@ -894,6 +896,20 @@ function App() {
     setSubscriptionStatus(status);
   }, [accessToken, isAuthenticated]);
 
+  const openConversionUpgradeModalManual = useCallback(() => {
+    conversionModalShowSourceRef.current = "manual";
+    setConversionUpgradeModalOpen(true);
+  }, []);
+
+  const applySaasFriction = useCallback((friction: SaasFrictionPayload, featureId: FeatureKey) => {
+    frictionConversionFollowUpRef.current = true;
+    setDelayConversionFriction(friction);
+    const dm = friction.delayMs ?? 0;
+    if (dm >= CONV_MODAL_HEAVY_DELAY_MS || HEAVY_CONVERSION_FEATURES.has(featureId)) {
+      conversionFrictionSignalRef.current = { at: Date.now(), featureId, delayMs: dm };
+    }
+  }, []);
+
   useEffect(() => {
     const path = window.location.pathname.replace(/\/$/, "") || "/";
     if (path === "/login-error") {
@@ -983,16 +999,6 @@ function App() {
   }, [view]);
 
   useEffect(() => {
-    void fetchPlans()
-      .then((data) => {
-        setPlans(data);
-      })
-      .catch(() => {
-        setPlans([]);
-      });
-  }, []);
-
-  useEffect(() => {
     resetForm(true);
     setMergeJob(null);
     setSubmitting(false);
@@ -1001,6 +1007,32 @@ function App() {
     clearToast();
     disposeToolProgressSuccess();
   }, [selectedFeatureId, disposeToolProgressSuccess]);
+
+  useEffect(() => {
+    subscriptionSummaryRef.current = subscriptionSummary;
+  }, [subscriptionSummary]);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  const offerPostRunMonetizationHintAfterSuccess = useCallback(() => {
+    const sum = subscriptionSummaryRef.current;
+    const ur = userRef.current;
+    if (!sum || ur?.role === "ADMIN" || sum.currentPlan.name !== "FREE") {
+      frictionConversionFollowUpRef.current = false;
+      return;
+    }
+    const u = sum.usage;
+    const usageFrictionActive = Boolean(u.conversionTracking?.freeLimitExceeded);
+    const fq = usageFrictionActive || u.usedToday >= (u.softFrictionAfterOps ?? 5);
+    const hadFriction = frictionConversionFollowUpRef.current;
+    frictionConversionFollowUpRef.current = false;
+    if (hadFriction || fq) {
+      setPostRunUpgradeHintVisible(true);
+      setPostRunUpgradeHintDismissed(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (selectedFeatureId !== "merge" || !mergeJob?.id || mergeJob.id === MERGE_JOB_PENDING_ID) {
@@ -1028,6 +1060,7 @@ function App() {
         setMergeJob(nextStatus);
 
         if (nextStatus.status === "failed") {
+          frictionConversionFollowUpRef.current = false;
           showToast("error", M.mergeToastFailedTitle, nextStatus.error || M.mergeToastFailedGeneric);
           setSubmitting(false);
           mergePollHandledRef.current = true;
@@ -1055,10 +1088,12 @@ function App() {
               featureTitle: selectedFeature.title,
               replay: dl.replay,
             });
+            offerPostRunMonetizationHintAfterSuccess();
           } catch (downloadErr) {
             if (!active) {
               return;
             }
+            frictionConversionFollowUpRef.current = false;
             setSubmitting(false);
             const detail =
               downloadErr instanceof Error ? downloadErr.message : M.mergeToastPollErrorDetail;
@@ -1071,6 +1106,7 @@ function App() {
           return;
         }
         const detail = error instanceof Error ? error.message : M.mergeToastPollErrorDetail;
+        frictionConversionFollowUpRef.current = false;
         showToast("error", M.mergeToastPollErrorTitle, detail);
         setSubmitting(false);
         mergePollHandledRef.current = true;
@@ -1096,6 +1132,7 @@ function App() {
     language,
     disposeToolProgressSuccess,
     accessToken,
+    offerPostRunMonetizationHintAfterSuccess,
   ]);
 
   useEffect(() => {
@@ -1143,7 +1180,71 @@ function App() {
 
   useEffect(() => {
     setUpgradeModalOpen(false);
+    setConversionUpgradeModalOpen(false);
   }, [view]);
+
+  const dismissConversionUpgradeModal = useCallback(() => {
+    recordConversionModalDismiss();
+    setConversionUpgradeModalOpen(false);
+  }, []);
+
+  const snoozeConversionUpgradeModal = useCallback(() => {
+    recordConversionModalDismiss();
+    try {
+      localStorage.setItem(CONV_MODAL_SNOOZE_UNTIL_KEY, String(Date.now() + CONV_MODAL_SNOOZE_MS));
+    } catch {
+      /* private mode */
+    }
+    setConversionUpgradeModalOpen(false);
+  }, []);
+
+  const prevConversionModalOpenRef = useRef(false);
+  useEffect(() => {
+    const open = conversionUpgradeModalOpen;
+    if (open && !prevConversionModalOpenRef.current) {
+      const source = conversionModalShowSourceRef.current;
+      const stats = recordConversionModalShown(source);
+      conversionFrictionSignalRef.current = null;
+      pushConversionModalAnalytics("nb_conversion_modal_shown", {
+        source,
+        shown_total: stats.shownTotal,
+        auto_shows_today: stats.autoShowsToday,
+        dismiss_total: stats.dismissTotal,
+        ctr_pct: conversionModalClickThroughRate(stats),
+      });
+    }
+    prevConversionModalOpenRef.current = open;
+  }, [conversionUpgradeModalOpen]);
+
+  useEffect(() => {
+    if (view !== "web" || !isAuthenticated || subscriptionLoading || !subscriptionSummary) {
+      return;
+    }
+    if (subscriptionSummary.currentPlan.name !== "FREE") {
+      return;
+    }
+    if (conversionUpgradeModalOpen || upgradeModalOpen) {
+      return;
+    }
+    const now = Date.now();
+    const signal = conversionFrictionSignalRef.current;
+    if (!conversionModalAutoQualifies(subscriptionSummary, signal, now)) {
+      return;
+    }
+    if (!canAutoShowConversionModal(now)) {
+      return;
+    }
+    conversionModalShowSourceRef.current = "auto";
+    setConversionUpgradeModalOpen(true);
+  }, [
+    view,
+    isAuthenticated,
+    subscriptionLoading,
+    subscriptionSummary,
+    conversionUpgradeModalOpen,
+    upgradeModalOpen,
+    delayConversionFriction,
+  ]);
 
   useEffect(() => {
     if (!isAuthenticated || !user || !accessToken) {
@@ -1219,7 +1320,6 @@ function App() {
   useEffect(() => {
     if (!subscriptionSummary?.usage) return;
     const u = subscriptionSummary.usage;
-    if (u.dailyLimit == null) return;
 
     const code = u.usageWarningCode;
     const strong = u.strongUsageWarning;
@@ -1270,9 +1370,21 @@ function App() {
     uploads.some((u) => u.inspecting) &&
     pdfInspectionFeatures.includes(selectedFeatureId);
   const showUsageQuota =
-    user?.role !== "ADMIN" &&
-    subscriptionSummary &&
-    subscriptionSummary.usage.dailyLimit !== null;
+    user?.role !== "ADMIN" && subscriptionSummary && subscriptionSummary.currentPlan.name === "FREE";
+  const usageFrictionActive = Boolean(subscriptionSummary?.usage.conversionTracking?.freeLimitExceeded);
+  const freeQueueLikely =
+    Boolean(showUsageQuota && subscriptionSummary) &&
+    (usageFrictionActive ||
+      subscriptionSummary!.usage.usedToday >= (subscriptionSummary!.usage.softFrictionAfterOps ?? 5));
+  const premiumProcessingLane = Boolean(
+    user?.role === "ADMIN" ||
+      (subscriptionSummary &&
+        (subscriptionSummary.usage.processingTier === "premium" ||
+          subscriptionSummary.usage.priorityProcessing === true ||
+          subscriptionSummary.currentPlan.name === "PRO" ||
+          subscriptionSummary.currentPlan.name === "BUSINESS")),
+  );
+
   const mergeProgressActive =
     Boolean(mergeJob && selectedFeatureId === "merge" && mergeJob.status !== "completed");
   const genericToolProgressActive =
@@ -1280,6 +1392,12 @@ function App() {
   const toolSuccessBarActive = Boolean(toolProgressSuccess && view === "web" && contentPanel === "tool");
   const bottomToolProgressActive =
     mergeProgressActive || genericToolProgressActive || toolSuccessBarActive;
+  /** Free tier: in-flight strip when no server friction banner (avoids duplicate copy with DelayConversionBanner). */
+  const freeDuringProcessingMonetization = Boolean(
+    showUsageQuota &&
+      !delayConversionFriction &&
+      (submitting || mergeProgressActive || genericToolProgressActive),
+  );
   const mergeProgressIndeterminate = Boolean(
     mergeJob &&
       (mergeJob.id === MERGE_JOB_PENDING_ID ||
@@ -1324,8 +1442,12 @@ function App() {
             : selectedFeatureId === "encrypt"
               ? 3.2
               : 3.0;
-    return Math.max(40, Math.min(1800, Math.round(mb * k + 22)));
-  }, [toolRunFileBytes, selectedFeatureId]);
+    const estimateBase = Math.max(40, Math.min(1800, Math.round(mb * k + 22)));
+    if (premiumProcessingLane) {
+      return Math.max(35, Math.round(estimateBase * 0.85));
+    }
+    return estimateBase;
+  }, [toolRunFileBytes, selectedFeatureId, premiumProcessingLane]);
 
   const genericToolFileMb = toolRunFileBytes / (1024 * 1024);
   const genericToolRemainingSec = Math.max(0, genericToolEstimateSec - genericToolElapsedSec);
@@ -1334,7 +1456,47 @@ function App() {
     Math.max(2, Math.round((genericToolElapsedSec / Math.max(genericToolEstimateSec, 1)) * 100)),
   );
   const genericProgressIndeterminate =
-    genericToolProgressActive && (genericToolElapsedSec < 5 || genericToolPercent < 6);
+    genericToolProgressActive &&
+    (freeQueueLikely
+      ? genericToolElapsedSec < 20 || genericToolPercent < 14
+      : premiumProcessingLane
+        ? genericToolElapsedSec < 4 || genericToolPercent < 5
+        : genericToolElapsedSec < 5 || genericToolPercent < 6);
+
+  const upgradeNudgeTier = useMemo(() => {
+    if (!subscriptionSummary || user?.role === "ADMIN" || subscriptionSummary.currentPlan.name !== "FREE") {
+      return 0 as const;
+    }
+    const u = subscriptionSummary.usage;
+    return computeUpgradeNudgeTierWeb({
+      planIsFree: true,
+      softFrictionAfterOps: u.softFrictionAfterOps ?? 5,
+      usedToday: u.usedToday,
+      throttleEventsToday:
+        u.postLimitThrottleEventsToday ?? u.conversionTracking?.postLimitThrottleEventsToday ?? 0,
+      lifetimeThrottleEvents: u.behaviorMonetization?.totalThrottleEventsLifetime,
+      lifetimeTotalOps: u.behaviorMonetization?.totalOperationsLifetime,
+    });
+  }, [subscriptionSummary, user?.role]);
+
+  useEffect(() => {
+    if (submitting) {
+      setUpgradeNudgeLoadingHidden(false);
+    }
+  }, [submitting]);
+
+  useEffect(() => {
+    if (toolProgressSuccess) {
+      setUpgradeNudgePostSuccessHidden(false);
+    }
+  }, [toolProgressSuccess]);
+
+  const showUpgradeNudgeOnLoading =
+    upgradeNudgeTier >= 1 &&
+    !upgradeNudgeLoadingHidden &&
+    showUsageQuota &&
+    (genericToolProgressActive ||
+      (mergeProgressActive && mergeJob && mergeJob.status !== "failed"));
 
   const splitInputDisabled = uploads.length === 0;
   const submitDisabled =
@@ -1365,7 +1527,7 @@ function App() {
     setContactModalOpen(false);
   }
 
-  async function handleUpgradeCheckout(plan: "PRO" | "BUSINESS" = "PRO") {
+  async function handleUpgradeCheckout(plan: "PRO" | "BUSINESS" = "PRO", billing: "monthly" | "annual" = "monthly") {
     if (!accessToken) {
       showToast(
         "error",
@@ -1376,7 +1538,7 @@ function App() {
     }
 
     try {
-      const session = await createPaymentCheckout(accessToken, plan);
+      const session = await createPaymentCheckout(accessToken, plan, plan === "PRO" ? billing : "monthly");
       if (session.paymentPageUrl) {
         window.location.href = session.paymentPageUrl;
         return;
@@ -1660,11 +1822,6 @@ function App() {
       return;
     }
 
-    if (subscriptionSummary && subscriptionSummary.usage.dailyLimit !== null && subscriptionSummary.usage.remainingToday === 0) {
-      setUpgradeModalOpen(true);
-      return;
-    }
-
     if (!accessToken) {
       showToast("error", "Oturum gerekli", "İşlem için yeniden giriş yapın.");
       return;
@@ -1674,6 +1831,9 @@ function App() {
       disposeToolProgressSuccess();
       setSubmitting(true);
       clearToast();
+      setDelayConversionFriction(null);
+      setPostRunUpgradeHintVisible(false);
+      conversionFrictionSignalRef.current = null;
       if (selectedFeature.id !== "merge") {
         setToolRunStartedAt(Date.now());
         setToolRunFileBytes(uploads[0]?.file.size ?? 0);
@@ -1702,7 +1862,17 @@ function App() {
           ready: false,
         });
         try {
-          const { job_id } = await createMergeJob(formData, accessToken);
+          const mergeRes = await createMergeJob(formData, accessToken);
+          const { job_id, saasFriction } = mergeRes;
+          if (
+            saasFriction &&
+            ((saasFriction.delayMs ?? 0) > 0 ||
+              saasFriction.upgradeCta ||
+              (typeof saasFriction.message === "string" && saasFriction.message.trim()) ||
+              (typeof saasFriction.usageSummary === "string" && saasFriction.usageSummary.trim()))
+          ) {
+            applySaasFriction(saasFriction, "merge");
+          }
           setMergeJob((prev) =>
             prev && prev.id === MERGE_JOB_PENDING_ID ? { ...prev, id: job_id, message: "Sıraya alındı." } : prev,
           );
@@ -1741,6 +1911,15 @@ function App() {
       }
 
       const dl = await downloadFromApi(selectedFeature.endpoint, formData, selectedFeature.fallbackFilename, accessToken);
+      if (
+        dl.saasFriction &&
+        ((dl.saasFriction.delayMs ?? 0) > 0 ||
+          dl.saasFriction.upgradeCta ||
+          (typeof dl.saasFriction.message === "string" && dl.saasFriction.message.trim()) ||
+          (typeof dl.saasFriction.usageSummary === "string" && dl.saasFriction.usageSummary.trim()))
+      ) {
+        applySaasFriction(dl.saasFriction, selectedFeature.id);
+      }
       showToast("success", "İşlem tamamlandı", "Çıktı dosyası başarıyla indirildi.");
       resetForm(true);
       disposeToolProgressSuccess();
@@ -1752,8 +1931,10 @@ function App() {
         featureTitle: selectedFeature.title,
         replay: dl.replay,
       });
+      offerPostRunMonetizationHintAfterSuccess();
       void refreshSubscriptionState();
     } catch (error) {
+      frictionConversionFollowUpRef.current = false;
       const detail = error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu.";
       showToast("error", "İşlem başarısız", detail);
     } finally {
@@ -1854,7 +2035,9 @@ function App() {
 
   if (view === "forgot_password") {
     return (
-      <ForgotPasswordPage
+      <>
+        <SystemNotificationBanner language={language} />
+        <ForgotPasswordPage
         language={language}
         onBackToLogin={() => {
           setAuthError("");
@@ -1870,16 +2053,18 @@ function App() {
           );
         }}
       />
+      </>
     );
   }
 
   if (view === "landing") {
     return (
       <>
+        <SystemNotificationBanner language={language} />
         <LandingPage
           language={language}
+          pricing={pricing}
           onLanguageChange={handleLanguageChange}
-          windowsDownloadUrl={windowsDownloadUrl}
           onUseWebApp={openWorkspace}
           isAuthenticated={isAuthenticated}
           authGreeting={user ? userGreetingLine(user, language) : undefined}
@@ -1893,7 +2078,6 @@ function App() {
           }}
           onOpenTerms={() => openLegalPage("terms")}
           onOpenPrivacy={() => openLegalPage("privacy")}
-          cmsContent={publicCms}
         />
         <CookieNotice
           language={language}
@@ -1908,6 +2092,7 @@ function App() {
   if (view === "login" || view === "register") {
     return (
       <>
+        <SystemNotificationBanner language={language} />
         <AuthPage
           mode={view}
           language={language}
@@ -1951,6 +2136,7 @@ function App() {
   if (view === "terms" || view === "privacy") {
     return (
       <>
+        <SystemNotificationBanner language={language} />
         <LegalPage language={language} documentKey={view} onBack={closeLegalPage} />
         <CookieNotice
           language={language}
@@ -1967,7 +2153,7 @@ function App() {
       <>
         <div className="min-h-screen bg-nb-bg px-6 py-12 font-sans text-nb-text antialiased">
           <div className="mx-auto flex max-w-md flex-col items-center justify-center rounded-[28px] border border-white/[0.08] bg-nb-panel/55 px-10 py-16 text-center shadow-[0_50px_100px_-24px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.04)_inset] backdrop-blur-xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">NB PDF TOOLS</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300">NB PDF TOOLS</p>
             <h1 className="mt-4 text-3xl font-semibold tracking-tight text-white">Oturum doğrulanıyor</h1>
             <p className="mt-4 text-base leading-8 text-nb-muted">Güvenli erişim bilgileriniz kontrol ediliyor. Lütfen bekleyin.</p>
           </div>
@@ -2008,7 +2194,7 @@ function App() {
       <>
         <div className="min-h-screen bg-nb-bg px-6 py-12 font-sans text-nb-text antialiased">
           <div className="mx-auto flex max-w-md flex-col items-center justify-center rounded-2xl border border-white/[0.08] bg-nb-panel/55 px-10 py-16 text-center shadow-xl backdrop-blur-xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">NB PDF TOOLS</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300">NB PDF TOOLS</p>
             <p className="mt-4 text-base text-nb-muted">Oturum bilgileri yükleniyor…</p>
           </div>
         </div>
@@ -2041,6 +2227,7 @@ function App() {
     }
     return (
       <>
+        <SystemNotificationBanner language={language} />
         {toast ? (
           <div className={`toast toast--${toast.type}`}>
             <div className="toast__title">{toast.title}</div>
@@ -2067,6 +2254,7 @@ function App() {
 
   return (
     <div className="app-shell">
+      <SystemNotificationBanner language={language} />
       {contactModalOpen ? (
         <div
           className="contact-modal-backdrop"
@@ -2149,16 +2337,37 @@ function App() {
         open={upgradeModalOpen}
         onClose={() => setUpgradeModalOpen(false)}
         language={language}
-        proPriceTry={plans.find((p) => p.name === "PRO")?.monthlyPriceTry ?? null}
-        businessPriceTry={plans.find((p) => p.name === "BUSINESS")?.monthlyPriceTry ?? null}
-        onSelectPro={() => {
-          setUpgradeModalOpen(false);
-          void handleUpgradeCheckout("PRO");
-        }}
-        onSelectBusiness={() => {
+        pricing={pricing}
+        onSelectBasic={() => {
           setUpgradeModalOpen(false);
           void handleUpgradeCheckout("BUSINESS");
         }}
+        onSelectPro={() => {
+          setUpgradeModalOpen(false);
+          void handleUpgradeCheckout("PRO", "monthly");
+        }}
+        onSelectProAnnual={() => {
+          setUpgradeModalOpen(false);
+          void handleUpgradeCheckout("PRO", "annual");
+        }}
+      />
+
+      <ConversionUpgradeModal
+        open={conversionUpgradeModalOpen}
+        onClose={dismissConversionUpgradeModal}
+        onContinueWithoutWaiting={() => {
+          const stats = recordConversionModalPrimaryClick();
+          pushConversionModalAnalytics("nb_conversion_modal_primary_click", {
+            shown_total: stats.shownTotal,
+            primary_total: stats.primaryClicksTotal,
+            ctr_pct: conversionModalClickThroughRate(stats),
+          });
+          setConversionUpgradeModalOpen(false);
+          void handleUpgradeCheckout("PRO");
+        }}
+        onMaybeLater={snoozeConversionUpgradeModal}
+        language={language}
+        operationsToday={subscriptionSummary?.usage.usedToday ?? 0}
       />
 
       {toast ? (
@@ -2176,7 +2385,13 @@ function App() {
         onProfile={handleNavProfile}
         onPassword={handleNavPassword}
         onLogout={() => void handleLogout()}
-        onUpgradeClick={() => setUpgradeModalOpen(true)}
+        onUpgradeClick={() => {
+          if (!subscriptionSummary || subscriptionSummary.currentPlan.name === "FREE") {
+            openConversionUpgradeModalManual();
+          } else {
+            setUpgradeModalOpen(true);
+          }
+        }}
         showAdminEntry={user?.role === "ADMIN"}
         onOpenAdmin={() => {
           setView("admin");
@@ -2184,8 +2399,15 @@ function App() {
         }}
       />
       {workspaceBanner.enabled ? (
-        <div className="border-b border-sky-500/30 bg-sky-950/50 px-4 py-2 text-center text-xs font-medium text-sky-100 md:text-sm">
+        <div className="border-b border-cyan-500/30 bg-cyan-950/50 px-4 py-2 text-center text-xs font-medium text-cyan-100 md:text-sm">
           {workspaceBanner.text}
+        </div>
+      ) : null}
+      {flags.maintenanceMode ? (
+        <div className="border-b border-amber-500/35 bg-amber-950/55 px-4 py-2 text-center text-xs font-medium text-amber-100 md:text-sm">
+          {language === "tr"
+            ? "Bakım modu etkin — işlemler kısıtlanabilir. Yönetim panelinden kapatılabilir."
+            : "Maintenance mode is on — some actions may be limited. Disable it from the admin panel."}
         </div>
       ) : null}
       <DashboardSidebar
@@ -2197,7 +2419,15 @@ function App() {
         lockedFeatures={lockedFeatures}
         subscriptionSummary={subscriptionSummary}
         userRole={user?.role}
-        onUsageUpgradeClick={() => setUpgradeModalOpen(true)}
+        onUsageUpgradeClick={() => {
+          if (!subscriptionSummary || subscriptionSummary.currentPlan.name === "FREE") {
+            openConversionUpgradeModalManual();
+          } else {
+            setUpgradeModalOpen(true);
+          }
+        }}
+        enabledToolIds={enabledToolIds}
+        resolveToolLabel={resolveToolLabel}
         onOpenAdminDashboard={
           user?.role === "ADMIN"
             ? () => {
@@ -2211,42 +2441,52 @@ function App() {
         <div className="pointer-events-none fixed bottom-4 left-4 z-30 max-w-[calc(100vw-2rem)] md:hidden">
           <div
             className={`pointer-events-auto rounded-xl border px-3 py-2.5 text-xs shadow-lg backdrop-blur-md ${
-              subscriptionSummary!.usage.remainingToday === 0
+              usageFrictionActive
                 ? "border-amber-500/45 bg-gradient-to-b from-amber-950/50 to-nb-bg-elevated/98"
                 : "border-white/[0.1] bg-nb-bg-elevated/95"
             }`}
           >
             <p className="text-[10px] font-semibold uppercase tracking-wide text-nb-muted">{W.usageDailyHeading}</p>
             <p className="mt-1 text-[13px] font-semibold leading-snug text-nb-text">
-              {W.usageUsedTodayLine(subscriptionSummary!.usage.usedToday, subscriptionSummary!.usage.dailyLimit ?? 0)}
+              {subscriptionSummary!.usage.dailyLimit != null
+                ? W.usageUsedTodayLine(subscriptionSummary!.usage.usedToday, subscriptionSummary!.usage.dailyLimit)
+                : W.usageSoftTierLine(
+                    subscriptionSummary!.usage.usedToday,
+                    subscriptionSummary!.usage.softFrictionAfterOps ?? 5,
+                  )}
             </p>
             <p
               className={`mt-0.5 text-[11px] font-semibold tabular-nums ${
-                subscriptionSummary!.usage.remainingToday === 0 ? "text-amber-200" : "text-sky-300/95"
+                usageFrictionActive ? "text-amber-200" : "text-cyan-300/95"
               }`}
             >
-              {W.usageRemainingLine(subscriptionSummary!.usage.remainingToday ?? 0)}
+              {subscriptionSummary!.usage.dailyLimit != null
+                ? W.usageRemainingLine(subscriptionSummary!.usage.remainingToday ?? 0)
+                : W.usageNoDailyCapLine}
             </p>
             <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/35">
               <div
                 className={`h-full rounded-full ${
-                  subscriptionSummary!.usage.remainingToday === 0
+                  usageFrictionActive
                     ? "bg-gradient-to-r from-amber-600 to-amber-400"
-                    : "bg-gradient-to-r from-nb-primary to-sky-400"
+                    : "bg-gradient-to-r from-nb-primary to-nb-secondary"
                 }`}
                 style={{
                   width: `${Math.min(
                     100,
-                    ((subscriptionSummary!.usage.dailyLimit ?? 1) > 0
-                      ? subscriptionSummary!.usage.usedToday / (subscriptionSummary!.usage.dailyLimit ?? 1)
-                      : 0) * 100,
+                    subscriptionSummary!.usage.dailyLimit != null &&
+                      (subscriptionSummary!.usage.dailyLimit ?? 0) > 0
+                      ? (subscriptionSummary!.usage.usedToday / (subscriptionSummary!.usage.dailyLimit ?? 1)) * 100
+                      : ((subscriptionSummary!.usage.softFrictionAfterOps ?? 5) > 0
+                          ? subscriptionSummary!.usage.usedToday / (subscriptionSummary!.usage.softFrictionAfterOps ?? 5)
+                          : 0) * 100,
                   )}%`,
                 }}
               />
             </div>
             <button
               type="button"
-              onClick={() => setUpgradeModalOpen(true)}
+              onClick={() => openConversionUpgradeModalManual()}
               className="nb-transition mt-2.5 w-full rounded-lg border border-amber-400/45 bg-amber-500/15 px-2 py-2 text-[10px] font-bold uppercase tracking-[0.05em] text-amber-50 hover:bg-amber-500/25"
             >
               {W.usageUpgradeCta}
@@ -2265,6 +2505,8 @@ function App() {
           onGoHome={goToLandingFromDashboard}
           lockedFeatures={lockedFeatures}
           userRole={user?.role}
+          enabledToolIds={enabledToolIds}
+          resolveToolLabel={resolveToolLabel}
           onOpenAdminDashboard={
             user?.role === "ADMIN"
               ? () => {
@@ -2455,7 +2697,56 @@ function App() {
                   <button
                     type="button"
                     className="subscription-plan__action subscription-plan__action--upgrade"
-                    onClick={() => void handleUpgradeCheckout("PRO")}
+                    onClick={() => void handleUpgradeCheckout("BUSINESS")}
+                  >
+                    {language === "tr"
+                      ? businessTryLine
+                        ? `Basic (${businessTryLine})`
+                        : "Basic"
+                      : businessTryLine
+                        ? `Basic (${businessTryLine})`
+                        : "Basic"}
+                  </button>
+                  <button
+                    type="button"
+                    className="subscription-plan__action subscription-plan__action--upgrade"
+                    onClick={() => void handleUpgradeCheckout("PRO", "monthly")}
+                  >
+                    {language === "tr"
+                      ? proTryLine
+                        ? `Pro (${proTryLine})`
+                        : "Pro"
+                      : proTryLine
+                        ? `Pro (${proTryLine})`
+                        : "Pro"}
+                  </button>
+                  <button
+                    type="button"
+                    className="subscription-plan__action subscription-plan__action--upgrade"
+                    onClick={() => void handleUpgradeCheckout("PRO", "annual")}
+                  >
+                    {language === "tr"
+                      ? proAnnualLine
+                        ? `Pro yıllık (${proAnnualLine})`
+                        : "Pro yıllık"
+                      : proAnnualLine
+                        ? `Pro annual (${proAnnualLine})`
+                        : "Pro annual"}
+                  </button>
+                  <span className="text-sm text-nb-muted">
+                    {language === "tr"
+                      ? "Ödeme TRY üzerinden güvenli ödeme ortağında işlenir. Tüm planları yükseltme penceresinden de görebilirsiniz."
+                      : "Checkout is in TRY via our payment partner. Open the upgrade modal to compare all plans."}
+                  </span>
+                </div>
+              ) : null}
+
+              {subscriptionSummary.currentPlan.name === "BUSINESS" ? (
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                  <button
+                    type="button"
+                    className="subscription-plan__action subscription-plan__action--upgrade"
+                    onClick={() => void handleUpgradeCheckout("PRO", "monthly")}
                   >
                     {language === "tr"
                       ? proTryLine
@@ -2465,11 +2756,19 @@ function App() {
                         ? `Upgrade to Pro (${proTryLine})`
                         : "Upgrade to Pro"}
                   </button>
-                  <span className="text-sm text-nb-muted">
+                  <button
+                    type="button"
+                    className="subscription-plan__action subscription-plan__action--upgrade"
+                    onClick={() => void handleUpgradeCheckout("PRO", "annual")}
+                  >
                     {language === "tr"
-                      ? "Plan yükseltmek için ödeme sayfasına gidin; manuel plan seçimi devre dışıdır."
-                      : "Go to the billing page to upgrade; manual plan picking is disabled."}
-                  </span>
+                      ? proAnnualLine
+                        ? `Pro yıllık (${proAnnualLine})`
+                        : "Pro yıllık"
+                      : proAnnualLine
+                        ? `Pro annual (${proAnnualLine})`
+                        : "Pro annual"}
+                  </button>
                 </div>
               ) : null}
 
@@ -2482,11 +2781,11 @@ function App() {
                   >
                     {language === "tr"
                       ? businessTryLine
-                        ? `Business'a yükselt (${businessTryLine})`
-                        : "Business'a yükselt"
+                        ? `Basic'e geç (${businessTryLine})`
+                        : "Basic'e geç"
                       : businessTryLine
-                        ? `Upgrade to Business (${businessTryLine})`
-                        : "Upgrade to Business"}
+                        ? `Switch to Basic (${businessTryLine})`
+                        : "Switch to Basic"}
                   </button>
                   <span className="text-sm text-nb-muted">
                     {language === "tr"
@@ -2525,16 +2824,53 @@ function App() {
             </div>
           </div>
 
-          {showUsageQuota && subscriptionSummary && subscriptionSummary.usage.remainingToday === 0 ? (
+          {showUsageQuota && subscriptionSummary && usageFrictionActive ? (
             <div className="border-b border-amber-500/25 bg-gradient-to-r from-amber-950/45 via-amber-950/25 to-transparent px-4 py-3 md:px-6">
-              <p className="text-sm font-medium leading-snug text-amber-50/95">{W.usageQuotaExhaustedBanner}</p>
+              <p className="text-sm font-medium leading-snug text-amber-50/95">
+                {subscriptionSummary.usage.dailyLimit != null
+                  ? W.usageQuotaExhaustedBanner
+                  : W.usageSoftFrictionBanner}
+              </p>
               <button
                 type="button"
-                onClick={() => setUpgradeModalOpen(true)}
+                onClick={() => openConversionUpgradeModalManual()}
                 className="nb-transition mt-3 inline-flex min-h-[40px] items-center justify-center rounded-xl border border-amber-400/45 bg-amber-500/15 px-4 py-2 text-xs font-bold uppercase tracking-[0.06em] text-amber-50 shadow-[0_0_24px_-10px_rgba(245,158,11,0.5)] hover:bg-amber-500/25"
               >
                 {W.usageUpgradeCta}
               </button>
+            </div>
+          ) : null}
+
+          {delayConversionFriction ? (
+            <div className="border-b border-cyan-500/15 px-4 pb-4 pt-2 md:px-6">
+              <DelayConversionBanner
+                language={language}
+                friction={delayConversionFriction}
+                onDismiss={() => setDelayConversionFriction(null)}
+                onUpgradeClick={() => {
+                  openConversionUpgradeModalManual();
+                  setDelayConversionFriction(null);
+                }}
+              />
+            </div>
+          ) : null}
+
+          {freeDuringProcessingMonetization ? (
+            <div
+              className="border-b border-indigo-500/20 bg-gradient-to-r from-cyan-950/35 via-nb-panel/40 to-indigo-950/25 px-4 py-3 md:px-6"
+              role="status"
+              aria-live="polite"
+            >
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <p className="min-w-0 text-sm font-medium leading-snug text-slate-200">{W.delayMonetizationDuringBody}</p>
+                <button
+                  type="button"
+                  className="nb-transition shrink-0 rounded-xl bg-gradient-to-b from-cyan-400 to-cyan-500 px-4 py-2 text-center text-xs font-bold uppercase tracking-wide text-slate-950 shadow-[0_8px_24px_-10px_rgba(34,211,238,0.45)] hover:brightness-105"
+                  onClick={() => openConversionUpgradeModalManual()}
+                >
+                  {W.delayMonetizationInstantCta}
+                </button>
+              </div>
             </div>
           ) : null}
 
@@ -2844,7 +3180,7 @@ function App() {
                             </button>
                             {item.mergePasswordVerified ? (
                               <span
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-500/45 bg-emerald-950/40 text-emerald-300"
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-cyan-500/45 bg-cyan-950/40 text-cyan-300"
                                 title={W.mergePasswordOk}
                                 aria-label={W.mergePasswordOk}
                               >
@@ -2877,7 +3213,13 @@ function App() {
             ) : null}
 
             <button className="primary-action" type="submit" disabled={submitDisabled}>
-              {submitting ? W.processing : selectedFeature.buttonText}
+              {submitting
+                ? freeQueueLikely
+                  ? W.processingQueued
+                  : premiumProcessingLane
+                    ? W.processingPremium
+                    : W.processing
+                : selectedFeature.buttonText}
             </button>
           </form>
             </div>
@@ -2921,6 +3263,38 @@ function App() {
               >
                 <div className="progress-bar__fill progress-bar__fill--success" style={{ width: "100%" }} />
               </div>
+              {showUsageQuota && postRunUpgradeHintVisible && !postRunUpgradeHintDismissed ? (
+                <div className="mt-3 flex flex-col gap-2 rounded-xl border border-indigo-500/20 bg-indigo-950/20 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-[12px] leading-relaxed text-slate-400">{W.delayMonetizationAfterHint}</p>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      className="nb-transition text-[11px] font-semibold text-cyan-300 hover:text-cyan-200"
+                      onClick={() => openConversionUpgradeModalManual()}
+                    >
+                      {W.delayMonetizationInstantCta}
+                    </button>
+                    <button
+                      type="button"
+                      className="nb-transition text-[11px] text-slate-500 hover:text-slate-400"
+                      onClick={() => setPostRunUpgradeHintDismissed(true)}
+                    >
+                      {W.delayMonetizationAfterDismiss}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              {upgradeNudgeTier >= 1 && showUsageQuota && !upgradeNudgePostSuccessHidden ? (
+                <UpgradeNudgeInline
+                  tier={upgradeNudgeTier as 1 | 2 | 3}
+                  W={W}
+                  onContinueFree={() => setUpgradeNudgePostSuccessHidden(true)}
+                  onUpgrade={() => {
+                    openConversionUpgradeModalManual();
+                    setUpgradeNudgePostSuccessHidden(true);
+                  }}
+                />
+              ) : null}
               <div className="merge-progress-fixed__success-actions">
                 {toolProgressSuccess.replay ? (
                   <button
@@ -2955,7 +3329,11 @@ function App() {
                   {mergeJob.status !== "failed" ? (
                     <p className="merge-progress-fixed__phase">
                       {mergeJob.id === MERGE_JOB_PENDING_ID
-                        ? W.mergeProgressStarting
+                        ? freeQueueLikely
+                          ? W.mergeProgressQueueFree
+                          : premiumProcessingLane
+                            ? W.mergeProgressQueuePremium
+                            : W.mergeProgressStarting
                         : mergeToolPhaseLabel(mergeJob, mergeProgressIndeterminate, W)}
                     </p>
                   ) : null}
@@ -2994,6 +3372,17 @@ function App() {
                   <span className="merge-progress-fixed__eta">{W.mergeEtaLine(mergeEtaSeconds)}</span>
                 ) : null}
               </div>
+              {showUpgradeNudgeOnLoading && mergeProgressActive ? (
+                <UpgradeNudgeInline
+                  tier={upgradeNudgeTier as 1 | 2 | 3}
+                  W={W}
+                  onContinueFree={() => setUpgradeNudgeLoadingHidden(true)}
+                  onUpgrade={() => {
+                    openConversionUpgradeModalManual();
+                    setUpgradeNudgeLoadingHidden(true);
+                  }}
+                />
+              ) : null}
               {mergeJob.status === "failed" && mergeJob.error ? (
                 <p className="merge-progress-fixed__err">{mergeJob.error}</p>
               ) : null}
@@ -3007,7 +3396,13 @@ function App() {
                 <div className="merge-progress-fixed__titles">
                   <strong className="merge-progress-fixed__title">{selectedFeature.title}</strong>
                   <p className="merge-progress-fixed__phase">
-                    {genericToolPhaseLabel(selectedFeatureId, genericToolPercent, genericProgressIndeterminate, W)}
+                    {genericToolPhaseLabel(
+                      selectedFeatureId,
+                      genericToolPercent,
+                      genericProgressIndeterminate,
+                      W,
+                      freeQueueLikely,
+                    )}
                   </p>
                 </div>
                 <span className="merge-progress-fixed__pct">
@@ -3025,6 +3420,7 @@ function App() {
                   genericToolPercent,
                   genericProgressIndeterminate,
                   W,
+                  freeQueueLikely,
                 )}
               >
                 {genericProgressIndeterminate ? (
@@ -3037,7 +3433,13 @@ function App() {
                 )}
               </div>
               <div className="merge-progress-fixed__meta merge-progress-fixed__meta--generic">
-                <span>{W.toolProgressSub}</span>
+                <span>
+                  {freeQueueLikely
+                    ? W.toolProgressSubQueueFree
+                    : premiumProcessingLane
+                      ? W.toolProgressSubPremium
+                      : W.toolProgressSub}
+                </span>
                 {genericToolFileMb >= 5 ? (
                   <span className="merge-progress-fixed__eta">{W.toolProgressLargeFileHint(genericToolFileMb)}</span>
                 ) : null}
@@ -3048,6 +3450,17 @@ function App() {
                   <span className="merge-progress-fixed__eta">{W.mergeEtaLine(genericToolRemainingSec)}</span>
                 ) : null}
               </div>
+              {showUpgradeNudgeOnLoading && genericToolProgressActive ? (
+                <UpgradeNudgeInline
+                  tier={upgradeNudgeTier as 1 | 2 | 3}
+                  W={W}
+                  onContinueFree={() => setUpgradeNudgeLoadingHidden(true)}
+                  onUpgrade={() => {
+                    openConversionUpgradeModalManual();
+                    setUpgradeNudgeLoadingHidden(true);
+                  }}
+                />
+              ) : null}
             </div>
           </div>
         ) : null}

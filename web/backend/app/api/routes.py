@@ -65,7 +65,7 @@ async def merge_pdfs(
             saved_paths.append(saved)
 
         total_bytes = sum(p.stat().st_size for p in saved_paths if p.is_file())
-        await saas_assert_feature(token, "merge", total_size_bytes=total_bytes)
+        _reduced, merge_friction, merge_tier = await saas_assert_feature(token, "merge", total_size_bytes=total_bytes)
 
         passwords: dict[str, str] = {}
         if passwords_json.strip():
@@ -92,7 +92,10 @@ async def merge_pdfs(
 
         output_name = "birleştirilmiş.pdf"
         job_id = create_merge_job(saved_paths, passwords, workdir, output_name, saas_token=token)
-        return {"job_id": job_id}
+        out: dict = {"job_id": job_id, "processingTier": merge_tier}
+        if merge_friction:
+            out["saasFriction"] = merge_friction
+        return out
     except Exception as error:
         cleanup_and_raise(workdir, error)
 
@@ -167,7 +170,9 @@ async def split_pdf(
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
-        await saas_assert_feature(token, "split", total_size_bytes=saved_file.stat().st_size)
+        _reduced, split_friction, split_tier = await saas_assert_feature(
+            token, "split", total_size_bytes=saved_file.stat().st_size
+        )
         password = password.strip() or None
         if engine.is_pdf_encrypted(str(saved_file)) and not password:
             raise HTTPException(status_code=400, detail="Şifreli PDF için kaynak parolası gerekli.")
@@ -179,7 +184,15 @@ async def split_pdf(
             output_path = workdir / output_name
             engine.extract_pages(str(saved_file), pages, str(output_path), password=password)
             await saas_record_usage(token, "split")
-            return download_response(output_path, output_path.name, "application/pdf", background_tasks, workdir)
+            return download_response(
+                output_path,
+                output_path.name,
+                "application/pdf",
+                background_tasks,
+                workdir,
+                saas_friction=split_friction,
+                processing_tier=split_tier,
+            )
 
         output_folder = workdir / "separate-pages"
         output_folder.mkdir(parents=True, exist_ok=True)
@@ -193,7 +206,15 @@ async def split_pdf(
         zip_name = format_split_zip_filename(file.filename or saved_file.name, pages)
         zip_path = create_zip_archive(workdir / zip_name, renamed_paths)
         await saas_record_usage(token, "split")
-        return download_response(zip_path, zip_path.name, "application/zip", background_tasks, workdir)
+        return download_response(
+            zip_path,
+            zip_path.name,
+            "application/zip",
+            background_tasks,
+            workdir,
+            saas_friction=split_friction,
+            processing_tier=split_tier,
+        )
     except Exception as error:
         cleanup_and_raise(workdir, error)
 
@@ -208,7 +229,7 @@ async def pdf_to_word(
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
-        reduced_quality = await saas_assert_feature(
+        reduced_quality, word_friction, word_tier = await saas_assert_feature(
             token, "pdf-to-word", total_size_bytes=saved_file.stat().st_size
         )
         pwd = password.strip() or None
@@ -225,6 +246,8 @@ async def pdf_to_word(
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             background_tasks,
             workdir,
+            saas_friction=word_friction,
+            processing_tier=word_tier,
         )
     except Exception as error:
         cleanup_and_raise(workdir, error)
@@ -239,12 +262,22 @@ async def word_to_pdf(
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
-        await saas_assert_feature(token, "word-to-pdf", total_size_bytes=saved_file.stat().st_size)
+        _r, wtp_friction, wtp_tier = await saas_assert_feature(
+            token, "word-to-pdf", total_size_bytes=saved_file.stat().st_size
+        )
         output_name = format_derived_filename(file.filename or saved_file.name, "PDF", "pdf")
         output_path = workdir / output_name
         engine.word_to_pdf(str(saved_file), str(output_path))
         await saas_record_usage(token, "word-to-pdf")
-        return download_response(output_path, output_path.name, "application/pdf", background_tasks, workdir)
+        return download_response(
+            output_path,
+            output_path.name,
+            "application/pdf",
+            background_tasks,
+            workdir,
+            saas_friction=wtp_friction,
+            processing_tier=wtp_tier,
+        )
     except Exception as error:
         cleanup_and_raise(workdir, error)
 
@@ -258,12 +291,22 @@ async def excel_to_pdf(
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
-        await saas_assert_feature(token, "excel-to-pdf", total_size_bytes=saved_file.stat().st_size)
+        _r, etp_friction, etp_tier = await saas_assert_feature(
+            token, "excel-to-pdf", total_size_bytes=saved_file.stat().st_size
+        )
         output_name = format_derived_filename(file.filename or saved_file.name, "PDF", "pdf")
         output_path = workdir / output_name
         engine.excel_to_pdf(str(saved_file), str(output_path))
         await saas_record_usage(token, "excel-to-pdf")
-        return download_response(output_path, output_path.name, "application/pdf", background_tasks, workdir)
+        return download_response(
+            output_path,
+            output_path.name,
+            "application/pdf",
+            background_tasks,
+            workdir,
+            saas_friction=etp_friction,
+            processing_tier=etp_tier,
+        )
     except Exception as error:
         cleanup_and_raise(workdir, error)
 
@@ -278,7 +321,9 @@ async def pdf_to_excel(
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
-        await saas_assert_feature(token, "pdf-to-excel", total_size_bytes=saved_file.stat().st_size)
+        _r, pte_friction, pte_tier = await saas_assert_feature(
+            token, "pdf-to-excel", total_size_bytes=saved_file.stat().st_size
+        )
         output_name = format_derived_filename(file.filename or saved_file.name, "Excel", "xlsx")
         output_path = workdir / output_name
         engine.pdf_text_to_excel(
@@ -294,6 +339,8 @@ async def pdf_to_excel(
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             background_tasks,
             workdir,
+            saas_friction=pte_friction,
+            processing_tier=pte_tier,
         )
     except Exception as error:
         cleanup_and_raise(workdir, error)
@@ -309,12 +356,22 @@ async def compress_pdf(
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
-        await saas_assert_feature(token, "compress", total_size_bytes=saved_file.stat().st_size)
+        _r, comp_friction, comp_tier = await saas_assert_feature(
+            token, "compress", total_size_bytes=saved_file.stat().st_size
+        )
         output_name = format_derived_filename(file.filename or saved_file.name, "Sıkıştırılmış", "pdf")
         output_path = workdir / output_name
         engine.compress_pdf(str(saved_file), str(output_path), password=password.strip() or None)
         await saas_record_usage(token, "compress")
-        return download_response(output_path, output_path.name, "application/pdf", background_tasks, workdir)
+        return download_response(
+            output_path,
+            output_path.name,
+            "application/pdf",
+            background_tasks,
+            workdir,
+            saas_friction=comp_friction,
+            processing_tier=comp_tier,
+        )
     except Exception as error:
         cleanup_and_raise(workdir, error)
 
@@ -334,7 +391,9 @@ async def encrypt_pdf(
     workdir = create_workdir()
     try:
         saved_file = await save_upload(file, workdir)
-        await saas_assert_feature(token, "encrypt", total_size_bytes=saved_file.stat().st_size)
+        _r, enc_friction, enc_tier = await saas_assert_feature(
+            token, "encrypt", total_size_bytes=saved_file.stat().st_size
+        )
         output_name = format_derived_filename(file.filename or saved_file.name, "Şifreli", "pdf")
         output_path = workdir / output_name
         engine.encrypt_pdf(
@@ -344,6 +403,14 @@ async def encrypt_pdf(
             input_password=input_password.strip() or None,
         )
         await saas_record_usage(token, "encrypt")
-        return download_response(output_path, output_path.name, "application/pdf", background_tasks, workdir)
+        return download_response(
+            output_path,
+            output_path.name,
+            "application/pdf",
+            background_tasks,
+            workdir,
+            saas_friction=enc_friction,
+            processing_tier=enc_tier,
+        )
     except Exception as error:
         cleanup_and_raise(workdir, error)

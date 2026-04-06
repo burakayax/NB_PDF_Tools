@@ -8,11 +8,18 @@ import {
   type PostLimitThrottle,
 } from "./post-limit-throttle.js";
 import { buildRecordPastLimitCopy, buildSummaryUpgradeHint } from "./conversion-upgrade.js";
-import { getToolsConversionOverrides } from "./tools-config-runtime.js";
+import { getResolvedToolsBusinessConfig } from "./tools-config-runtime.js";
 import { computeUsageSoftWarnings, mergeUsageSoftWarnings } from "./usage-soft-warnings.js";
 import type { FeatureKey } from "./subscription.config.js";
 import { getPaymentPricesTry } from "../payment/payment-pricing.js";
+import { isFeatureGloballyDisabled } from "../../lib/tools-feature-policy.js";
 import { getPlanDefinitionsResolved } from "./plan-runtime.js";
+import {
+  computeBehaviorStressMultiplier,
+  getTopToolsFromCounts,
+  incrementUserLifetimeOperation,
+  parseToolUsageCountsJson,
+} from "./user-behavior.service.js";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -54,6 +61,9 @@ export type SubscriptionStatusPayload = {
   plan: Plan;
   remaining_days: number | null;
   plan_downgraded?: boolean;
+  /** PRO/Business (and admin-as-PRO): no server throttle lane. */
+  processingTier: "premium" | "standard";
+  priorityProcessing: boolean;
 };
 
 export async function getSubscriptionStatus(userId: string): Promise<SubscriptionStatusPayload> {
@@ -61,16 +71,22 @@ export async function getSubscriptionStatus(userId: string): Promise<Subscriptio
   const { user, downgraded } = await ensurePaidSubscriptionActiveOrDowngrade(userId);
   const base = downgraded ? { plan_downgraded: true as const } : {};
 
+  const premium = isAdminUser(user) || user.plan === "PRO" || user.plan === "BUSINESS";
+  const lane = {
+    processingTier: premium ? ("premium" as const) : ("standard" as const),
+    priorityProcessing: premium,
+  };
+
   if (isAdminUser(user)) {
-    return { plan: "PRO", remaining_days: null, ...base };
+    return { plan: "PRO", remaining_days: null, ...base, ...lane };
   }
 
   if (user.plan === "FREE") {
-    return { plan: "FREE", remaining_days: null, ...base };
+    return { plan: "FREE", remaining_days: null, ...base, ...lane };
   }
 
   if (!user.subscriptionExpiry) {
-    return { plan: user.plan, remaining_days: null };
+    return { plan: user.plan, remaining_days: null, ...lane };
   }
 
   const remaining_days = Math.max(
@@ -78,7 +94,7 @@ export async function getSubscriptionStatus(userId: string): Promise<Subscriptio
     Math.ceil((user.subscriptionExpiry.getTime() - now.getTime()) / MS_PER_DAY),
   );
 
-  return { plan: user.plan, remaining_days };
+  return { plan: user.plan, remaining_days, ...lane };
 }
 
 async function serializePlanCatalog() {
@@ -88,12 +104,14 @@ async function serializePlanCatalog() {
     ...plan,
     monthlyPriceTry:
       plan.name === "FREE" ? null : (prices[plan.name as "PRO" | "BUSINESS"] ?? null),
+    annualPriceTry: plan.name === "PRO" ? prices.PRO_ANNUAL : null,
   }));
 }
 
 export async function getSubscriptionSummary(userId: string) {
   const { user } = await ensurePaidSubscriptionActiveOrDowngrade(userId);
   const defs = await getPlanDefinitionsResolved();
+  const toolsCfg = await getResolvedToolsBusinessConfig();
 
   const usageDate = todayKey();
   const usage = await prisma.dailyUsage.findUnique({
@@ -113,15 +131,23 @@ export async function getSubscriptionSummary(userId: string) {
       currentPlan: {
         ...adminPlan,
       },
-      usage: mergeUsageSoftWarnings({
-        date: usageDate,
-        usedToday,
-        remainingToday: null,
-        dailyLimit: null,
-        lastFeatureKey: usage?.lastFeatureKey ?? null,
-        postLimitExtraOps: usage?.postLimitExtraOps ?? 0,
-        postLimitThrottleEventsToday: usage?.postLimitThrottleCount ?? 0,
-      }),
+      usage: {
+        ...mergeUsageSoftWarnings(
+          {
+            date: usageDate,
+            usedToday,
+            remainingToday: null,
+            dailyLimit: null,
+            lastFeatureKey: usage?.lastFeatureKey ?? null,
+            postLimitExtraOps: usage?.postLimitExtraOps ?? 0,
+            postLimitThrottleEventsToday: usage?.postLimitThrottleCount ?? 0,
+          },
+          { approachingCapRatio: toolsCfg.usageSoftWarningRatio },
+        ),
+        processingTier: "premium" as const,
+        priorityProcessing: true,
+        serverThrottleApplies: false,
+      },
       allowedFeatures: adminPlan.allowedFeatures,
     };
   }
@@ -129,28 +155,72 @@ export async function getSubscriptionSummary(userId: string) {
   const plan = defs[user.plan];
   const remainingToday = plan.dailyLimit === null ? null : Math.max(plan.dailyLimit - usedToday, 0);
   const throttleEvents = usage?.postLimitThrottleCount ?? 0;
-  const usagePayload = mergeUsageSoftWarnings({
-    date: usageDate,
-    usedToday,
-    remainingToday,
-    dailyLimit: plan.dailyLimit,
-    lastFeatureKey: usage?.lastFeatureKey ?? null,
-    postLimitExtraOps: usage?.postLimitExtraOps ?? 0,
-    postLimitThrottleEventsToday: throttleEvents,
-  });
-  const ctaOv = plan.dailyLimit !== null ? await getToolsConversionOverrides() : undefined;
+  const softFrictionAfterOps =
+    user.plan === "FREE" && plan.dailyLimit === null ? toolsCfg.postLimitThrottle.freeOpsBeforeThrottle : null;
+  const usagePayload = mergeUsageSoftWarnings(
+    {
+      date: usageDate,
+      usedToday,
+      remainingToday,
+      dailyLimit: plan.dailyLimit,
+      softFrictionAfterOps,
+      lastFeatureKey: usage?.lastFeatureKey ?? null,
+      postLimitExtraOps: usage?.postLimitExtraOps ?? 0,
+      postLimitThrottleEventsToday: throttleEvents,
+    },
+    { approachingCapRatio: toolsCfg.usageSoftWarningRatio },
+  );
+  const ctaOv = user.plan === "FREE" ? toolsCfg.conversion : undefined;
   const hint =
-    plan.dailyLimit !== null
+    user.plan === "FREE"
       ? buildSummaryUpgradeHint(
           {
             usedToday,
             dailyLimit: plan.dailyLimit,
             postLimitExtraOps: usage?.postLimitExtraOps ?? 0,
             postLimitThrottleEventsToday: throttleEvents,
+            freeOpsBeforeThrottle: plan.dailyLimit === null ? toolsCfg.postLimitThrottle.freeOpsBeforeThrottle : null,
           },
           ctaOv,
         )
       : null;
+
+  const freeBefore = toolsCfg.postLimitThrottle.freeOpsBeforeThrottle;
+  const conversionTrackingFree =
+    user.plan === "FREE"
+      ? plan.dailyLimit !== null
+        ? {
+            freeLimitExceeded: usedToday >= plan.dailyLimit || (usage?.postLimitExtraOps ?? 0) > 0,
+            operationsToday: usedToday,
+            dailyLimit: plan.dailyLimit,
+            softFrictionAfterOps: freeBefore,
+            postLimitExtraOps: usage?.postLimitExtraOps ?? 0,
+            postLimitThrottleEventsToday: throttleEvents,
+            freeLimitFirstExceededAt: user.freeLimitFirstExceededAt?.toISOString() ?? null,
+          }
+        : {
+            freeLimitExceeded:
+              usedToday >= freeBefore || (usage?.postLimitExtraOps ?? 0) > 0 || throttleEvents > 0,
+            operationsToday: usedToday,
+            dailyLimit: null as number | null,
+            softFrictionAfterOps: freeBefore,
+            postLimitExtraOps: usage?.postLimitExtraOps ?? 0,
+            postLimitThrottleEventsToday: throttleEvents,
+            freeLimitFirstExceededAt: user.freeLimitFirstExceededAt?.toISOString() ?? null,
+          }
+      : null;
+
+  const behaviorMonetization =
+    user.plan === "FREE"
+      ? {
+          totalOperationsLifetime: user.totalOperationsCount,
+          totalThrottleEventsLifetime: user.totalThrottleEventsCount,
+          totalUpgradeCtaImpressionsLifetime: user.totalUpgradeCtaImpressionsCount,
+          toolUsageTop: getTopToolsFromCounts(parseToolUsageCountsJson(user.toolUsageCountsJson), 8),
+        }
+      : null;
+
+  const premiumExperience = user.plan === "PRO" || user.plan === "BUSINESS";
 
   return {
     currentPlan: {
@@ -164,17 +234,19 @@ export async function getSubscriptionSummary(userId: string) {
             conversionSummary: hint.conversionSummary,
           }
         : {}),
-      conversionTracking:
-        plan.dailyLimit !== null
-          ? {
-              freeLimitExceeded: usedToday >= plan.dailyLimit || (usage?.postLimitExtraOps ?? 0) > 0,
-              operationsToday: usedToday,
-              dailyLimit: plan.dailyLimit,
-              postLimitExtraOps: usage?.postLimitExtraOps ?? 0,
-              postLimitThrottleEventsToday: throttleEvents,
-              freeLimitFirstExceededAt: user.freeLimitFirstExceededAt?.toISOString() ?? null,
-            }
-          : null,
+      conversionTracking: conversionTrackingFree,
+      behaviorMonetization,
+      ...(premiumExperience
+        ? {
+            processingTier: "premium" as const,
+            priorityProcessing: true,
+            serverThrottleApplies: false,
+          }
+        : {
+            processingTier: "standard" as const,
+            priorityProcessing: false,
+            serverThrottleApplies: toolsCfg.postLimitThrottle.delaysEnabled,
+          }),
     },
     allowedFeatures: plan.allowedFeatures,
   };
@@ -192,16 +264,21 @@ export async function assertSubscriptionAllowsOperation(userId: string, featureK
     return;
   }
 
+  if (await isFeatureGloballyDisabled(featureKey)) {
+    throw new HttpError(503, "This tool is temporarily unavailable.");
+  }
+
   const defs = await getPlanDefinitionsResolved();
   const plan = defs[user.plan];
-  if (!plan.allowedFeatures.includes(featureKey)) {
+  /* FREE: full catalog always (see plan-runtime); never 403 on tool choice — friction handles conversion. */
+  if (user.plan !== "FREE" && !plan.allowedFeatures.includes(featureKey)) {
     throw new HttpError(403, "Your current plan does not include this feature.");
   }
 
   /* Daily quota: free users past the limit are not blocked; assert-feature applies a progressive delay. */
 }
 
-/** After quota checks pass, returns throttle info when free user is past daily limit (caller applies delay). */
+/** After quota checks pass, returns throttle info for FREE users past the delay-free op count (caller applies delay). */
 export async function getPostLimitThrottleForUser(
   userId: string,
   featureKey: FeatureKey,
@@ -214,52 +291,88 @@ export async function getPostLimitThrottleForUser(
   }
 
   const defs = await getPlanDefinitionsResolved();
+  const toolsCfg = await getResolvedToolsBusinessConfig();
   const plan = defs[user.plan];
   const usageDate = todayKey();
-  const currentUsage = await prisma.dailyUsage.findUnique({
-    where: {
-      userId_usageDate: {
-        userId,
-        usageDate,
+  const [currentUsage, behUser] = await Promise.all([
+    prisma.dailyUsage.findUnique({
+      where: {
+        userId_usageDate: {
+          userId,
+          usageDate,
+        },
       },
-    },
-  });
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        totalOperationsCount: true,
+        totalThrottleEventsCount: true,
+        toolUsageCountsJson: true,
+      },
+    }),
+  ]);
 
   const usedToday = currentUsage?.operationsCount ?? 0;
   const priorThrottle = currentUsage?.postLimitThrottleCount ?? 0;
-  const conversionCtaOverrides = await getToolsConversionOverrides();
+  const toolCounts = parseToolUsageCountsJson(behUser?.toolUsageCountsJson);
+  const lifetimeThrottle = behUser?.totalThrottleEventsCount ?? 0;
+  const lifetimeOps = behUser?.totalOperationsCount ?? 0;
+  const behaviorStressMultiplier = computeBehaviorStressMultiplier({
+    lifetimeThrottleEvents: lifetimeThrottle,
+    lifetimeTotalOps: lifetimeOps,
+    toolCounts,
+    featureKey,
+  });
+
   return computePostLimitThrottle({
+    userPlan: user.plan,
     usedToday,
     dailyLimit: plan.dailyLimit,
     featureKey,
     totalSizeBytes: options.totalSizeBytes,
     postLimitExtraOps: currentUsage?.postLimitExtraOps ?? 0,
     throttleOpNumber: priorThrottle + 1,
-    conversionCtaOverrides,
+    behaviorStressMultiplier,
+    lifetimeThrottleEvents: lifetimeThrottle,
+    lifetimeTotalOps: lifetimeOps,
+    conversionCtaOverrides: toolsCfg.conversion,
+    throttleRuntime: toolsCfg.postLimitThrottle,
+    conversionMessaging: toolsCfg.conversionMessaging,
   });
 }
 
 /** Counts each post-limit delayed assert/authorize for conversion analytics. */
 export async function incrementPostLimitThrottleCount(userId: string): Promise<number> {
   const usageDate = todayKey();
-  const row = await prisma.dailyUsage.upsert({
-    where: {
-      userId_usageDate: {
+  const row = await prisma.$transaction(async (tx) => {
+    const u = await tx.dailyUsage.upsert({
+      where: {
+        userId_usageDate: {
+          userId,
+          usageDate,
+        },
+      },
+      update: {
+        postLimitThrottleCount: { increment: 1 },
+      },
+      create: {
         userId,
         usageDate,
+        operationsCount: 0,
+        postLimitExtraOps: 0,
+        postLimitThrottleCount: 1,
       },
-    },
-    update: {
-      postLimitThrottleCount: { increment: 1 },
-    },
-    create: {
-      userId,
-      usageDate,
-      operationsCount: 0,
-      postLimitExtraOps: 0,
-      postLimitThrottleCount: 1,
-    },
-    select: { postLimitThrottleCount: true },
+      select: { postLimitThrottleCount: true },
+    });
+    await tx.user.updateMany({
+      where: { id: userId },
+      data: {
+        totalThrottleEventsCount: { increment: 1 },
+        totalUpgradeCtaImpressionsCount: { increment: 1 },
+      },
+    });
+    return u;
   });
   return row.postLimitThrottleCount;
 }
@@ -276,6 +389,7 @@ export async function recordUsage(userId: string, featureKey: FeatureKey) {
   }
 
   if (isAdminUser(user)) {
+    const toolsCfg = await getResolvedToolsBusinessConfig();
     const usageDate = todayKey();
     const currentUsage = await prisma.dailyUsage.findUnique({
       where: {
@@ -292,7 +406,12 @@ export async function recordUsage(userId: string, featureKey: FeatureKey) {
       operationsCount: ops,
       remainingToday: null,
       postLimitExtraOps: extra,
-      ...computeUsageSoftWarnings({ dailyLimit: null, usedToday: ops, postLimitExtraOps: extra }),
+      ...computeUsageSoftWarnings({
+        dailyLimit: null,
+        usedToday: ops,
+        postLimitExtraOps: extra,
+        approachingCapRatio: toolsCfg.usageSoftWarningRatio,
+      }),
       usageSummary: null,
       conversionMessage: null,
       reducedOutputQuality: false,
@@ -304,6 +423,7 @@ export async function recordUsage(userId: string, featureKey: FeatureKey) {
   }
 
   const defs = await getPlanDefinitionsResolved();
+  const toolsCfg = await getResolvedToolsBusinessConfig();
   const plan = defs[user.plan];
   const usageDate = todayKey();
 
@@ -316,7 +436,13 @@ export async function recordUsage(userId: string, featureKey: FeatureKey) {
     },
   });
   const usedBefore = existingRow?.operationsCount ?? 0;
-  const extraInc = plan.dailyLimit !== null && usedBefore >= plan.dailyLimit ? 1 : 0;
+  const freeBefore = toolsCfg.postLimitThrottle.freeOpsBeforeThrottle;
+  const extraInc =
+    plan.dailyLimit !== null && usedBefore >= plan.dailyLimit
+      ? 1
+      : user.plan === "FREE" && plan.dailyLimit === null && usedBefore >= freeBefore
+        ? 1
+        : 0;
 
   const nextUsage = await prisma.dailyUsage.upsert({
     where: {
@@ -339,10 +465,6 @@ export async function recordUsage(userId: string, featureKey: FeatureKey) {
     },
   });
 
-  const dailyLimit = plan.dailyLimit;
-  const isFreeTier = dailyLimit !== null;
-  const pastFreeAllowance = isFreeTier && nextUsage.operationsCount > dailyLimit;
-
   if (extraInc) {
     await prisma.user.updateMany({
       where: { id: userId, freeLimitFirstExceededAt: null },
@@ -350,36 +472,62 @@ export async function recordUsage(userId: string, featureKey: FeatureKey) {
     });
   }
 
+  await incrementUserLifetimeOperation(userId, featureKey);
+
   const refreshedUser = await prisma.user.findUnique({
     where: { id: userId },
-    select: { freeLimitFirstExceededAt: true },
+    select: {
+      freeLimitFirstExceededAt: true,
+      totalOperationsCount: true,
+      totalThrottleEventsCount: true,
+      totalUpgradeCtaImpressionsCount: true,
+    },
   });
+
+  const dailyLimit = plan.dailyLimit;
+  const pastFreeAllowance =
+    (dailyLimit !== null && nextUsage.operationsCount > dailyLimit) ||
+    (user.plan === "FREE" && dailyLimit === null && nextUsage.operationsCount > freeBefore);
 
   const softWarnings = computeUsageSoftWarnings({
     dailyLimit,
     usedToday: nextUsage.operationsCount,
     postLimitExtraOps: nextUsage.postLimitExtraOps,
+    approachingCapRatio: toolsCfg.usageSoftWarningRatio,
+    softFrictionAfterOps: user.plan === "FREE" && dailyLimit === null ? freeBefore : null,
   });
 
   let conversionMessage: string | null = null;
   let postLimitMessage: string | null = null;
   let upgradeCta: ReturnType<typeof buildRecordPastLimitCopy>["upgradeCta"] | null = null;
 
-  if (pastFreeAllowance && dailyLimit !== null) {
-    const ctaOv = await getToolsConversionOverrides();
+  if (pastFreeAllowance && user.plan === "FREE") {
     const built = buildRecordPastLimitCopy(
       {
         operationsCount: nextUsage.operationsCount,
         dailyLimit,
+        freeOpsBeforeThrottle: freeBefore,
         postLimitExtraOps: nextUsage.postLimitExtraOps,
         postLimitThrottleEventsToday: nextUsage.postLimitThrottleCount,
+        lifetimeThrottleEvents: refreshedUser?.totalThrottleEventsCount ?? 0,
+        lifetimeTotalOps: refreshedUser?.totalOperationsCount ?? 0,
       },
-      ctaOv,
+      toolsCfg.conversion,
+      toolsCfg.conversionMessaging,
     );
     conversionMessage = built.conversionMessage;
     postLimitMessage = built.postLimitMessage;
     upgradeCta = built.upgradeCta;
+    await prisma.user.updateMany({
+      where: { id: userId },
+      data: { totalUpgradeCtaImpressionsCount: { increment: 1 } },
+    });
   }
+
+  const priorityProcessing = user.plan === "PRO" || user.plan === "BUSINESS";
+  const delaysLifetime = refreshedUser?.totalThrottleEventsCount ?? 0;
+  const ctaImpressionsLifetime =
+    (refreshedUser?.totalUpgradeCtaImpressionsCount ?? 0) + (upgradeCta ? 1 : 0);
 
   return {
     usageDate,
@@ -387,22 +535,41 @@ export async function recordUsage(userId: string, featureKey: FeatureKey) {
     remainingToday: dailyLimit === null ? null : Math.max(dailyLimit - nextUsage.operationsCount, 0),
     postLimitExtraOps: nextUsage.postLimitExtraOps,
     ...softWarnings,
-    usageSummary: dailyLimit !== null ? formatFreeUsageLine(nextUsage.operationsCount, dailyLimit) : null,
+    usageSummary:
+      dailyLimit !== null
+        ? formatFreeUsageLine(nextUsage.operationsCount, dailyLimit)
+        : `${nextUsage.operationsCount} operations today`,
     conversionMessage,
     reducedOutputQuality: pastFreeAllowance,
-    priorityProcessing: dailyLimit === null,
+    priorityProcessing,
     postLimitMessage,
     upgradeCta,
     conversionTracking:
-      dailyLimit !== null
-        ? {
-            freeLimitExceeded: nextUsage.operationsCount > dailyLimit || nextUsage.postLimitExtraOps > 0,
-            operationsToday: nextUsage.operationsCount,
-            dailyLimit,
-            postLimitExtraOps: nextUsage.postLimitExtraOps,
-            postLimitThrottleEventsToday: nextUsage.postLimitThrottleCount,
-            freeLimitFirstExceededAt: refreshedUser?.freeLimitFirstExceededAt?.toISOString() ?? null,
-          }
+      user.plan === "FREE"
+        ? dailyLimit !== null
+          ? {
+              freeLimitExceeded: nextUsage.operationsCount > dailyLimit || nextUsage.postLimitExtraOps > 0,
+              operationsToday: nextUsage.operationsCount,
+              dailyLimit,
+              softFrictionAfterOps: freeBefore,
+              postLimitExtraOps: nextUsage.postLimitExtraOps,
+              postLimitThrottleEventsToday: nextUsage.postLimitThrottleCount,
+              freeLimitFirstExceededAt: refreshedUser?.freeLimitFirstExceededAt?.toISOString() ?? null,
+              lifetimeDelaysExperienced: delaysLifetime,
+              lifetimeUpgradeCtaImpressions: ctaImpressionsLifetime,
+            }
+          : {
+              freeLimitExceeded:
+                nextUsage.operationsCount > freeBefore || nextUsage.postLimitExtraOps > 0,
+              operationsToday: nextUsage.operationsCount,
+              dailyLimit: null,
+              softFrictionAfterOps: freeBefore,
+              postLimitExtraOps: nextUsage.postLimitExtraOps,
+              postLimitThrottleEventsToday: nextUsage.postLimitThrottleCount,
+              freeLimitFirstExceededAt: refreshedUser?.freeLimitFirstExceededAt?.toISOString() ?? null,
+              lifetimeDelaysExperienced: delaysLifetime,
+              lifetimeUpgradeCtaImpressions: ctaImpressionsLifetime,
+            }
         : null,
   };
 }

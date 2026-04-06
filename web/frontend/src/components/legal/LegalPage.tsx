@@ -12,7 +12,7 @@ export function LegalPage({ language, documentKey, onBack }: LegalPageProps) {
 
   return (
     <div className="min-h-screen overflow-hidden bg-nb-bg font-sans text-nb-text antialiased">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[480px] bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(37,99,235,0.18),transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[480px] bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(34,211,238,0.18),transparent_55%)]" />
 
       <main className="relative mx-auto w-full max-w-5xl px-6 py-10 sm:px-8 lg:px-12">
         <button
@@ -20,7 +20,7 @@ export function LegalPage({ language, documentKey, onBack }: LegalPageProps) {
           onClick={onBack}
           className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm font-semibold text-nb-text shadow-sm transition duration-200 ease-out hover:border-nb-primary/30 hover:bg-white/[0.08]"
         >
-          ← {language === "tr" ? "Geri dön" : "Back"}
+          â† {language === "tr" ? "Geri dÃ¶n" : "Back"}
         </button>
 
         <section className="mt-10 rounded-[28px] border border-white/[0.08] bg-nb-panel/50 p-8 shadow-[0_40px_90px_-24px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.04)_inset] backdrop-blur-xl sm:p-11">

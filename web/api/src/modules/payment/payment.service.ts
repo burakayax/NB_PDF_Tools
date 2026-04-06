@@ -29,8 +29,6 @@ const iyziUtils = iyziUtilsImport as {
   calculateHmacSHA256Signature: (params: string[], secretKey: string) => string;
 };
 
-const SUBSCRIPTION_DAYS = 30;
-
 function getIyzipay() {
   if (!env.iyzicoEnabled) {
     throw new HttpError(503, "Payment service is not configured.");
@@ -164,6 +162,7 @@ function promisifyRetrieve(iyzipay: ReturnType<typeof getIyzipay>, request: Reco
 export async function createPaymentCheckoutSession(params: {
   userId: string;
   plan: "PRO" | "BUSINESS";
+  billing: "monthly" | "annual";
   clientIp: string;
 }): Promise<{
   token: string;
@@ -172,7 +171,10 @@ export async function createPaymentCheckoutSession(params: {
   conversationId: string;
 }> {
   const prices = await getPaymentPricesTry();
-  const price = prices[params.plan];
+  const isAnnualPro = params.plan === "PRO" && params.billing === "annual";
+  const subscriptionDays = isAnnualPro ? 365 : 30;
+  const price =
+    params.plan === "BUSINESS" ? prices.BUSINESS : isAnnualPro ? prices.PRO_ANNUAL : prices.PRO;
   const user = await prisma.user.findUnique({
     where: { id: params.userId },
   });
@@ -199,6 +201,7 @@ export async function createPaymentCheckoutSession(params: {
       plan: params.plan,
       status: "pending",
       priceTry: price,
+      subscriptionDays,
     },
   });
 
@@ -247,7 +250,12 @@ export async function createPaymentCheckoutSession(params: {
     basketItems: [
       {
         id: params.plan,
-        name: params.plan === "PRO" ? "NB PDF TOOLS PRO (1 ay)" : "NB PDF TOOLS BUSINESS (1 ay)",
+        name:
+          params.plan === "BUSINESS"
+            ? "NB PDF TOOLS Basic (1 ay)"
+            : isAnnualPro
+              ? "NB PDF TOOLS PRO (1 yıl)"
+              : "NB PDF TOOLS PRO (1 ay)",
         category1: "Subscription",
         category2: "Software",
         itemType: Iyzipay.BASKET_ITEM_TYPE.VIRTUAL,
@@ -369,8 +377,9 @@ export async function processPaymentCallback(token: string): Promise<string> {
     return buildRedirectHtml(false);
   }
 
+  const subscriptionDays = pending.subscriptionDays ?? 30;
   const expiry = new Date();
-  expiry.setDate(expiry.getDate() + SUBSCRIPTION_DAYS);
+  expiry.setDate(expiry.getDate() + subscriptionDays);
 
   await prisma.$transaction(async (tx) => {
     const current = await tx.paymentCheckout.findUnique({

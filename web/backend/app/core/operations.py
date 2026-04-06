@@ -6,6 +6,7 @@ Bu dosya arayüz ile PDF motoru arasındaki düşük seviyeli yardımcıları to
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import shutil
@@ -13,7 +14,7 @@ import sys
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 from fastapi import BackgroundTasks, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -74,16 +75,44 @@ def cleanup_and_raise(workdir: Path, error: Exception) -> None:
     raise HTTPException(status_code=400, detail=detail) from error
 
 
+def saas_friction_http_headers(friction: dict[str, Any] | None) -> dict[str, str] | None:
+    """Node assert-feature gecikme yanıtı: istemci base64 JSON ile CTA + mesaj alır."""
+    if not friction:
+        return None
+    raw = json.dumps(friction, ensure_ascii=False).encode("utf-8")
+    payload = base64.b64encode(raw).decode("ascii")
+    return {"X-NB-SaaS-Friction": payload}
+
+
+def build_pdf_download_headers(
+    friction: dict[str, Any] | None,
+    *,
+    processing_tier: str | None = None,
+) -> dict[str, str] | None:
+    """İndirme yanıtı: dönüşüm (FREE) + öncelik hattı (premium | standard)."""
+    headers: dict[str, str] = {}
+    fr = saas_friction_http_headers(friction)
+    if fr:
+        headers.update(fr)
+    if processing_tier:
+        headers["X-NB-Processing-Tier"] = processing_tier
+    return headers if headers else None
+
+
 def download_response(
     path: Path,
     filename: str,
     media_type: str,
     background_tasks: BackgroundTasks,
     cleanup_target: Path,
+    *,
+    saas_friction: dict[str, Any] | None = None,
+    processing_tier: str | None = None,
 ):
     """Tek çıktı dosyasını stream ederken iş bitince geçici klasörü temizler."""
     background_tasks.add_task(cleanup_path, cleanup_target)
-    return FileResponse(path=path, filename=filename, media_type=media_type)
+    hdrs = build_pdf_download_headers(saas_friction, processing_tier=processing_tier)
+    return FileResponse(path=path, filename=filename, media_type=media_type, headers=hdrs)
 
 
 def parse_pages_text(pages_text: str, max_page: int | None = None) -> list[int]:

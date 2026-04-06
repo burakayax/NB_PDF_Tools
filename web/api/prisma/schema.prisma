@@ -50,6 +50,14 @@ model User {
   preferredLanguage Language  @default(en)
   /// İlk kez günlük ücretsiz kota aşıldığında (post-limit op veya kota üstü); dönüşüm analitiği.
   freeLimitFirstExceededAt DateTime? @map("free_limit_first_exceeded_at")
+  /// Ömür boyu tamamlanan PDF işlemi (web + masaüstü); monetizasyon / adaptif gecikme.
+  totalOperationsCount     Int            @default(0) @map("total_operations_count")
+  /// Ömür boyu gecikmeli assert/authorize sayısı (FREE sürtünme).
+  totalThrottleEventsCount Int            @default(0) @map("total_throttle_events_count")
+  /// JSON: { "split": n, "merge": n, ... } en çok kullanılan araçlar.
+  toolUsageCountsJson      String         @default("{}") @map("tool_usage_counts_json")
+  /// Gecikme sonrası veya kayıt yanıtında kaç kez yükseltme CTA gösterildi (dönüşüm).
+  totalUpgradeCtaImpressionsCount Int     @default(0) @map("total_upgrade_cta_impressions_count")
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
   refreshTokens RefreshToken[]
@@ -85,6 +93,8 @@ model PaymentCheckout {
   plan             Plan
   status           String    @default("pending")
   priceTry         String
+  /// Subscription length applied on successful payment (30 = monthly, 365 = annual).
+  subscriptionDays Int       @default(30) @map("subscription_days")
   createdAt        DateTime  @default(now())
   completedAt      DateTime?
 
@@ -208,4 +218,33 @@ model MediaAsset {
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@index([createdAt])
+}
+
+/// Admin actions (who changed what).
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now()) @map("created_at")
+  userId     String?  @map("user_id")
+  userEmail  String   @map("user_email")
+  action     String
+  targetKey  String?  @map("target_key")
+  summary    String
+  metaJson   String?  @map("meta_json")
+
+  @@index([createdAt])
+  @@map("admin_audit_logs")
+}
+
+/// Snapshot of a SiteSetting value *before* each admin write (for rollback).
+model SettingRevision {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now()) @map("created_at")
+  scope        String
+  userId       String?  @map("user_id")
+  userEmail    String   @map("user_email")
+  summary      String?
+  previousJson String   @map("previous_json")
+
+  @@index([scope, createdAt])
+  @@map("setting_revisions")
 }

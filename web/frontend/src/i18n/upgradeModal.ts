@@ -1,28 +1,35 @@
 import type { Language } from "./landing";
 
-/** Premium upgrade modal — conversion-focused copy (TR primary + EN). */
+/** Upgrade modal — Basic / Pro / Annual + regional pricing. */
 export function upgradeModalCopy(lang: Language) {
   const tr = lang === "tr";
   return {
-    title: tr ? "Sınırsız Gücün Kilidini Aç" : "Unlock Unlimited Power",
+    title: tr ? "Doğru planı seçin" : "Choose your plan",
     subtitle: tr
-      ? "NB PDF TOOLS ile tüm işlemleri limitsiz ve hızlı yapın"
-      : "Run every operation without limits — fast — with NB PDF TOOLS",
+      ? "Bölgenize göre gösterilen fiyatlar. Ödeme TRY ile güvenli ödeme ortağı üzerinden alınır."
+      : "Prices shown for your region. Checkout is securely processed in Turkish Lira (TRY).",
     planFree: tr ? "Ücretsiz" : "Free",
+    planBasic: tr ? "Basic" : "Basic",
     planPro: tr ? "Pro" : "Pro",
-    planBusiness: tr ? "Business" : "Business",
-    recommended: tr ? "Önerilen" : "Recommended",
+    planAnnual: tr ? "Pro (yıllık)" : "Pro (annual)",
+    mostPopular: tr ? "En popüler" : "Most Popular",
+    saveAnnual: (pct: number) =>
+      tr ? `~%${pct} tasarruf` : `Save ~${pct}%`,
     freeBullets: tr
-      ? ["Günlük 5 işlem", "Sadece temel özellikler"]
-      : ["5 operations per day", "Core features only"],
+      ? ["Günlük sınırlı işlem", "Temel araçlar", "Web erişimi"]
+      : ["Limited daily operations", "Core tools", "Web access"],
+    basicBullets: tr
+      ? ["Sınırsız işlem", "Tüm araçlar", "Standart öncelik"]
+      : ["Unlimited operations", "Full toolkit", "Standard priority"],
     proBullets: tr
-      ? ["Sınırsız işlem", "Tüm araçlara erişim", "Daha hızlı işlem"]
-      : ["Unlimited operations", "Full toolkit access", "Faster processing"],
-    businessBullets: tr
-      ? ["Tüm PRO özellikleri", "Toplu işlem (batch)", "Öncelikli destek"]
-      : ["Everything in PRO", "Batch processing", "Priority support"],
-    ctaPro: tr ? "PRO'ya Geç" : "Go PRO",
-    ctaBusiness: tr ? "Business'a Geç" : "Go Business",
+      ? ["Sınırsız işlem", "Öncelikli işlem hattı", "Tam kalite çıktı"]
+      : ["Unlimited operations", "Priority processing lane", "Full quality output"],
+    annualBullets: tr
+      ? ["Pro’nun tümü", "En iyi aylık değer", "Tek yıllık ödeme"]
+      : ["Everything in Pro", "Best monthly value", "One annual payment"],
+    ctaBasic: tr ? "Basic seç" : "Choose Basic",
+    ctaPro: tr ? "Pro’ya geç" : "Get Pro",
+    ctaAnnual: tr ? "Yıllık Pro" : "Get annual Pro",
     close: tr ? "Kapat" : "Close",
   };
 }

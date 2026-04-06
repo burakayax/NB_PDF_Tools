@@ -108,6 +108,7 @@ app.use(
       callback(null, false);
     },
     credentials: true,
+    exposedHeaders: ["X-NB-Processing-Tier", "X-NB-Priority-Processing", "X-NB-SaaS-Friction"],
   }),
 );
 app.use(express.json());

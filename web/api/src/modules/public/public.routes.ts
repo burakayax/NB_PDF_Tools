@@ -1,9 +1,15 @@
 import { Router } from "express";
 import { asyncHandler } from "../../lib/async-handler.js";
-import { publicCmsController, publicPlansController, publicSiteConfigController } from "./public.controller.js";
+import {
+  publicCmsController,
+  publicPlansController,
+  publicRuntimeController,
+  publicSiteConfigController,
+} from "./public.controller.js";
 
 export const publicRouter = Router();
 
 publicRouter.get("/cms", asyncHandler(publicCmsController));
 publicRouter.get("/site-config", asyncHandler(publicSiteConfigController));
 publicRouter.get("/plans", asyncHandler(publicPlansController));
+publicRouter.get("/runtime", asyncHandler(publicRuntimeController));

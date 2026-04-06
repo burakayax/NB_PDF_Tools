@@ -1,12 +1,11 @@
-import { randomUUID } from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
 import { Router } from "express";
 import multer from "multer";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { requireAdmin } from "../../middleware/admin.middleware.js";
 import {
   adminAddBlockedEmailController,
+  adminAuditLogController,
+  adminControlMetaController,
   adminCreateUserController,
   adminDeleteUserController,
   adminGetCmsController,
@@ -23,30 +22,17 @@ import {
   adminPutPlansOverrideController,
   adminPutToolsController,
   adminRemoveBlockedEmailController,
+  adminRollbackRevisionController,
+  adminSettingRevisionsController,
+  adminSystemResetController,
   adminToolsController,
   adminUpdateUserController,
   adminUploadMediaController,
   adminUsageExportController,
   adminUsageSeriesController,
 } from "./admin.controller.js";
-import { getMediaUploadRoot } from "./media.service.js";
-
-function ensureMediaDir(): string {
-  const root = getMediaUploadRoot();
-  fs.mkdirSync(root, { recursive: true });
-  return root;
-}
-
 const mediaUpload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => {
-      cb(null, ensureMediaDir());
-    },
-    filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname).slice(0, 12).toLowerCase();
-      cb(null, `${randomUUID()}${ext || ""}`);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 12 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const okMime = /^image\//.test(file.mimetype) || file.mimetype === "application/pdf";
@@ -77,6 +63,12 @@ adminRouter.delete("/blocked-emails", asyncHandler(adminRemoveBlockedEmailContro
 
 adminRouter.get("/settings", asyncHandler(adminGetSettingsController));
 adminRouter.put("/settings", asyncHandler(adminPatchSettingsController));
+
+adminRouter.get("/control/meta", asyncHandler(adminControlMetaController));
+adminRouter.get("/audit-log", asyncHandler(adminAuditLogController));
+adminRouter.get("/revisions", asyncHandler(adminSettingRevisionsController));
+adminRouter.post("/revisions/rollback", asyncHandler(adminRollbackRevisionController));
+adminRouter.post("/system/reset", asyncHandler(adminSystemResetController));
 
 adminRouter.get("/cms", asyncHandler(adminGetCmsController));
 adminRouter.put("/cms", asyncHandler(adminPutCmsController));

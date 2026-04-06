@@ -59,6 +59,13 @@ const rawEnvSchema = z
     API_ABUSE_THRESHOLD: z.coerce.number().int().positive().default(5),
     /** Tekrarlı kötüye kullanım sonrası IP blok süresi (dakika). */
     API_ABUSE_BLOCK_MINUTES: z.coerce.number().int().positive().default(60),
+    /**
+     * Varsayılan “ücretsiz günlük limit” gösterimi (`site.settings.freeDailyLimitDisplay` / public bootstrap).
+     * FREE planında günlük üst sınır yok; yumuşak sürtünme `tools.config.postLimitThrottle` ile yönetilir.
+     */
+    DEFAULT_FREE_DAILY_LIMIT: z.coerce.number().int().min(0).max(10_000).default(5),
+    /** `tools.config` yokken masaüstü FREE max dosya boyutu (MB). */
+    DEFAULT_FREE_DESKTOP_MAX_FILE_MB: z.coerce.number().int().min(1).max(5000).default(15),
     /** Ters proxy arkasında doğru istemci IP için (örn. 1 veya sayı). Boş = güvenme. */
     TRUST_PROXY: z.string().optional().default(""),
     /** iyzico API (boşsa POST /api/payment/create 503 döner). */
@@ -78,6 +85,17 @@ const rawEnvSchema = z
     /** Doğrudan Node’da TLS için PEM yolları (ikisi de doluysa server.ts HTTPS dinler). */
     HTTPS_KEY_PATH: z.string().optional().default(""),
     HTTPS_CERT_PATH: z.string().optional().default(""),
+    /** Admin uploads: `local` (disk under uploads/media) or `s3` (S3-compatible). */
+    MEDIA_STORAGE: z.enum(["local", "s3"]).default("local"),
+    /** Public URL prefix for S3 objects (e.g. https://cdn.example.com or https://bucket.s3.region.amazonaws.com). Trailing slash optional. */
+    MEDIA_PUBLIC_BASE_URL: z.string().optional().default(""),
+    S3_BUCKET: z.string().optional().default(""),
+    S3_REGION: z.string().optional().default("us-east-1"),
+    S3_ACCESS_KEY_ID: z.string().optional().default(""),
+    S3_SECRET_ACCESS_KEY: z.string().optional().default(""),
+    /** MinIO / custom endpoint; leave empty for AWS. */
+    S3_ENDPOINT: z.string().optional().default(""),
+    S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).optional().default("false"),
   })
   .superRefine((data, ctx) => {
     const smtpOk = Boolean(data.SMTP_USER && data.SMTP_PASS);
@@ -121,4 +139,14 @@ export const env = {
   BOOTSTRAP_ADMIN_PASSWORD: raw.BOOTSTRAP_ADMIN_PASSWORD ?? "",
   /** Google callback sonrası /login-success ve /login-error adreslerinin kökü */
   OAUTH_FRONTEND_REDIRECT_ORIGIN: oauthRedirectOrigin,
+  mediaStorage: raw.MEDIA_STORAGE,
+  mediaS3: {
+    bucket: raw.S3_BUCKET?.trim() ?? "",
+    region: raw.S3_REGION?.trim() || "us-east-1",
+    accessKeyId: raw.S3_ACCESS_KEY_ID?.trim() ?? "",
+    secretAccessKey: raw.S3_SECRET_ACCESS_KEY?.trim() ?? "",
+    endpoint: raw.S3_ENDPOINT?.trim() ?? "",
+    forcePathStyle: raw.S3_FORCE_PATH_STYLE === "true",
+    publicBaseUrl: (raw.MEDIA_PUBLIC_BASE_URL?.trim() ?? "").replace(/\/$/, ""),
+  },
 };

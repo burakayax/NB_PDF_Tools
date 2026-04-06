@@ -15,6 +15,8 @@ async function ensureOk(response: Response, defaultMessage: string) {
 
 export type PaidPlan = "PRO" | "BUSINESS";
 
+export type PaymentBilling = "monthly" | "annual";
+
 export type CreatePaymentResponse = {
   token: string;
   checkoutFormContent: string;
@@ -23,7 +25,15 @@ export type CreatePaymentResponse = {
 };
 
 /** iyzico ödeme oturumu başlatır (JWT gerekli). */
-export async function createPaymentCheckout(accessToken: string, plan: PaidPlan): Promise<CreatePaymentResponse> {
+export async function createPaymentCheckout(
+  accessToken: string,
+  plan: PaidPlan,
+  billing: PaymentBilling = "monthly",
+): Promise<CreatePaymentResponse> {
+  const body: { plan: PaidPlan; billing?: PaymentBilling } = { plan };
+  if (plan === "PRO") {
+    body.billing = billing;
+  }
   const response = await fetch(`${getSaasApiBase()}/api/payment/create`, {
     method: "POST",
     headers: {
@@ -31,7 +41,7 @@ export async function createPaymentCheckout(accessToken: string, plan: PaidPlan)
       "Content-Type": "application/json",
     },
     credentials: "include",
-    body: JSON.stringify({ plan }),
+    body: JSON.stringify(body),
   });
   await ensureOk(response, "Payment could not be started.");
   return response.json() as Promise<CreatePaymentResponse>;

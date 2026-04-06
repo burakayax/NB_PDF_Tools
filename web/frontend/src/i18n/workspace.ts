@@ -41,12 +41,14 @@ export function ws(lang: Language) {
       ? "Dosya satırını sürükleyerek sırayı değiştirin veya okları kullanın. Liste uzunsa sürüklerken kenara yaklaştığınızda liste kayar. Birleştirme bu sıraya göre yapılır."
       : "Drag a file row to reorder, or use the arrows. Near the top or bottom edge of the list, the list scrolls while you drag. Merge follows this order.",
     mergeDragHandle: tr ? "Sırayı değiştirmek için sürükleyin" : "Drag to reorder",
-    proGateTitle: tr ? "Pro ve Business özelliği" : "Pro & Business feature",
+    proGateTitle: tr ? "Ücretli plan özelliği" : "Paid plan feature",
     proGateBody: tr
-      ? "Bu sayfa yalnızca Pro ve Business üyeler içindir. Planınızı yükseltmek için devam edin."
-      : "This tool is available on Pro and Business plans. Upgrade to unlock it.",
+      ? "Bu sayfa yalnızca Basic veya Pro üyeler içindir. Planınızı yükseltmek için devam edin."
+      : "This tool is available on Basic or Pro plans. Upgrade to unlock it.",
     proGateCta: tr ? "Plan değiştir" : "Change plan",
-    lockedFeatureTooltip: tr ? "Bu özellik PRO plan gerektirir" : "This feature requires a PRO plan",
+    lockedFeatureTooltip: tr
+      ? "Bu araç mevcut aboneliğinizde kapalıdır"
+      : "This tool is not included in your current subscription",
     filePick: tr ? "Dosya Seç" : "Choose file",
     fileAdd: tr ? "Dosya Ekle" : "Add file",
     selectedFiles: tr ? "Seçilen dosyalar" : "Selected files",
@@ -85,9 +87,15 @@ export function ws(lang: Language) {
     usageDailyHeading: tr ? "Günlük kullanım" : "Daily usage",
     usageUsedTodayLine: (used: number, limit: number) =>
       tr ? `Bugün kullanılan: ${used} / ${limit} işlem` : `Used today: ${used} / ${limit} operations`,
+    /** Free plan without a hard daily cap (soft friction after `fastRuns` fast operations). */
+    usageSoftTierLine: (used: number, fastRuns: number) =>
+      tr
+        ? `Bugün: ${used} işlem (ilk ${fastRuns} işlem en hızlı)`
+        : `Today: ${used} operations (first ${fastRuns} are fastest)`,
     usageCountOfLimit: (used: number, limit: number) =>
       tr ? `${used} / ${limit} işlem` : `${used} / ${limit} ops`,
     usageRemainingLine: (n: number) => (tr ? `Kalan işlem: ${n}` : `Remaining: ${n}`),
+    usageNoDailyCapLine: tr ? "Günlük işlem üst sınırı yok" : "No daily operation cap",
     usageUpgradeCta: tr ? "Sınırsız kullanım için PRO'ya geç" : "Upgrade to PRO for unlimited usage",
     /** Üst menüdeki kısa yükseltme düğmesi */
     navbarUpgrade: tr ? "Yükselt" : "Upgrade",
@@ -98,6 +106,9 @@ export function ws(lang: Language) {
     usageQuotaExhaustedBanner: tr
       ? "Bugünkü ücretsiz işlem hakkınızı kullandınız. Devam etmek için plan yükseltin."
       : "You've used your free daily operations for today. Upgrade to continue.",
+    usageSoftFrictionBanner: tr
+      ? "Ücretsiz planda ek işlemler kısa bir bekleme ile devam eder. Anında işlem ve öncelik için PRO'ya geçin."
+      : "Additional runs on Free may include a short wait. Upgrade to Pro for instant, priority processing.",
     proBenefitsKicker: tr ? "PRO değer önerisi" : "PRO value",
     proBenefitsTitle: tr
       ? "Daha hızlı işlem, tutarlı kalite, sınırsız kullanım"
@@ -143,12 +154,30 @@ export function ws(lang: Language) {
     tesseract: tr ? "Tesseract" : "Tesseract",
     notConfigured: tr ? "yapılandırılmadı" : "not configured",
     processing: tr ? "İŞLEM SÜRÜYOR…" : "PROCESSING…",
+    processingQueued: tr ? "SIRA / İŞLEM…" : "QUEUED / WORKING…",
+    processingPremium: tr ? "ÖNCELİKLİ İŞLEM…" : "PRIORITY PROCESSING…",
     subscriptionWarn: tr
       ? "Bu modül mevcut planınızda yok. Plan yükselterek kullanabilirsiniz."
       : "This tool is not on your current plan. Upgrade to use it.",
     mergeProgressPreparing: tr ? "Dosyalar hazırlanıyor…" : "Preparing files…",
     mergeProgressStarting: tr ? "İstek gönderiliyor…" : "Sending request…",
+    mergeProgressQueueFree: tr
+      ? "Sıra ve sunucu onayı — yoğun kullanımda kısa sürebilir…"
+      : "Queue and server check — may take a moment when busy…",
+    mergeProgressQueuePremium: tr
+      ? "Öncelikli hat — birleştirme başlatılıyor…"
+      : "Priority lane — starting merge…",
     toolProgressSub: tr ? "Tamamlanınca dosya indirilecek." : "The file will download when ready.",
+    toolProgressSubQueueFree: tr
+      ? "Ücretsiz planda sıra ve işlem süresi dosya boyutuna ve araç türüne göre değişir."
+      : "On Free, queue and processing time vary by file size and tool type.",
+    toolProgressSubPremium: tr
+      ? "Basic/Pro: ücretli planda öncelikli işlem ve tam kalite; ücretsiz sıra gecikmesi yok."
+      : "Basic/Pro: priority processing and full quality on paid plans — no free-tier queue delays.",
+    toolProgressPhaseQueueFree: tr
+      ? "Sırada / sunucuya bağlanılıyor…"
+      : "In queue / connecting to server…",
+    toolProgressPhaseHandoff: tr ? "İşlem sunucuda başlatılıyor…" : "Starting work on the server…",
     toolProgressPhaseAnalyzing: tr ? "Dosya analiz ediliyor…" : "Analyzing file…",
     toolProgressPhaseCompressing: tr ? "Sıkıştırma uygulanıyor…" : "Applying compression…",
     toolProgressPhaseProcessing: tr ? "İşlem uygulanıyor…" : "Processing…",
@@ -210,7 +239,80 @@ export function ws(lang: Language) {
     filePickNoteSingle: tr ? "Tek dosya seçerek devam edin." : "Select a single file to continue.",
     filePickNoteMulti: tr ? "Birden fazla dosya seçebilirsiniz." : "You can select multiple files.",
     filePickNoteAppend: tr ? "Yeni seçilen dosyalar listenin sonuna eklenir." : "New files are appended to the list.",
+    upgradeNudgeAria: tr ? "Plan yükseltme önerisi" : "Upgrade suggestion",
+    /** Behavioral nudges after soft limit (1), repeated use (2), multiple queued delays (3). */
+    upgradeNudgeTierBody: (tier: 1 | 2 | 3) => {
+      if (tier === 1) {
+        return tr
+          ? "Ücretsiz limit doldu. İşlem daha yavaş sürebilir."
+          : "Free limit reached. Processing may be slower.";
+      }
+      if (tier === 2) {
+        return tr
+          ? "Bu aracı sık kullanıyorsunuz. Premium kullanıcılar anında sonuç alır."
+          : "You are using this tool frequently. Premium users get instant results.";
+      }
+      return tr
+        ? "Beklemeyi kaldırmak ve tam hıza geçmek için yükseltin."
+        : "Upgrade to remove waiting and unlock full speed.";
+    },
+    upgradeNudgeContinueFree: tr ? "Beklemeden devam et" : "Continue without waiting",
+    upgradeNudgeUpgradeInstant: tr ? "Anında işlem için yükselt" : "Upgrade for instant processing",
+    /** Shown while a free-tier job is in progress (queue / server delay monetization). */
+    delayMonetizationDuringBody: tr
+      ? "Ücretsiz planda işlemler daha yavaş sürebilir."
+      : "Free users may experience slower processing.",
+    delayMonetizationInstantCta: tr ? "Anında işlem için yükselt" : "Upgrade for instant processing",
+    /** Subtle reminder after a run that used free-tier queue / delay. */
+    delayMonetizationAfterHint: tr
+      ? "Sonraki işlemlerde beklemeden devam etmek ister misiniz? Öncelikli hattı açın."
+      : "Want instant processing on your next run? Unlock the priority lane.",
+    delayMonetizationAfterDismiss: tr ? "Gizle" : "Hide",
   };
+}
+
+export type UpgradeNudgeTierWeb = 0 | 1 | 2 | 3;
+
+/** Free tier: 0 = none, 1 = past soft ops, 2 = repeated daily use, 3 = multiple server delays today. */
+export function computeUpgradeNudgeTierWeb(input: {
+  planIsFree: boolean;
+  softFrictionAfterOps: number;
+  usedToday: number;
+  throttleEventsToday: number;
+  /** Account lifetime delayed asserts (stronger nudges for heavy friction users). */
+  lifetimeThrottleEvents?: number;
+  /** Account lifetime completed ops. */
+  lifetimeTotalOps?: number;
+}): UpgradeNudgeTierWeb {
+  if (!input.planIsFree) {
+    return 0;
+  }
+  const soft = Math.max(1, Math.floor(input.softFrictionAfterOps));
+  const lt = input.lifetimeThrottleEvents ?? 0;
+  const lo = input.lifetimeTotalOps ?? 0;
+
+  let tier: UpgradeNudgeTierWeb = 0;
+  if (input.usedToday < soft) {
+    tier = 0;
+  } else if (input.throttleEventsToday >= 2) {
+    tier = 3;
+  } else if (input.usedToday >= soft + 3) {
+    tier = 2;
+  } else {
+    tier = 1;
+  }
+
+  if (tier === 0 && (lt >= 12 || lo >= 80)) {
+    tier = 1;
+  }
+  if (lt >= 12) {
+    tier = Math.max(tier, 2) as UpgradeNudgeTierWeb;
+  }
+  if (lt >= 22 || lo >= 160) {
+    tier = Math.max(tier, 3) as UpgradeNudgeTierWeb;
+  }
+
+  return Math.min(3, tier) as UpgradeNudgeTierWeb;
 }
 
 export function featureCopy(id: FeatureKey, lang: Language): { title: string; description: string; button: string } {

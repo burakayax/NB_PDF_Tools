@@ -1,5 +1,5 @@
 /**
- * Soft conversion prompts for free-tier daily limits (dashboard + record-usage).
+ * Soft conversion prompts for free tier (hard daily cap and/or soft friction after N fast runs).
  * Does not block operations; pairs with post-limit throttle messaging.
  */
 
@@ -19,8 +19,8 @@ export type UsageSoftWarnings = {
   premiumBenefitsLine: string | null;
 };
 
-function atOrPastEightyPercent(usedToday: number, dailyLimit: number): boolean {
-  const threshold = Math.max(1, Math.ceil(dailyLimit * 0.8));
+function atOrPastCapRatio(usedToday: number, dailyLimit: number, ratio: number): boolean {
+  const threshold = Math.max(1, Math.ceil(dailyLimit * ratio));
   return usedToday >= threshold && usedToday < dailyLimit;
 }
 
@@ -31,10 +31,37 @@ export function computeUsageSoftWarnings(input: {
   dailyLimit: number | null;
   usedToday: number;
   postLimitExtraOps: number;
+  /** 0.05–0.99; ücretsiz kotanın bu oranında “yaklaşıyor” uyarısı (`tools.config.usageSoftWarningRatio`). */
+  approachingCapRatio?: number;
+  /** FREE unlimited: first N ops without server delay; used with `dailyLimit === null`. */
+  softFrictionAfterOps?: number | null;
 }): UsageSoftWarnings {
   const { dailyLimit, usedToday, postLimitExtraOps } = input;
+  const approachingCapRatio = input.approachingCapRatio ?? 0.8;
+  const softN = input.softFrictionAfterOps;
 
   if (dailyLimit === null) {
+    if (softN != null && softN > 0) {
+      const premiumBenefitsLine = PREMIUM_SPEED_QUALITY_LINE;
+      if (usedToday >= softN) {
+        return {
+          usageWarningCode: "beyond_free",
+          softUsageWarning: null,
+          strongUsageWarning: `You've used your ${softN} fastest free runs today. Additional runs may include delays. ${PREMIUM_SPEED_QUALITY_LINE}`,
+          premiumBenefitsLine,
+        };
+      }
+      const warnAt = Math.max(1, Math.ceil(softN * approachingCapRatio));
+      if (usedToday >= warnAt && usedToday < softN) {
+        const left = Math.max(0, softN - usedToday);
+        return {
+          usageWarningCode: "approaching_80",
+          softUsageWarning: `You've used ${usedToday} of ${softN} delay-free operations today (${Math.round((usedToday / softN) * 100)}%). ${left === 1 ? "One fast run left. " : ""}${PREMIUM_SPEED_QUALITY_LINE}`,
+          strongUsageWarning: null,
+          premiumBenefitsLine,
+        };
+      }
+    }
     return {
       usageWarningCode: null,
       softUsageWarning: null,
@@ -66,7 +93,7 @@ export function computeUsageSoftWarnings(input: {
     };
   }
 
-  if (atOrPastEightyPercent(usedToday, dailyLimit)) {
+  if (atOrPastCapRatio(usedToday, dailyLimit, approachingCapRatio)) {
     const left = Math.max(0, dailyLimit - usedToday);
     return {
       usageWarningCode: "approaching_80",
@@ -84,16 +111,23 @@ export function computeUsageSoftWarnings(input: {
   };
 }
 
-/** Attach soft/strong warning fields to a usage object (no-op when `dailyLimit` is null). */
+/** Attach soft/strong warning fields to a usage object. */
 export function mergeUsageSoftWarnings<
-  T extends { usedToday: number; dailyLimit: number | null; postLimitExtraOps?: number },
->(usage: T): T & UsageSoftWarnings {
+  T extends {
+    usedToday: number;
+    dailyLimit: number | null;
+    postLimitExtraOps?: number;
+    softFrictionAfterOps?: number | null;
+  },
+>(usage: T, options?: { approachingCapRatio?: number }): T & UsageSoftWarnings {
   return {
     ...usage,
     ...computeUsageSoftWarnings({
       dailyLimit: usage.dailyLimit,
       usedToday: usage.usedToday,
       postLimitExtraOps: usage.postLimitExtraOps ?? 0,
+      approachingCapRatio: options?.approachingCapRatio,
+      softFrictionAfterOps: usage.softFrictionAfterOps,
     }),
   };
 }

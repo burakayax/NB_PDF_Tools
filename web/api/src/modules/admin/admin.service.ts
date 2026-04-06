@@ -4,11 +4,15 @@ import { normalizeEmailForStorage } from "../../lib/email-identity-normalize.js"
 import { HttpError } from "../../lib/http-error.js";
 import { hashPassword } from "../../lib/password.js";
 import { prisma } from "../../lib/prisma.js";
+import { getResolvedPackagesConfig } from "../../lib/packages-config.service.js";
+import { getSetting, setSetting } from "../../lib/site-config.service.js";
+import { SITE_SETTING_KEYS } from "../../lib/site-setting-keys.js";
+import type { AdminActor } from "./admin-audit.service.js";
+import { auditedPackagesPartial, auditedPatchSetting, logAdminAudit } from "./admin-audit.service.js";
 import { isAdminEmail, resolveRoleFromEmail } from "../../lib/role-policy.js";
-import { getPaymentPricesTry, putPaymentPricesTry } from "../payment/payment-pricing.js";
+import { getPaymentPricesTry } from "../payment/payment-pricing.js";
 import { featureCatalog } from "../subscription/subscription.config.js";
-import { getPlanDefinitionsResolved } from "../subscription/plan-runtime.js";
-import { invalidateToolsConfigCache } from "../subscription/tools-config-runtime.js";
+import { getPlanDefinitionsResolved, invalidatePlanRuntimeCache } from "../subscription/plan-runtime.js";
 
 function todayKeyUtc() {
   return new Date().toISOString().slice(0, 10);
@@ -339,9 +343,9 @@ export async function updateUserForAdmin(
     isVerified?: boolean;
     subscriptionExpiry?: string | null;
   },
-  actingAdminId: string,
+  actor: AdminActor,
 ) {
-  if (userId === actingAdminId && data.role === "USER") {
+  if (userId === actor.userId && data.role === "USER") {
     throw new HttpError(400, "You cannot remove your own admin role from this panel.");
   }
 
@@ -368,7 +372,7 @@ export async function updateUserForAdmin(
         null
       : existing.name;
 
-  return prisma.user.update({
+  const updated = await prisma.user.update({
     where: { id: userId },
     data: {
       ...(data.firstName !== undefined ? { firstName: data.firstName } : {}),
@@ -393,6 +397,10 @@ export async function updateUserForAdmin(
       subscriptionExpiry: true,
     },
   });
+  await logAdminAudit(actor, "user.update", userId, `Kullanıcı güncellendi: ${existing.email}`, {
+    fields: Object.keys(data),
+  });
+  return updated;
 }
 
 export async function createUserForAdmin(input: {
@@ -450,8 +458,8 @@ export async function createUserForAdmin(input: {
   return user;
 }
 
-export async function deleteUserForAdmin(userId: string, actingAdminId: string, blockEmail: boolean) {
-  if (userId === actingAdminId) {
+export async function deleteUserForAdmin(userId: string, actor: AdminActor, blockEmail: boolean) {
+  if (userId === actor.userId) {
     throw new HttpError(400, "You cannot delete your own account from the admin panel.");
   }
 
@@ -469,6 +477,7 @@ export async function deleteUserForAdmin(userId: string, actingAdminId: string, 
   }
 
   await prisma.user.delete({ where: { id: userId } });
+  await logAdminAudit(actor, "user.delete", userId, `Kullanıcı silindi: ${target.email}`, { blockEmail });
 }
 
 export async function adminListBlockedEmails() {
@@ -503,9 +512,14 @@ export async function adminRemoveBlockedEmailRaw(email: string) {
   }
 }
 
-export async function adminPutPaymentPrices(prices: Record<"PRO" | "BUSINESS", string>) {
+export async function adminPutPaymentPrices(prices: Record<"PRO" | "BUSINESS", string>, actor: AdminActor) {
   try {
-    await putPaymentPricesTry(prices);
+    await auditedPackagesPartial(
+      { prices: { PRO: prices.PRO, BUSINESS: prices.BUSINESS } },
+      actor,
+      "plans.pricing",
+      "Ödeme fiyatları güncellendi",
+    );
   } catch {
     throw new HttpError(400, "Invalid price values. Use positive numbers (e.g. 199.99).");
   }
@@ -524,34 +538,14 @@ export async function getAllSiteSettings(): Promise<Record<string, unknown>> {
   return out;
 }
 
-export async function patchSiteSettings(patches: Record<string, unknown>) {
+export async function patchSiteSettings(patches: Record<string, unknown>, actor: AdminActor) {
   for (const [key, value] of Object.entries(patches)) {
-    const str = typeof value === "string" ? value : JSON.stringify(value);
-    await prisma.siteSetting.upsert({
-      where: { key },
-      create: { key, value: str },
-      update: { value: str },
-    });
-  }
-  if (Object.prototype.hasOwnProperty.call(patches, "plans.override")) {
-    const { invalidatePlanRuntimeCache } = await import("../subscription/plan-runtime.js");
-    invalidatePlanRuntimeCache();
-  }
-  if (Object.prototype.hasOwnProperty.call(patches, "payment.prices")) {
-    const { invalidatePaymentPricesCache } = await import("../payment/payment-pricing.js");
-    invalidatePaymentPricesCache();
+    await auditedPatchSetting(key, value, actor, "settings.patch", `Güncellendi: ${key}`);
   }
 }
 
-export async function putPlansOverride(override: unknown) {
-  const str = typeof override === "string" ? override : JSON.stringify(override);
-  await prisma.siteSetting.upsert({
-    where: { key: "plans.override" },
-    create: { key: "plans.override", value: str },
-    update: { value: str },
-  });
-  const { invalidatePlanRuntimeCache } = await import("../subscription/plan-runtime.js");
-  invalidatePlanRuntimeCache();
+export async function putPlansOverride(override: unknown, actor: AdminActor) {
+  await auditedPackagesPartial({ plansOverride: override }, actor, "plans.override", "Plan override kaydedildi");
 }
 
 const DEFAULT_CMS = {
@@ -570,7 +564,7 @@ const DEFAULT_CMS = {
     tr: {} as Record<string, unknown>,
   },
   workspace: { bannerEnabled: false, bannerText: "" },
-  assets: { heroImageUrl: "", logoUrl: "" },
+  assets: { heroImageUrl: "", logoUrl: "", screenshot1Url: "", screenshot2Url: "" },
 };
 
 function mergeCmsDefaults(parsed: Record<string, unknown>): Record<string, unknown> {
@@ -591,24 +585,19 @@ function mergeCmsDefaults(parsed: Record<string, unknown>): Record<string, unkno
 }
 
 export async function getCmsContent(): Promise<Record<string, unknown>> {
-  const row = await prisma.siteSetting.findUnique({ where: { key: "cms.content" } });
-  if (!row) {
+  const parsed = await getSetting(SITE_SETTING_KEYS.CMS_CONTENT);
+  if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
     return { ...DEFAULT_CMS };
   }
   try {
-    const parsed = JSON.parse(row.value) as Record<string, unknown>;
-    return mergeCmsDefaults(parsed);
+    return mergeCmsDefaults(parsed as Record<string, unknown>);
   } catch {
     return { ...DEFAULT_CMS };
   }
 }
 
-export async function putCmsContent(content: unknown) {
-  await prisma.siteSetting.upsert({
-    where: { key: "cms.content" },
-    create: { key: "cms.content", value: JSON.stringify(content) },
-    update: { value: JSON.stringify(content) },
-  });
+export async function putCmsContent(content: unknown, actor: AdminActor) {
+  await auditedPatchSetting(SITE_SETTING_KEYS.CMS_CONTENT, content, actor, "cms.put", "CMS içeriği kaydedildi");
 }
 
 export async function getPlansAdminPayload() {
@@ -622,15 +611,8 @@ export async function getPlansAdminPayload() {
     multiUser: p.multiUser,
   }));
 
-  let plansOverride: unknown = {};
-  const oRow = await prisma.siteSetting.findUnique({ where: { key: "plans.override" } });
-  if (oRow?.value) {
-    try {
-      plansOverride = JSON.parse(oRow.value) as unknown;
-    } catch {
-      plansOverride = {};
-    }
-  }
+  const pkg = await getResolvedPackagesConfig();
+  const plansOverride = pkg.plansOverride;
 
   const byPlan = await prisma.paymentCheckout.groupBy({
     by: ["plan", "status"],
@@ -653,40 +635,20 @@ export async function getPlansAdminPayload() {
     }
   }
 
-  const marketing = await prisma.siteSetting.findUnique({ where: { key: "packages.marketing" } });
-  let marketingParsed: unknown = null;
-  if (marketing?.value) {
-    try {
-      marketingParsed = JSON.parse(marketing.value);
-    } catch {
-      marketingParsed = marketing.value;
-    }
-  }
+  const marketingParsed = pkg.marketing;
 
   const paymentPrices = await getPaymentPricesTry();
 
   return { plans, checkoutStats, marketing: marketingParsed, plansOverride, paymentPrices };
 }
 
-export async function putPackagesMarketing(marketing: unknown) {
-  await prisma.siteSetting.upsert({
-    where: { key: "packages.marketing" },
-    create: { key: "packages.marketing", value: JSON.stringify(marketing) },
-    update: { value: JSON.stringify(marketing) },
-  });
+export async function putPackagesMarketing(marketing: unknown, actor: AdminActor) {
+  await auditedPackagesPartial({ marketing }, actor, "packages.marketing", "Paket pazarlama metni güncellendi");
 }
 
 export async function getToolsAdminPayload() {
   const defs = await getPlanDefinitionsResolved();
-  const overrideRow = await prisma.siteSetting.findUnique({ where: { key: "tools.config" } });
-  let overrides: unknown = null;
-  if (overrideRow?.value) {
-    try {
-      overrides = JSON.parse(overrideRow.value);
-    } catch {
-      overrides = overrideRow.value;
-    }
-  }
+  const overrides = await getSetting(SITE_SETTING_KEYS.TOOLS_CONFIG);
 
   const perTool = await prisma.dailyUsage.groupBy({
     by: ["lastFeatureKey"],
@@ -712,17 +674,12 @@ export async function getToolsAdminPayload() {
     overrides,
     usageByTool,
     postLimitNote:
-      "Free-tier throttle and upgrade copy come from `post-limit-throttle` + `conversion-upgrade`. Admin can override the upgrade button label and subtitle via `tools.config` → `conversion` (`upgradeCtaLabel`, `upgradeCtaSubtitle`); those values are merged into API responses for throttled runs, usage summaries, and desktop license flows.",
+      "Monetization lives in SiteSetting `tools.config`: `postLimitThrottle` (delaysEnabled, freeOpsBeforeThrottle, delayCapMs, delayFloorMs, delayTiers, featureWeights, fileTiers), `conversion` (upgradeCtaLabel, upgradeCtaSubtitle), and `conversionMessaging` (strong message thresholds). The Araçlar tab exposes these in the Monetization section.",
   };
 }
 
-export async function putToolsConfig(config: unknown) {
-  await prisma.siteSetting.upsert({
-    where: { key: "tools.config" },
-    create: { key: "tools.config", value: JSON.stringify(config) },
-    update: { value: JSON.stringify(config) },
-  });
-  invalidateToolsConfigCache();
+export async function putToolsConfig(config: unknown, actor: AdminActor) {
+  await auditedPatchSetting(SITE_SETTING_KEYS.TOOLS_CONFIG, config, actor, "tools.config", "Araç yapılandırması kaydedildi");
 }
 
 export async function getUsageSeries(days: number) {

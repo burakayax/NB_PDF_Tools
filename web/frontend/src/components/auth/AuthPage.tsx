@@ -11,7 +11,7 @@ type AuthPageProps = {
   language: Language;
   submitting: boolean;
   serverError: string;
-  /** Kayıt sonrası giriş sekmesinde gösterilen API başarı metni */
+  /** KayÄ±t sonrasÄ± giriÅŸ sekmesinde gÃ¶sterilen API baÅŸarÄ± metni */
   registrationSuccessBanner?: string | null;
   onDismissRegistrationSuccess?: () => void;
   onBack: () => void;
@@ -119,13 +119,13 @@ export function AuthPage({
       if (!policy.ok) {
         const msg =
           language === "tr"
-            ? policy.issues.map((i) => i.tr).join(" · ")
-            : policy.issues.map((i) => i.en).join(" · ");
+            ? policy.issues.map((i) => i.tr).join(" Â· ")
+            : policy.issues.map((i) => i.en).join(" Â· ");
         setLocalError(msg);
         return;
       }
     } else if (password.length < 8) {
-      setLocalError(language === "tr" ? "Şifre en az 8 karakter olmalıdır." : "Password must be at least 8 characters.");
+      setLocalError(language === "tr" ? "Åifre en az 8 karakter olmalÄ±dÄ±r." : "Password must be at least 8 characters.");
       return;
     }
 
@@ -142,7 +142,7 @@ export function AuthPage({
         await onSubmit({ email, password });
       }
     } catch {
-      /* Hata üst bileşende authError ile gösterilir; kayıtta alanlar korunur */
+      /* Hata Ã¼st bileÅŸende authError ile gÃ¶sterilir; kayÄ±tta alanlar korunur */
     }
   }
 
@@ -150,8 +150,8 @@ export function AuthPage({
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-nb-bg font-sans text-nb-text antialiased">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_100%_70%_at_50%_-18%,rgba(37,99,235,0.2),transparent_55%)]" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[40vh] bg-[radial-gradient(ellipse_80%_60%_at_50%_100%,rgba(56,189,248,0.09),transparent_65%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_100%_70%_at_50%_-18%,rgba(34,211,238,0.2),transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[40vh] bg-[radial-gradient(ellipse_80%_60%_at_50%_100%,rgba(129,140,232,0.09),transparent_65%)]" />
 
       <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-[480px] flex-col justify-center px-5 py-14 sm:px-8">
         <button
@@ -159,12 +159,12 @@ export function AuthPage({
           onClick={onBack}
           className="group mb-10 inline-flex min-h-11 w-fit items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm font-semibold text-nb-text shadow-sm transition duration-200 ease-out hover:border-nb-primary/30 hover:bg-white/[0.08] hover:text-white"
         >
-          <span className="mr-1 transition group-hover:-translate-x-0.5">←</span>
+          <span className="mr-1 transition group-hover:-translate-x-0.5">â†</span>
           {copy.shared.backToLanding}
         </button>
 
         <div className="rounded-[28px] border border-white/[0.08] bg-nb-panel/55 p-8 shadow-[0_50px_100px_-24px_rgba(0,0,0,0.65),0_0_0_1px_rgba(255,255,255,0.04)_inset] backdrop-blur-xl sm:p-10">
-          <p className="text-center text-[11px] font-semibold uppercase tracking-[0.38em] text-sky-300/90">NB Global Studio</p>
+          <p className="text-center text-[11px] font-semibold uppercase tracking-[0.38em] text-cyan-300/90">NB Global Studio</p>
           <h1 className="mt-5 text-center text-2xl font-semibold tracking-tight text-white sm:text-[1.75rem] sm:leading-tight">{copy.screen.title}</h1>
           <p className="mx-auto mt-3 max-w-[340px] text-center text-sm leading-relaxed text-nb-muted">{copy.screen.description}</p>
 
@@ -191,7 +191,7 @@ export function AuthPage({
               onClick={() => onModeChange("login")}
               className={`flex-1 rounded-lg px-4 py-3 text-sm font-semibold transition duration-200 ease-out ${
                 mode === "login"
-                  ? "bg-gradient-to-b from-nb-primary-mid to-nb-primary text-white shadow-[0_8px_24px_-6px_rgba(37,99,235,0.45)]"
+                  ? "bg-gradient-to-b from-nb-primary-mid to-nb-primary text-slate-950 shadow-[0_8px_24px_-6px_rgba(34,211,238,0.45)]"
                   : "text-nb-muted hover:bg-white/[0.06] hover:text-nb-text"
               }`}
             >
@@ -202,7 +202,7 @@ export function AuthPage({
               onClick={() => onModeChange("register")}
               className={`flex-1 rounded-lg px-4 py-3 text-sm font-semibold transition duration-200 ease-out ${
                 mode === "register"
-                  ? "bg-gradient-to-b from-nb-primary-mid to-nb-primary text-white shadow-[0_8px_24px_-6px_rgba(37,99,235,0.45)]"
+                  ? "bg-gradient-to-b from-nb-primary-mid to-nb-primary text-slate-950 shadow-[0_8px_24px_-6px_rgba(34,211,238,0.45)]"
                   : "text-nb-muted hover:bg-white/[0.06] hover:text-nb-text"
               }`}
             >
@@ -213,9 +213,9 @@ export function AuthPage({
           {mode === "login" && urlEmailVerifiedNotice ? (
             <div className="mt-6 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.12] px-4 py-3 text-sm text-emerald-50">
               <p>
-                <span className="font-semibold">{language === "tr" ? "E-posta doğrulandı. " : "Email verified. "}</span>
+                <span className="font-semibold">{language === "tr" ? "E-posta doÄŸrulandÄ±. " : "Email verified. "}</span>
                 {language === "tr"
-                  ? "Artık e-posta adresiniz ve şifrenizle giriş yapabilirsiniz."
+                  ? "ArtÄ±k e-posta adresiniz ve ÅŸifrenizle giriÅŸ yapabilirsiniz."
                   : "You can now sign in with your email and password."}
               </p>
             </div>
@@ -226,7 +226,7 @@ export function AuthPage({
               <div className="flex items-start justify-between gap-3">
                 <p>
                   <span className="font-semibold">
-                    {language === "tr" ? "Kayıt başarılı — " : "Registration successful — "}
+                    {language === "tr" ? "KayÄ±t baÅŸarÄ±lÄ± â€” " : "Registration successful â€” "}
                   </span>
                   {registrationSuccessBanner}
                 </p>
@@ -261,7 +261,7 @@ export function AuthPage({
                     value={firstName}
                     onChange={(event) => setFirstName(event.target.value)}
                     className={inputClassName}
-                    placeholder={language === "tr" ? "Adınız" : "Jane"}
+                    placeholder={language === "tr" ? "AdÄ±nÄ±z" : "Jane"}
                   />
                 </label>
                 <label className="block">
@@ -273,7 +273,7 @@ export function AuthPage({
                     value={lastName}
                     onChange={(event) => setLastName(event.target.value)}
                     className={inputClassName}
-                    placeholder={language === "tr" ? "Soyadınız" : "Doe"}
+                    placeholder={language === "tr" ? "SoyadÄ±nÄ±z" : "Doe"}
                   />
                 </label>
               </div>
@@ -298,7 +298,7 @@ export function AuthPage({
                   <button
                     type="button"
                     onClick={onForgotPassword}
-                    className="text-xs font-semibold text-sky-300 transition duration-200 hover:text-sky-200"
+                    className="text-xs font-semibold text-cyan-300 transition duration-200 hover:text-cyan-200"
                   >
                     {authTranslations[language].login.forgotPassword}
                   </button>
@@ -310,14 +310,14 @@ export function AuthPage({
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 className={inputClassName}
-                placeholder="••••••••"
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
               />
             </label>
 
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex min-h-[3.25rem] w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-6 text-base font-semibold text-white shadow-[0_16px_40px_-12px_rgba(37,99,235,0.45)] transition duration-200 ease-out hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-[3.25rem] w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-6 text-base font-semibold text-slate-950 shadow-[0_16px_40px_-12px_rgba(34,211,238,0.45)] transition duration-200 ease-out hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting && mode === "login" ? (
                 <>
@@ -325,10 +325,10 @@ export function AuthPage({
                     className="h-[1.125rem] w-[1.125rem] shrink-0 animate-spin rounded-full border-2 border-white/25 border-t-white"
                     aria-hidden
                   />
-                  <span>{language === "tr" ? "Yükleniyor..." : "Loading..."}</span>
+                  <span>{language === "tr" ? "YÃ¼kleniyor..." : "Loading..."}</span>
                 </>
               ) : submitting ? (
-                <span>{language === "tr" ? "İşleniyor..." : "Processing..."}</span>
+                <span>{language === "tr" ? "Ä°ÅŸleniyor..." : "Processing..."}</span>
               ) : (
                 copy.screen.submit
               )}
@@ -340,7 +340,7 @@ export function AuthPage({
             <button
               type="button"
               onClick={() => onModeChange(mode === "login" ? "register" : "login")}
-              className="font-semibold text-sky-300 transition duration-200 hover:text-sky-200"
+              className="font-semibold text-cyan-300 transition duration-200 hover:text-cyan-200"
             >
               {copy.screen.alternateAction}
             </button>
@@ -348,10 +348,10 @@ export function AuthPage({
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-white/[0.06] pt-8 text-sm text-nb-muted">
             <button type="button" onClick={onOpenTerms} className="transition duration-200 hover:text-nb-text">
-              {language === "tr" ? "Hizmet Şartları" : "Terms of Service"}
+              {language === "tr" ? "Hizmet ÅartlarÄ±" : "Terms of Service"}
             </button>
             <button type="button" onClick={onOpenPrivacy} className="transition duration-200 hover:text-nb-text">
-              {language === "tr" ? "Gizlilik Politikası" : "Privacy Policy"}
+              {language === "tr" ? "Gizlilik PolitikasÄ±" : "Privacy Policy"}
             </button>
           </div>
         </div>
@@ -361,7 +361,7 @@ export function AuthPage({
           <ul className="mt-5 space-y-3">
             {copy.shared.trustPoints.map((point) => (
               <li key={point} className="flex items-start gap-3 text-sm leading-relaxed text-nb-muted">
-                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400/90" />
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-400/90" />
                 <span>{point}</span>
               </li>
             ))}

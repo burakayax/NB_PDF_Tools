@@ -11,15 +11,15 @@ const DESCRIPTIONS: Record<PlanName, { tr: string; en: string }> = {
     en: "Priority processing, the full toolkit, and unlimited usage without a daily cap.",
   },
   BUSINESS: {
-    tr: "Ekipler için işletmeye uygun yetkilendirme yapısıyla sınırsız erişim.",
-    en: "Unlimited access with business-ready entitlement structure for teams.",
+    tr: "Bireysel ve küçük ekipler için sınırsız işlem ve tam araç seti (Basic).",
+    en: "Unlimited operations and full toolkit for individuals (Basic).",
   },
 };
 
 const DISPLAY: Record<PlanName, { tr: string; en: string }> = {
   FREE: { tr: "Ücretsiz", en: "Free" },
   PRO: { tr: "Pro", en: "Pro" },
-  BUSINESS: { tr: "İşletme", en: "Business" },
+  BUSINESS: { tr: "Basic", en: "Basic" },
 };
 
 export function localizedPlanDisplayName(name: PlanName, language: Language): string {
