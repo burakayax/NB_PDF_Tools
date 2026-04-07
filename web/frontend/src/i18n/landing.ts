@@ -128,7 +128,7 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
     hero: {
       audience: ["Office teams", "Tender departments", "Administrative staff", "Operations leads"],
       kicker: "PDF Management for Business Workflows",
-      headline: "All Your PDF Operations. One Professional Tool.",
+      headline: "MANAGE YOUR DOCUMENTS WITH MASTERY.",
       alternatives: [
         "Fast, Secure PDF Management for Business Workflows",
         "Handle Your PDFs in Seconds, Built for Professionals",
@@ -296,9 +296,9 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
       signedInFallback: "Giriş yapıldı",
     },
     hero: {
-      audience: ["Ofis ekipleri", "İhale birimleri", "İdari personel", "Operasyon yöneticileri"],
+      audience: ["Ofis Ekipleri", "İhale Birimleri", "İdari Personel", "Operasyon Yöneticileri"],
       kicker: "İş Süreçleri İçin PDF Yönetimi",
-      headline: "Tüm PDF İşlemleriniz. Tek Bir Profesyonel Araç.",
+      headline: "BELGELERİNİZİ USTALIKLA YÖNETİN.",
       alternatives: [
         "İş Süreçleri İçin Hızlı ve Güvenli PDF Yönetimi",
         "PDF İşlemlerinizi Saniyeler İçinde Yönetin, Profesyoneller İçin Tasarlandı",

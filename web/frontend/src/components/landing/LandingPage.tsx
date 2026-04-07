@@ -259,174 +259,200 @@ export function LandingPage({
           </div>
         </section>
 
+{/* Hero Section - Estetik Güncelleme */}
+        {/* Hero Section - Merkezi ve Dengeli Tasarım */}
         <section
           data-nb-preview="hero"
-          className="grid gap-14 py-10 lg:grid-cols-[minmax(0,1.08fr)_minmax(420px,0.92fr)] lg:items-center lg:py-20"
+          className="relative flex flex-col items-center justify-center py-24 text-center lg:py-32"
         >
-          <div className="max-w-3xl">
-            <div className="mb-6 flex flex-wrap gap-3">
+          {/* Arka Plandaki Aura - Tam Merkeze ve Daha Yumuşak */}
+          <div className="absolute left-1/2 top-1/2 -z-10 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-500/10 blur-[140px] animate-pulse" />
+
+          <div className="relative z-10 max-w-4xl">
+            {/* Hedef Kitle Etiketleri - Ortalanmış */}
+            <div className="mb-10 flex flex-wrap justify-center gap-3">
               {copy.hero.audience.map((item) => (
                 <span
                   key={item}
-                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium tracking-[0.12em] text-slate-300"
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300/90 backdrop-blur-md transition-colors hover:bg-white/10"
                 >
                   {item}
                 </span>
               ))}
             </div>
 
-            <p className="mb-5 text-sm font-semibold uppercase tracking-[0.32em] text-cyan-300">{copy.hero.kicker}</p>
-            <h2 className="max-w-4xl text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-6xl lg:leading-[1.02]">
+{/* Üst Küçük Yazı (Kicker) */}
+<p className="mb-6 text-sm font-bold uppercase tracking-[0.6em] text-cyan-400 drop-shadow-[0_0_15px_rgba(34,211,238,0.3)]">
+              {copy.hero.kicker}
+            </p>
+            
+            {/* Ana Başlık - "Deneme" Yerine Gelen Dev Yapı */}
+            <h2 className="relative mx-auto max-w-5xl bg-gradient-to-b from-white via-white to-white/40 bg-clip-text text-6xl font-black tracking-tight text-transparent sm:text-8xl lg:text-[100px] lg:leading-[0.95]">
+              {/* Arka plandaki hafif parlama */}
+              <span className="absolute -inset-x-20 top-1/2 -z-10 h-20 w-[120%] -translate-y-1/2 bg-cyan-500/5 blur-[100px]" />
+              
+              {/* copy.json'dan gelen ana başlığı çeker*/}
               {copy.hero.headline}
             </h2>
-            <p className="mt-6 max-w-2xl text-base leading-8 text-slate-300 sm:text-lg">{copy.hero.description}</p>
+            
+            <p className="mx-auto mt-10 max-w-2xl text-lg leading-relaxed text-slate-400 sm:text-xl italic font-light">
+              {copy.hero.description}
+            </p>
 
-            <div data-nb-preview="hero-buttons" className="mt-8 flex flex-col gap-4 sm:flex-row">
+            {/* Butonlar - Yan Yana ve Dengeli */}
+            <div data-nb-preview="hero-buttons" className="mt-14 flex flex-col items-center justify-center gap-6 sm:flex-row">
               <button
                 type="button"
                 onClick={onUseWebApp}
-                className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-gradient-to-b from-nb-primary-mid to-nb-primary px-7 text-base font-semibold text-slate-950 shadow-[0_20px_50px_-10px_rgba(34,211,238,0.5)] transition duration-300 ease-out hover:-translate-y-0.5 hover:brightness-110"
+                className="group relative inline-flex h-16 min-w-[220px] items-center justify-center overflow-hidden rounded-2xl bg-cyan-500 px-10 text-lg font-bold text-slate-950 transition-all hover:scale-105 hover:bg-cyan-400 hover:shadow-[0_0_50px_rgba(34,211,238,0.3)] active:scale-95"
               >
-                {copy.hero.primaryCta}
+                <span className="relative z-10">{copy.hero.primaryCta}</span>
               </button>
+              
               <a
                 href={windowsDownloadUrl}
                 target="_blank"
                 rel="noreferrer"
-                className={`inline-flex min-h-14 items-center justify-center rounded-2xl border px-7 text-base font-semibold transition ${
-                  windowsDownloadUrl === "#"
-                    ? "cursor-not-allowed border-white/10 bg-white/5 text-slate-400"
-                    : "border-white/[0.12] bg-white/[0.05] text-white transition duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.09]"
-                }`}
-                aria-disabled={windowsDownloadUrl === "#"}
+                className="inline-flex h-16 min-w-[220px] items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-10 text-lg font-bold text-white transition-all hover:bg-white/10 hover:border-white/20 active:scale-95"
               >
                 {copy.hero.secondaryCta}
               </a>
             </div>
-
-            <div className="mt-10 grid gap-4 md:grid-cols-3">
-              {copy.hero.highlights.map((item) => (
-                <div key={item.label} className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">{item.label}</p>
-                  <p className="mt-3 text-sm leading-6 text-slate-200">{item.value}</p>
-                </div>
-              ))}
-            </div>
           </div>
-
-          <div data-nb-preview="visuals" className="relative">
-            <div className="absolute -left-10 top-10 hidden h-40 w-40 rounded-full bg-cyan-400/10 blur-3xl lg:block" />
-            <div className="absolute -right-12 bottom-0 hidden h-44 w-44 rounded-full bg-indigo-400/10 blur-3xl lg:block" />
-
-            <div className="relative rounded-[32px] border border-white/[0.08] bg-slate-900/70 p-4 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.65),0_0_0_1px_rgba(255,255,255,0.04)_inset] backdrop-blur-xl">
-              <div className="rounded-[28px] border border-white/[0.06] bg-gradient-to-b from-nb-panel/95 via-nb-bg to-nb-bg-soft p-3">
-                <img
-                  src={heroImageSrc}
-                  alt="NB PDF TOOLS product preview"
-                  className="w-full rounded-[22px] border border-white/10 object-cover shadow-[0_18px_60px_rgba(15,23,42,0.5)]"
-                />
+        </section>
+        {/* Hap Bilgi Barı - Taşıdığımız 3 Kutucuk */}
+        <section className="mb-16 rounded-[32px] border border-white/[0.05] bg-slate-900/40 px-8 py-6 shadow-2xl backdrop-blur-2xl">
+          <div className="grid gap-6 md:grid-cols-3">
+            {copy.hero.highlights.map((item, index) => (
+              <div key={item.label} className="flex items-start gap-4 p-2 transition-all hover:scale-[1.03]">
+                <div className={`mt-1.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-cyan-500/20 ${index === 0 ? "bg-cyan-500/10 text-cyan-400" : index === 1 ? "bg-indigo-500/10 text-indigo-400" : "bg-blue-500/10 text-blue-400"}`}>
+                   <LandingIcon kind={index === 0 ? "shield" : index === 1 ? "speed" : "secure"} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-cyan-300">{item.label}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-300">{item.value}</p>
+                </div>
               </div>
-
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                {copy.hero.quickStats.map((item, index) => (
-                  <div
-                    key={item.title}
-                    className={`rounded-2xl border p-4 ${
-                      index === 0 ? "border-cyan-400/20 bg-cyan-500/10" : "border-indigo-400/22 bg-indigo-500/10"
-                    }`}
-                  >
-                    <p className={`text-xs font-semibold uppercase tracking-[0.24em] ${index === 0 ? "text-cyan-200" : "text-indigo-200"}`}>
-                      {item.title}
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-slate-200">{item.description}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            ))}
           </div>
         </section>
 
-        <section data-nb-preview="features" className="py-8 xl:py-12">
-          <div className="mb-8 max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-300">{copy.features.kicker}</p>
-            <h3 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{copy.features.title}</h3>
+        <section data-nb-preview="features" className="py-20">
+          <div className="mb-12 max-w-3xl">
+            <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-400/90">{copy.features.kicker}</p>
+            <h3 className="mt-4 text-4xl font-extrabold tracking-tight text-white sm:text-5xl">{copy.features.title}</h3>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
             {copy.features.items.map((item) => (
               <article
                 key={item.title}
-                className="group rounded-[28px] border border-white/10 bg-white/[0.045] p-7 transition duration-300 ease-out hover:-translate-y-1 hover:border-nb-primary/35 hover:bg-white/[0.07] hover:shadow-[0_20px_50px_-20px_rgba(34,211,238,0.2)]"
+                className="group relative overflow-hidden rounded-[32px] border border-white/5 bg-slate-900/40 p-8 transition-all duration-500 hover:-translate-y-2 hover:border-cyan-500/30 hover:bg-slate-900/60 hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7),0_0_20px_rgba(34,211,238,0.1)]"
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-500/25 bg-cyan-500/10">
-                  <LandingIcon kind={item.icon} />
+                <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-cyan-500/5 blur-2xl transition-all group-hover:bg-cyan-500/10" />
+                
+                <div className="relative z-10">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-500/20 bg-cyan-500/10 text-cyan-400 shadow-inner transition-all duration-500 group-hover:scale-110 group-hover:bg-cyan-500 group-hover:text-slate-950 group-hover:shadow-[0_0_20px_rgba(34,211,238,0.4)]">
+                    <LandingIcon kind={item.icon} />
+                  </div>
+                  <h4 className="mt-8 text-2xl font-bold text-white tracking-tight">{item.title}</h4>
+                  <p className="mt-4 text-base leading-relaxed text-slate-400 group-hover:text-slate-300">
+                    {item.benefit}
+                  </p>
                 </div>
-                <h4 className="mt-6 text-xl font-semibold text-white">{item.title}</h4>
-                <p className="mt-3 text-sm leading-7 text-slate-300">{item.benefit}</p>
               </article>
             ))}
           </div>
         </section>
 
-        <section className="grid gap-8 py-10 lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)] lg:items-start">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-8">
-            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-300">{copy.trust.kicker}</p>
-            <h3 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{copy.trust.title}</h3>
-            <p className="mt-5 text-base leading-8 text-slate-300">{copy.trust.description}</p>
+{/* --- GÜVEN BÖLÜMÜ (DERİNLİK VE SADE IŞILTI) --- */}
+{/* --- GÜVEN BÖLÜMÜ (PREMIUM AMBİYANS VE MODERN KARTLAR) --- */}
+<section className="relative py-32 px-6 overflow-hidden">
+  
+  {/* 1. ANA AMBİYANS IŞIĞI (Ekran görüntüsündeki o sağdan vuran derin parıltı efekti) */}
+  <div className="absolute -right-[10%] top-1/2 -z-10 h-[600px] w-[600px] -translate-y-1/2 rounded-full bg-indigo-600/20 blur-[140px] opacity-50 animate-pulse" />
+  <div className="absolute -left-[10%] top-1/4 -z-10 h-[400px] w-[400px] rounded-full bg-cyan-500/10 blur-[120px] opacity-30" />
 
-            <div className="mt-8 space-y-4">
-              {copy.trust.points.map((item, index) => (
-                <div key={item.title} className="flex items-start gap-4 rounded-2xl border border-white/8 bg-slate-950/50 p-4">
-                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl border border-indigo-400/25 bg-indigo-500/10 text-sm font-semibold text-indigo-200">
-                    0{index + 1}
-                  </div>
-                  <div>
-                    <p className="text-base font-medium text-white">{item.title}</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-400">{item.description}</p>
-                  </div>
-                </div>
-              ))}
+  {/* İNCE DIŞ ÇERÇEVE VE CAM PANEL */}
+  <div className="mx-auto max-w-6xl rounded-[48px] border border-white/5 bg-slate-900/20 p-12 md:p-24 backdrop-blur-3xl shadow-[0_32px_100px_-20px_rgba(0,0,0,0.7)]">
+    
+    {/* BAŞLIK ALANI */}
+    <div className="mb-24 max-w-3xl">
+      <p className="text-[10px] font-bold uppercase tracking-[0.5em] text-cyan-400 mb-6 drop-shadow-[0_0_15px_rgba(34,211,238,0.4)]">
+        {copy.trust.kicker}
+      </p>
+      <h3 className="text-4xl md:text-6xl font-black tracking-tighter text-white leading-[1.1] mb-8">
+        {copy.trust.title}
+      </h3>
+      <p className="text-lg md:text-xl text-slate-400 font-light leading-relaxed">
+        {copy.trust.description}
+      </p>
+    </div>
+
+    {/* YENİLENMİŞ KART TASARIMI (Keskin ve Kurumsal) */}
+    <div className="grid gap-6 md:grid-cols-3">
+      {copy.trust.points.map((item, index) => (
+        <div 
+          key={item.title} 
+          className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-white/[0.03] bg-slate-950/40 p-10 transition-all duration-500 hover:border-white/10 hover:bg-slate-950/60"
+        >
+          {/* Kart İçi Gizli Işıltı (Sadece Hoverda çıkar) */}
+          <div className="absolute -right-8 -top-8 -z-10 h-32 w-32 rounded-full bg-indigo-500/0 blur-3xl transition-all duration-700 group-hover:bg-indigo-500/10" />
+
+          <div>
+            {/* Numara Tasarımı */}
+            <div className="mb-10 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/5 bg-white/5 text-sm font-bold text-slate-400 group-hover:border-indigo-500/30 group-hover:text-indigo-300 transition-all">
+              0{index + 1}
             </div>
+            
+            <h4 className="text-2xl font-bold tracking-tight text-white mb-4 group-hover:translate-x-1 transition-transform duration-300">
+              {item.title}
+            </h4>
+            <p className="text-sm leading-relaxed text-slate-500 group-hover:text-slate-400 transition-colors">
+              {item.description}
+            </p>
           </div>
 
-          <div className="grid gap-5 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-300">{copy.screenshots.kicker}</p>
-              <h3 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{copy.screenshots.title}</h3>
-              <p className="mt-4 max-w-3xl text-base leading-8 text-slate-300">{copy.screenshots.description}</p>
-            </div>
+          {/* Alt Süsleme Çizgisi */}
+          <div className="mt-12 h-[1px] w-12 bg-white/10 group-hover:w-full group-hover:bg-gradient-to-r group-hover:from-indigo-500 group-hover:to-transparent transition-all duration-700" />
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
 
-            {copy.screenshots.items.map((shot, index) => (
-              <article
-                key={shot.title}
-                className={`group rounded-[30px] border border-white/10 bg-white/[0.045] p-4 transition duration-300 ease-out hover:-translate-y-1 hover:border-nb-primary/35 hover:shadow-[0_20px_50px_-20px_rgba(34,211,238,0.18)] ${
-                  index === 0 ? "md:col-span-2" : ""
-                }`}
-              >
-                <div className="overflow-hidden rounded-[24px] border border-white/10 bg-slate-950">
-                  <img src={shot.src} alt={shot.title} className="w-full object-cover transition duration-500 group-hover:scale-[1.02]" />
-                </div>
-                <div className="px-2 pb-2 pt-5">
-                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">{copy.screenshots.kicker}</p>
-                  <h4 className="mt-2 text-xl font-semibold text-white">{shot.title}</h4>
-                  <p className="mt-3 text-sm leading-7 text-slate-300">{shot.description}</p>
-                </div>
-              </article>
-            ))}
+{/* --- BÖLÜM SONU --- */}
 
-            <article className="rounded-[30px] border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 p-6 md:col-span-2">
-              <div className="grid gap-4 md:grid-cols-2">
-                {copy.screenshots.sideCards.map((item) => (
-                  <div key={item.title} className="rounded-2xl border border-white/8 bg-white/[0.04] p-5">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
-                      <LandingIcon kind={item.icon} />
-                    </div>
-                    <h4 className="mt-4 text-lg font-semibold text-white">{item.title}</h4>
-                    <p className="mt-2 text-sm leading-7 text-slate-300">{item.description}</p>
-                  </div>
-                ))}
+        {/* Canlı Ekran Görüntüleri (Yeni - Sağ Tarafın Evrimi) */}
+        <section data-nb-preview="screenshots" className="relative py-24">
+           {/* Arka Plandaki Aura Efekti */}
+          <div className="absolute -left-20 top-1/2 -z-10 h-[500px] w-[500px] -translate-y-1/2 rounded-full bg-cyan-500/10 blur-[120px] animate-pulse" />
+          
+          <div className="mx-auto max-w-6xl">
+              <div className="mb-16 text-center">
+                <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-400/90">{copy.screenshots.kicker}</p>
+                <h3 className="mt-4 bg-gradient-to-b from-white via-white to-white/40 bg-clip-text text-4xl font-black tracking-tight text-transparent sm:text-5xl">{copy.screenshots.title}</h3>
+                <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-slate-400">{copy.screenshots.description}</p>
               </div>
-            </article>
+
+              <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)] lg:items-center">
+                  {copy.screenshots.items.map((shot, index) => (
+                    <article key={shot.title} className="group relative">
+                        {/* Görselin etrafındaki yumuşak kutu */}
+                        <div className="relative rounded-[32px] border border-white/10 bg-slate-900/40 p-4 shadow-2xl backdrop-blur-xl transition-all duration-500 group-hover:scale-[1.03]">
+                            <div className="overflow-hidden rounded-[26px] border border-white/5 bg-slate-950">
+                                <img src={shot.src} alt={shot.title} className="w-full object-cover transition duration-700 group-hover:scale-110" />
+                            </div>
+                        </div>
+                         
+                         {/* Metin Kutusu (Süzülen Efekt) */}
+                        <div className="absolute -bottom-10 -right-10 max-w-[280px] rounded-2xl border border-white/10 bg-slate-900/90 p-5 shadow-2xl backdrop-blur-xl transition-all duration-500 group-hover:-translate-x-2">
+                             <h4 className="text-lg font-bold text-white tracking-tight">{shot.title}</h4>
+                             <p className="mt-2 text-sm leading-relaxed text-slate-300">{shot.description}</p>
+                        </div>
+                    </article>
+                  ))}
+              </div>
           </div>
         </section>
 
