@@ -1,4 +1,4 @@
-# NB PDF Tools — Kurulum Rehberi
+# NB PDF PLARTFORM — Kurulum Rehberi
 
 Bu dosya projeyi ilk kez kuracaklar için sade adımları anlatır.
 
@@ -6,7 +6,7 @@ Bu dosya projeyi ilk kez kuracaklar için sade adımları anlatır.
 
 ## 1) Proje nedir?
 
-**NB PDF Tools**, PDF dosyaları üzerinde birleştirme, sayfa ayırma, dönüştürme, sıkıştırma ve şifreleme gibi işlemler yapmanızı sağlayan bir projedir.
+**NB PDF PLARTFORM**, PDF dosyaları üzerinde birleştirme, sayfa ayırma, dönüştürme, sıkıştırma ve şifreleme gibi işlemler yapmanızı sağlayan bir projedir.
 
 - **Web sürümü:** Tarayıcıda çalışan arayüz; üç servisten oluşur (PDF API, kimlik doğrulama API’si, React arayüzü).
 - **Masaüstü sürümü:** Windows’ta Python ve grafik arayüz ile çalışan uygulama.
@@ -34,8 +34,8 @@ Bu dosya projeyi ilk kez kuracaklar için sade adımları anlatır.
 Terminal veya Git istemcisinde depo adresinizi kullanın. Örnek:
 
 ```bash
-git clone https://github.com/KULLANICI_ADI/NB_PDF_Tools.git
-cd NB_PDF_Tools
+git clone https://github.com/KULLANICI_ADI/NB_PDF_PLARTFORM.git
+cd NB_PDF_PLARTFORM
 ```
 
 > `KULLANICI_ADI` ve depo yolunu kendi Git sunucunuza göre değiştirin.
@@ -166,7 +166,7 @@ Kök betiği kullanmak istemezseniz servisleri elle de başlatabilirsiniz; adım
 
 ## 7) Masaüstü uygulaması nasıl çalıştırılır?
 
-1. Proje **kök klasöründe** olduğunuzdan emin olun (`NB_PDF_Tools`).
+1. Proje **kök klasöründe** olduğunuzdan emin olun (`NB_PDF_PLARTFORM`).
 2. Python sanal ortamı önerilir; bağımlılıklar:
 
 ```bash

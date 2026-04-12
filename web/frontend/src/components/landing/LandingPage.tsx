@@ -19,7 +19,8 @@ type LandingPageProps = {
   onLanguageChange: (language: Language) => void;
   onUseWebApp: () => void;
   isAuthenticated: boolean;
-  /** GiriÅŸ yapÄ±lmÄ±ÅŸsa: "Merhaba, Ahmet" / "Hello, Alex" (yalnÄ±zca ad). */
+
+ /** Giriş yapılmışsa: "Merhaba, Ahmet" / "Hello, Alex" (yalnızca ad). */
   authGreeting?: string;
   onLogin: () => void;
   onRegister: () => void;
@@ -169,16 +170,16 @@ export function LandingPage({
 
   return (
     <div className="min-h-screen overflow-hidden bg-nb-bg font-sans text-nb-text antialiased">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[min(720px,85vh)] bg-[radial-gradient(ellipse_90%_60%_at_50%_-10%,rgba(34,211,238,0.22),transparent_52%),radial-gradient(circle_at_85%_15%,rgba(129,140,232,0.08),transparent_35%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[min(720px,85vh)] bg-[radial-gradient(ellipse_90%_60%_at_50%_-10%,rgba(34,211,238,0.35),transparent_65%),radial-gradient(circle_at_85%_15%,rgba(129,140,232,0.08),transparent_35%)]" />
 
-      <main className="relative mx-auto flex w-full max-w-7xl flex-col px-6 pb-16 pt-8 sm:px-8 lg:px-12">
+      <main className="relative mx-auto flex w-full max-w-7xl flex-col px-6 pb-16 pt-3 sm:px-8 lg:px-12">
         <section className="mb-12 rounded-[28px] border border-white/[0.08] bg-gradient-to-br from-white/[0.06] to-white/[0.02] px-5 py-5 shadow-[0_32px_80px_-12px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.05)_inset] backdrop-blur-md xl:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/35 bg-gradient-to-br from-cyan-500/18 to-indigo-500/12 shadow-[0_0_48px_rgba(34,211,238,0.2)]">
                 <img
-                  src={logoSrc ?? "/nb_pdf_tools_icon.png"}
-                  alt="NB PDF TOOLS"
+                  src={logoSrc ?? "/nb_pdf_PLARTFORM_icon.png"}
+                  alt="NB PDF PLARTFORM"
                   className="h-8 w-8 rounded-xl object-cover"
                 />
               </div>
@@ -259,72 +260,77 @@ export function LandingPage({
           </div>
         </section>
 
-{/* Hero Section - Estetik Güncelleme */}
-        {/* Hero Section - Merkezi ve Dengeli Tasarım */}
-        <section
-          data-nb-preview="hero"
-          className="relative flex flex-col items-center justify-center py-24 text-center lg:py-32"
-        >
-          {/* Arka Plandaki Aura - Tam Merkeze ve Daha Yumuşak */}
-          <div className="absolute left-1/2 top-1/2 -z-10 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-500/10 blur-[140px] animate-pulse" />
+{/* --- PREMIUM VE MINIMAL HERO SECTION --- */}
+<section
+  data-nb-preview="hero"
+  className="relative flex flex-col items-center justify-center pt-0 pb-20 text-center lg:pt-10 lg:pb-24"
+>
+  {/* Arka Plandaki Soft Aura - Çok daha rafine bir parlama */}
+  <div className="absolute left-1/2 top-1/2 -z-10 h-[400px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-500/[0.05] blur-[120px]" />
 
-          <div className="relative z-10 max-w-4xl">
-            {/* Hedef Kitle Etiketleri - Ortalanmış */}
-            <div className="mb-10 flex flex-wrap justify-center gap-3">
-              {copy.hero.audience.map((item) => (
-                <span
-                  key={item}
-                  className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300/90 backdrop-blur-md transition-colors hover:bg-white/10"
-                >
-                  {item}
-                </span>
-              ))}
-            </div>
+  <div className="relative z-10 max-w-5xl px-4">
+    {/* Üst Küçük Etiket (Badge) - Minimal */}
+    <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-500/10 bg-cyan-500/5 px-3 py-1 backdrop-blur-sm opacity-80">
+      <span className="relative flex h-1.5 w-1.5">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-60"></span>
+        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-cyan-500"></span>
+      </span>
+      <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-cyan-400/90">
+        {copy.hero.kicker}
+      </p>
+    </div>
 
-{/* Üst Küçük Yazı (Kicker) */}
-<p className="mb-6 text-sm font-bold uppercase tracking-[0.6em] text-cyan-400 drop-shadow-[0_0_15px_rgba(34,211,238,0.3)]">
-              {copy.hero.kicker}
-            </p>
-            
-            {/* Ana Başlık - "Deneme" Yerine Gelen Dev Yapı */}
-            <h2 className="relative mx-auto max-w-5xl bg-gradient-to-b from-white via-white to-white/40 bg-clip-text text-6xl font-black tracking-tight text-transparent sm:text-8xl lg:text-[100px] lg:leading-[0.95]">
-              {/* Arka plandaki hafif parlama */}
-              <span className="absolute -inset-x-20 top-1/2 -z-10 h-20 w-[120%] -translate-y-1/2 bg-cyan-500/5 blur-[100px]" />
-              
-              {/* copy.json'dan gelen ana başlığı çeker*/}
-              {copy.hero.headline}
-            </h2>
-            
-            <p className="mx-auto mt-10 max-w-2xl text-lg leading-relaxed text-slate-400 sm:text-xl italic font-light">
-              {copy.hero.description}
-            </p>
+    {/* Ana Başlık - Boyutu düşürdük, font ağırlığını azalttık, satır aralığını açtık */}
+    <h2 className="mx-auto min-h-[120px] sm:min-h-[160px] max-w-4xl bg-gradient-to-b from-white via-white to-slate-400 bg-clip-text text-4xl font-semibold tracking-tight text-transparent sm:text-6xl lg:text-7xl leading-[1.15]">
+      {copy.hero.headline}
+    </h2>
 
-            {/* Butonlar - Yan Yana ve Dengeli */}
-            <div data-nb-preview="hero-buttons" className="mt-14 flex flex-col items-center justify-center gap-6 sm:flex-row">
-              <button
-                type="button"
-                onClick={onUseWebApp}
-                className="group relative inline-flex h-16 min-w-[220px] items-center justify-center overflow-hidden rounded-2xl bg-cyan-500 px-10 text-lg font-bold text-slate-950 transition-all hover:scale-105 hover:bg-cyan-400 hover:shadow-[0_0_50px_rgba(34,211,238,0.3)] active:scale-95"
-              >
-                <span className="relative z-10">{copy.hero.primaryCta}</span>
-              </button>
-              
-              <a
-                href={windowsDownloadUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex h-16 min-w-[220px] items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-10 text-lg font-bold text-white transition-all hover:bg-white/10 hover:border-white/20 active:scale-95"
-              >
-                {copy.hero.secondaryCta}
-              </a>
-            </div>
-          </div>
-        </section>
+    {/* Alt Açıklama - İtalikliği kaldırdık, daha kurumsal yaptık */}
+    <p className="mx-auto mt-6 min-h-[60px] max-w-2xl text-base font-normal leading-relaxed text-slate-400">
+      {copy.hero.description}
+    </p>
+
+    {/* Hedef Kitle Etiketleri - Başlığın altında, sönük ve elit */}
+    <div className="mt-8 flex flex-wrap justify-center gap-3">
+        {copy.hero.audience.map((item) => (
+      <span
+        key={item}
+        className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/40 bg-cyan-500/15 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.25)] backdrop-blur-md"
+      >
+        {/* Parlayan Nokta - Statik ve belirgin */}
+        <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,1)]"></span>
+        
+        {item}
+      </span>
+    ))}
+    </div>
+
+    {/* Butonlar - Premium Işıltılı */}
+    <div data-nb-preview="hero-buttons" className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
+      <button
+        type="button"
+        onClick={onUseWebApp}
+        className="group relative inline-flex h-14 min-w-[190px] items-center justify-center overflow-hidden rounded-2xl bg-white px-8 text-base font-bold text-slate-950 transition-all hover:scale-[1.02] hover:bg-slate-100 shadow-[0_20px_40px_-10px_rgba(255,255,255,0.2)] active:scale-95"
+      >
+        <span className="relative z-10">{copy.hero.primaryCta}</span>
+      </button>
+      
+      <a
+        href={windowsDownloadUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex h-14 min-w-[190px] items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-8 text-base font-bold text-white transition-all hover:bg-white/10 hover:border-white/20 active:scale-95"
+      >
+        {copy.hero.secondaryCta}
+      </a>
+    </div>
+  </div>
+</section>
         {/* Hap Bilgi Barı - Taşıdığımız 3 Kutucuk */}
-        <section className="mb-16 rounded-[32px] border border-white/[0.05] bg-slate-900/40 px-8 py-6 shadow-2xl backdrop-blur-2xl">
+        <section className="-mt-10 mb-16 rounded-[32px] border border-white/[0.05] bg-slate-900/40 px-8 py-6 shadow-2xl backdrop-blur-2xl">
           <div className="grid gap-6 md:grid-cols-3">
             {copy.hero.highlights.map((item, index) => (
-              <div key={item.label} className="flex items-start gap-4 p-2 transition-all hover:scale-[1.03]">
+              <div key={item.label} className="flex min-h-[80px] items-start gap-4 p-2 transition-all hover:scale-[1.03]">
                 <div className={`mt-1.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-cyan-500/20 ${index === 0 ? "bg-cyan-500/10 text-cyan-400" : index === 1 ? "bg-indigo-500/10 text-indigo-400" : "bg-blue-500/10 text-blue-400"}`}>
                    <LandingIcon kind={index === 0 ? "shield" : index === 1 ? "speed" : "secure"} />
                 </div>
@@ -337,17 +343,21 @@ export function LandingPage({
           </div>
         </section>
 
-        <section data-nb-preview="features" className="py-20">
-          <div className="mb-12 max-w-3xl">
+        <section data-nb-preview="features" className="relative pt-16 pb-8 px-6 overflow-hidden">
+          <div className="relative z-10 mx-auto max-w-6xl rounded-[48px] border border-white/5 bg-slate-900/20 p-12 md:p-24 backdrop-blur-3xl shadow-[0_32px_100px_-20px_rgba(0,0,0,0.7)]">
+            <div className="absolute -right-[10%] top-1/2 -z-10 h-[600px] w-[600px] -translate-y-1/2 rounded-full bg-indigo-600/20 blur-[140px] opacity-50 animate-pulse" />
+            <div className="absolute -left-[10%] top-1/4 -z-10 h-[400px] w-[400px] rounded-full bg-cyan-500/10 blur-[120px] opacity-30" />
+
+           <div className="relative z-10 mb-12 max-w-3xl">
             <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-400/90">{copy.features.kicker}</p>
             <h3 className="mt-4 text-4xl font-extrabold tracking-tight text-white sm:text-5xl">{copy.features.title}</h3>
-          </div>
+           </div>
 
-          <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
-            {copy.features.items.map((item) => (
-              <article
-                key={item.title}
-                className="group relative overflow-hidden rounded-[32px] border border-white/5 bg-slate-900/40 p-8 transition-all duration-500 hover:-translate-y-2 hover:border-cyan-500/30 hover:bg-slate-900/60 hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7),0_0_20px_rgba(34,211,238,0.1)]"
+           <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+             {copy.features.items.map((item) => (
+               <article
+                 key={item.title}
+                 className="group relative overflow-hidden rounded-[32px] border border-white/5 bg-slate-900/40 p-8 transition-all duration-500 hover:-translate-y-2 hover:border-cyan-500/30 hover:bg-slate-900/60 hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7),0_0_20px_rgba(34,211,238,0.1)]"
               >
                 <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-cyan-500/5 blur-2xl transition-all group-hover:bg-cyan-500/10" />
                 
@@ -363,11 +373,12 @@ export function LandingPage({
               </article>
             ))}
           </div>
+          </div>
         </section>
 
-{/* --- GÜVEN BÖLÜMÜ (DERİNLİK VE SADE IŞILTI) --- */}
+
 {/* --- GÜVEN BÖLÜMÜ (PREMIUM AMBİYANS VE MODERN KARTLAR) --- */}
-<section className="relative py-32 px-6 overflow-hidden">
+<section className="relative pt-8 pb-16 px-6 overflow-hidden">
   
   {/* 1. ANA AMBİYANS IŞIĞI (Ekran görüntüsündeki o sağdan vuran derin parıltı efekti) */}
   <div className="absolute -right-[10%] top-1/2 -z-10 h-[600px] w-[600px] -translate-y-1/2 rounded-full bg-indigo-600/20 blur-[140px] opacity-50 animate-pulse" />

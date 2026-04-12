@@ -252,10 +252,10 @@ export async function createPaymentCheckoutSession(params: {
         id: params.plan,
         name:
           params.plan === "BUSINESS"
-            ? "NB PDF TOOLS Basic (1 ay)"
+            ? "NB PDF PLARTFORM Basic (1 ay)"
             : isAnnualPro
-              ? "NB PDF TOOLS PRO (1 yıl)"
-              : "NB PDF TOOLS PRO (1 ay)",
+              ? "NB PDF PLARTFORM PRO (1 yıl)"
+              : "NB PDF PLARTFORM PRO (1 ay)",
         category1: "Subscription",
         category2: "Software",
         itemType: Iyzipay.BASKET_ITEM_TYPE.VIRTUAL,

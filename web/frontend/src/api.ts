@@ -201,7 +201,7 @@ function gatewayUnreachableHint(status: number): string {
   if (status !== 502 && status !== 503 && status !== 504) {
     return "";
   }
-  return "PDF API kapalı veya 127.0.0.1:8000 yanıt vermiyor. Önerilen: proje kökünde (NB_PDF_Tools) `npm run dev` veya `node scripts/run-pdf-api.mjs`. Alternatif: `cd web\\backend` → `python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000`.";
+  return "PDF API kapalı veya 127.0.0.1:8000 yanıt vermiyor. Önerilen: proje kökünde (NB_PDF_PLARTFORM) `npm run dev` veya `node scripts/run-pdf-api.mjs`. Alternatif: `cd web\\backend` → `python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000`.";
 }
 
 async function ensureOk(response: Response, defaultMessage: string) {

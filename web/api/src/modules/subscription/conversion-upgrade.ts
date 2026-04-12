@@ -14,13 +14,13 @@ export type UpgradeCta = {
   clientAction: "open_upgrade_modal";
 };
 
-/** Optional strings from SiteSetting `tools.config` → `conversion`. */
+/** Optional strings from SiteSetting `PLARTFORM.config` → `conversion`. */
 export type ConversionCtaOverrides = {
   upgradeCtaLabel?: string;
   upgradeCtaSubtitle?: string;
 };
 
-/** Nudge eşikleri — `tools.config` → `conversionMessaging` ile yönetilebilir. */
+/** Nudge eşikleri — `PLARTFORM.config` → `conversionMessaging` ile yönetilebilir. */
 export type ConversionMessagingThresholds = {
   strongThrottleMessageMinEvents: number;
   strongRecordMessageMinThrottle: number;

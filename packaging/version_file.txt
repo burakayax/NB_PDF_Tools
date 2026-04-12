@@ -17,12 +17,12 @@ VSVersionInfo(
         u'040904B0',
         [
         StringStruct(u'CompanyName', u'NB Global Studio'),
-        StringStruct(u'FileDescription', u'NB PDF Tools — PDF suite for Windows'),
+        StringStruct(u'FileDescription', u'NB PDF PLARTFORM — PDF suite for Windows'),
         StringStruct(u'FileVersion', u'1.0.0.0'),
-        StringStruct(u'InternalName', u'NB_PDF_Tools'),
+        StringStruct(u'InternalName', u'NB_PDF_PLARTFORM'),
         StringStruct(u'LegalCopyright', u'Copyright \xa9 NB Global Studio'),
-        StringStruct(u'OriginalFilename', u'NB_PDF_Tools.exe'),
-        StringStruct(u'ProductName', u'NB PDF Tools'),
+        StringStruct(u'OriginalFilename', u'NB_PDF_PLARTFORM.exe'),
+        StringStruct(u'ProductName', u'NB PDF PLARTFORM'),
         StringStruct(u'ProductVersion', u'1.0.0.0')])
       ]),
     VarFileInfo([VarStruct(u'Translation', [1033, 1200])])

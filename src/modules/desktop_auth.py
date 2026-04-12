@@ -167,7 +167,7 @@ def _protect_bytes(data: bytes) -> bytes:
     out_blob = _DataBlob()
     if not crypt32.CryptProtectData(
         ctypes.byref(in_blob),
-        "NB PDF TOOLS desktop session",
+        "NB PDF PLARTFORM desktop session",
         None,
         None,
         None,
@@ -205,7 +205,7 @@ def _unprotect_bytes(data: bytes) -> bytes:
 class DesktopSessionStore:
     def __init__(self):
         appdata_root = Path(os.environ.get("APPDATA") or _project_root())
-        self.session_path = appdata_root / "NB PDF TOOLS" / "desktop_session.json"
+        self.session_path = appdata_root / "NB PDF PLARTFORM" / "desktop_session.json"
 
     def load(self) -> Optional[dict[str, Any]]:
         if not self.session_path.is_file():
@@ -288,7 +288,7 @@ class DesktopGuestState:
 class GuestUsageStore:
     def __init__(self, device_id: Optional[str] = None, default_limit: int = DEFAULT_GUEST_OPERATION_LIMIT):
         appdata_root = Path(os.environ.get("APPDATA") or _project_root())
-        self.state_path = appdata_root / "NB PDF TOOLS" / "desktop_guest_usage.json"
+        self.state_path = appdata_root / "NB PDF PLARTFORM" / "desktop_guest_usage.json"
         self.device_id = device_id or ""
         self.default_limit = default_limit
 
@@ -571,7 +571,7 @@ def capture_google_oauth_token(api_base_url: str, lang: str, timeout_seconds: fl
             self.send_header("Content-type", "text/html; charset=utf-8")
             self.end_headers()
             page = (
-                "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>NB PDF TOOLS</title></head>"
+                "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>NB PDF PLARTFORM</title></head>"
                 "<body style=\"font-family:system-ui,sans-serif;padding:2rem;text-align:center;background:#0f172a;color:#e2e8f0;\">"
                 "<p>Giriş tamamlandı. Bu sekmeyi kapatabilirsiniz.</p>"
                 "<p style=\"color:#94a3b8;font-size:14px;\">Sign-in complete. You may close this tab.</p>"

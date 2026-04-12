@@ -5,9 +5,9 @@ import { isAdminUser } from "../../lib/user-role.js";
 import { ensureDesktopDeviceAccess } from "../device/device.service.js";
 import { buildSummaryUpgradeHint, buildUpgradeCta } from "../subscription/conversion-upgrade.js";
 import {
-  getResolvedToolsBusinessConfig,
-  type ResolvedToolsBusinessConfig,
-} from "../subscription/tools-config-runtime.js";
+  getResolvedPLARTFORMBusinessConfig,
+  type ResolvedPLARTFORMBusinessConfig,
+} from "../subscription/PLARTFORM-config-runtime.js";
 import {
   ensurePaidSubscriptionActiveOrDowngrade,
   incrementPostLimitThrottleCount,
@@ -21,7 +21,7 @@ import {
 import { mergeUsageSoftWarnings } from "../subscription/usage-soft-warnings.js";
 import type { PlanDefinition } from "../subscription/subscription.config.js";
 import type { FeatureKey } from "../subscription/subscription.config.js";
-import { isFeatureGloballyDisabled } from "../../lib/tools-feature-policy.js";
+import { isFeatureGloballyDisabled } from "../../lib/PLARTFORM-feature-policy.js";
 import { getPlanDefinitionsResolved } from "../subscription/plan-runtime.js";
 import type { DesktopAuthorizeInput } from "./license.schema.js";
 
@@ -39,7 +39,7 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function getDesktopPlanRules(plan: Plan, defs: Record<Plan, PlanDefinition>, tools: ResolvedToolsBusinessConfig) {
+function getDesktopPlanRules(plan: Plan, defs: Record<Plan, PlanDefinition>, PLARTFORM: ResolvedPLARTFORMBusinessConfig) {
   switch (plan) {
     case "PRO":
       return {
@@ -67,7 +67,7 @@ function getDesktopPlanRules(plan: Plan, defs: Record<Plan, PlanDefinition>, too
         canUseEncryption: true,
         /** Web’de Free için birleştirme açık; çoklu dosya (ör. birleştirme) için gerekli. */
         canUseBatchProcessing: true,
-        maxFileSizeMb: tools.freeDesktopMaxFileSizeMb,
+        maxFileSizeMb: PLARTFORM.freeDesktopMaxFileSizeMb,
         blockedFeatures: [] as FeatureKey[],
       };
   }
@@ -97,9 +97,9 @@ function buildEntitlements(
   plan: Plan,
   usedToday: number,
   defs: Record<Plan, PlanDefinition>,
-  tools: ResolvedToolsBusinessConfig,
+  PLARTFORM: ResolvedPLARTFORMBusinessConfig,
 ): DesktopEntitlements {
-  const rules = getDesktopPlanRules(plan, defs, tools);
+  const rules = getDesktopPlanRules(plan, defs, PLARTFORM);
   return {
     dailyLimit: rules.dailyLimit,
     usedToday,
@@ -114,18 +114,18 @@ function buildEntitlements(
 export async function validateDesktopLicense(userId: string, deviceId?: string) {
   const { user, usageDate, usage } = await getUserWithUsage(userId);
   const defs = await getPlanDefinitionsResolved();
-  const toolsCfg = await getResolvedToolsBusinessConfig();
+  const PLARTFORMCfg = await getResolvedPLARTFORMBusinessConfig();
   const admin = isAdminUser(user);
   const deviceAccess = await ensureDesktopDeviceAccess(userId, deviceId ?? "", Boolean(deviceId), {
     bypassDeviceLimit: admin,
   });
   const effectivePlan: Plan = admin ? "PRO" : user.plan;
-  const rules = getDesktopPlanRules(effectivePlan, defs, toolsCfg);
-  const entitlements = buildEntitlements(effectivePlan, usage?.operationsCount ?? 0, defs, toolsCfg);
+  const rules = getDesktopPlanRules(effectivePlan, defs, PLARTFORMCfg);
+  const entitlements = buildEntitlements(effectivePlan, usage?.operationsCount ?? 0, defs, PLARTFORMCfg);
   const throttleEvents = usage?.postLimitThrottleCount ?? 0;
-  const freeBefore = toolsCfg.postLimitThrottle.freeOpsBeforeThrottle;
+  const freeBefore = PLARTFORMCfg.postLimitThrottle.freeOpsBeforeThrottle;
   const isFreeEffective = !admin && effectivePlan === "FREE";
-  const ctaOv = isFreeEffective ? toolsCfg.conversion : undefined;
+  const ctaOv = isFreeEffective ? PLARTFORMCfg.conversion : undefined;
   const hint = isFreeEffective
     ? buildSummaryUpgradeHint(
         {
@@ -159,7 +159,7 @@ export async function validateDesktopLicense(userId: string, deviceId?: string) 
         postLimitExtraOps: usage?.postLimitExtraOps ?? 0,
         postLimitThrottleEventsToday: throttleEvents,
       },
-      { approachingCapRatio: toolsCfg.usageSoftWarningRatio },
+      { approachingCapRatio: PLARTFORMCfg.usageSoftWarningRatio },
     ),
     entitlements,
     devices: {
@@ -227,7 +227,7 @@ function assertDesktopOperationAllowed(input: DesktopAuthorizeInput, entitlement
 export async function authorizeDesktopOperation(userId: string, input: DesktopAuthorizeInput, deviceId?: string) {
   const { user, usageDate } = await getUserWithUsage(userId);
   const defs = await getPlanDefinitionsResolved();
-  const toolsCfg = await getResolvedToolsBusinessConfig();
+  const PLARTFORMCfg = await getResolvedPLARTFORMBusinessConfig();
   const admin = isAdminUser(user);
   const deviceAccess = await ensureDesktopDeviceAccess(userId, deviceId ?? "", Boolean(deviceId), {
     bypassDeviceLimit: admin,
@@ -244,11 +244,11 @@ export async function authorizeDesktopOperation(userId: string, input: DesktopAu
   const effectivePlan: Plan = admin ? "PRO" : user.plan;
 
   if (admin) {
-    const entitlements = buildEntitlements("PRO", currentUsage?.operationsCount ?? 0, defs, toolsCfg);
+    const entitlements = buildEntitlements("PRO", currentUsage?.operationsCount ?? 0, defs, PLARTFORMCfg);
     return {
       allowed: true,
       plan: user.plan,
-      status: getDesktopPlanRules("PRO", defs, toolsCfg).status,
+      status: getDesktopPlanRules("PRO", defs, PLARTFORMCfg).status,
       usage: mergeUsageSoftWarnings(
         {
           date: usageDate,
@@ -259,7 +259,7 @@ export async function authorizeDesktopOperation(userId: string, input: DesktopAu
           postLimitExtraOps: currentUsage?.postLimitExtraOps ?? 0,
           postLimitThrottleEventsToday: currentUsage?.postLimitThrottleCount ?? 0,
         },
-        { approachingCapRatio: toolsCfg.usageSoftWarningRatio },
+        { approachingCapRatio: PLARTFORMCfg.usageSoftWarningRatio },
       ),
       entitlements,
       devices: {
@@ -279,7 +279,7 @@ export async function authorizeDesktopOperation(userId: string, input: DesktopAu
     };
   }
 
-  const entitlements = buildEntitlements(effectivePlan, currentUsage?.operationsCount ?? 0, defs, toolsCfg);
+  const entitlements = buildEntitlements(effectivePlan, currentUsage?.operationsCount ?? 0, defs, PLARTFORMCfg);
   if (await isFeatureGloballyDisabled(input.featureKey as FeatureKey)) {
     throw new HttpError(503, "This tool is temporarily unavailable.");
   }
@@ -287,7 +287,7 @@ export async function authorizeDesktopOperation(userId: string, input: DesktopAu
 
   const usedBefore = currentUsage?.operationsCount ?? 0;
   const priorThrottle = currentUsage?.postLimitThrottleCount ?? 0;
-  const freeBefore = toolsCfg.postLimitThrottle.freeOpsBeforeThrottle;
+  const freeBefore = PLARTFORMCfg.postLimitThrottle.freeOpsBeforeThrottle;
   const toolCounts = parseToolUsageCountsJson(user.toolUsageCountsJson);
   const lifetimeThrottle = user.totalThrottleEventsCount ?? 0;
   const lifetimeOps = user.totalOperationsCount ?? 0;
@@ -308,9 +308,9 @@ export async function authorizeDesktopOperation(userId: string, input: DesktopAu
     behaviorStressMultiplier,
     lifetimeThrottleEvents: lifetimeThrottle,
     lifetimeTotalOps: lifetimeOps,
-    conversionCtaOverrides: toolsCfg.conversion,
-    throttleRuntime: toolsCfg.postLimitThrottle,
-    conversionMessaging: toolsCfg.conversionMessaging,
+    conversionCtaOverrides: PLARTFORMCfg.conversion,
+    throttleRuntime: PLARTFORMCfg.postLimitThrottle,
+    conversionMessaging: PLARTFORMCfg.conversionMessaging,
   });
   if (throttle) {
     await incrementPostLimitThrottleCount(userId);
@@ -355,7 +355,7 @@ export async function authorizeDesktopOperation(userId: string, input: DesktopAu
 
   await incrementUserLifetimeOperation(userId, input.featureKey as FeatureKey);
 
-  const nextEntitlements = buildEntitlements(user.plan, nextUsage.operationsCount, defs, toolsCfg);
+  const nextEntitlements = buildEntitlements(user.plan, nextUsage.operationsCount, defs, PLARTFORMCfg);
   const usageLine =
     planLimit !== null
       ? formatFreeUsageLine(nextUsage.operationsCount, planLimit)
@@ -375,7 +375,7 @@ export async function authorizeDesktopOperation(userId: string, input: DesktopAu
     (Boolean(throttle) ||
       nextUsage.postLimitExtraOps > 0 ||
       (planLimit !== null ? nextUsage.operationsCount > planLimit : nextUsage.operationsCount > freeBefore))
-      ? (throttle?.upgradeCta ?? buildUpgradeCta(toolsCfg.conversion))
+      ? (throttle?.upgradeCta ?? buildUpgradeCta(PLARTFORMCfg.conversion))
       : null;
 
   const conversionTracking =
@@ -409,7 +409,7 @@ export async function authorizeDesktopOperation(userId: string, input: DesktopAu
   return {
     allowed: true,
     plan: user.plan,
-    status: getDesktopPlanRules(user.plan, defs, toolsCfg).status,
+    status: getDesktopPlanRules(user.plan, defs, PLARTFORMCfg).status,
     usage: mergeUsageSoftWarnings(
       {
         date: usageDate,
@@ -422,7 +422,7 @@ export async function authorizeDesktopOperation(userId: string, input: DesktopAu
         postLimitExtraOps: nextUsage.postLimitExtraOps,
         postLimitThrottleEventsToday: nextUsage.postLimitThrottleCount,
       },
-      { approachingCapRatio: toolsCfg.usageSoftWarningRatio },
+      { approachingCapRatio: PLARTFORMCfg.usageSoftWarningRatio },
     ),
     entitlements: nextEntitlements,
     devices: {

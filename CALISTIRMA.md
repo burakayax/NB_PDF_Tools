@@ -1,4 +1,4 @@
-# NB PDF Tools — Birlikte çalıştırma (kök `npm` betikleri)
+# NB PDF PLARTFORM — Birlikte çalıştırma (kök `npm` betikleri)
 
 Bu dosya **proje kökündeki** `package.json` içindeki komutların ne işe yaradığını Türkçe açıklar.
 
@@ -115,7 +115,7 @@ Geliştirmede `dev` kullanılır; `start` önce derleme sonrası hızlı doğrul
 
 ```bash
 git clone <repo>
-cd NB_PDF_Tools
+cd NB_PDF_PLARTFORM
 cp web/api/.env.example web/api/.env
 cp web/frontend/.env.example web/frontend/.env
 # .env dosyalarını düzenleyin (JWT, e-posta, ADMIN_EMAIL vb.)

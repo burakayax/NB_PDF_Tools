@@ -17,7 +17,7 @@ export function upgradeModalCopy(lang: Language) {
       tr ? `~%${pct} tasarruf` : `Save ~${pct}%`,
     freeBullets: tr
       ? ["Günlük sınırlı işlem", "Temel araçlar", "Web erişimi"]
-      : ["Limited daily operations", "Core tools", "Web access"],
+      : ["Limited daily operations", "Core PLARTFORM", "Web access"],
     basicBullets: tr
       ? ["Sınırsız işlem", "Tüm araçlar", "Standart öncelik"]
       : ["Unlimited operations", "Full toolkit", "Standard priority"],

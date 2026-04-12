@@ -1,9 +1,9 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["setupPLARTFORM>=68", "wheel"]
+build-backend = "setupPLARTFORM.build_meta"
 
 [project]
-name = "nb-pdf-tools"
+name = "nb-pdf-PLARTFORM"
 version = "1.0.0"
 description = "Windows desktop PDF conversion and document utility application."
 readme = "README.md"
@@ -22,10 +22,10 @@ classifiers = [
 ]
 
 [project.scripts]
-nb-pdf-tools = "src.__main__:main"
+nb-pdf-PLARTFORM = "src.__main__:main"
 
-[tool.setuptools]
+[tool.setupPLARTFORM]
 include-package-data = true
 
-[tool.setuptools.packages.find]
+[tool.setupPLARTFORM.packages.find]
 include = ["src", "src.*"]

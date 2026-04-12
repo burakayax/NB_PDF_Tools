@@ -215,10 +215,10 @@ class UpgradeModal(ctk.CTkToplevel):
                 t("upgrade_modal.row_daily_unlimited"),
             ),
             (
-                t("upgrade_modal.row_tools"),
-                t("upgrade_modal.row_tools_free"),
-                t("upgrade_modal.row_tools_all"),
-                t("upgrade_modal.row_tools_all"),
+                t("upgrade_modal.row_PLARTFORM"),
+                t("upgrade_modal.row_PLARTFORM_free"),
+                t("upgrade_modal.row_PLARTFORM_all"),
+                t("upgrade_modal.row_PLARTFORM_all"),
             ),
             (
                 t("upgrade_modal.row_convert"),

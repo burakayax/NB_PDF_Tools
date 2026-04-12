@@ -4,7 +4,7 @@ Optional update check against a JSON manifest (HTTPS).
 Set ``update_manifest_url`` in desktop_auth_config.json or env NB_UPDATE_MANIFEST_URL.
 
 Manifest example::
-    { "version": "1.0.1", "download_url": "https://cdn.example.com/NB_PDF_Tools_Setup.exe", "notes": "Optional" }
+    { "version": "1.0.1", "download_url": "https://cdn.example.com/NB_PDF_PLARTFORM_Setup.exe", "notes": "Optional" }
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from version_info import __version__
 
 
 def _fetch_json(url: str, timeout: float = 12.0) -> dict[str, Any] | None:
-    req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "NB-PDF-Tools-Desktop"})
+    req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "NB-PDF-PLARTFORM-Desktop"})
     ctx = ssl.create_default_context()
     try:
         with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:

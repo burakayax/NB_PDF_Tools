@@ -1,4 +1,4 @@
-# NB PDF TOOLS Web
+# NB PDF PLARTFORM Web
 
 > **Geliştirme:** Üç servisi birlikte başlatmak için çoğu zaman proje **kökünde** `npm run install-all` ve `npm run dev` yeterlidir. Ayrıntılar: kökteki **CALISTIRMA.md**.
 
@@ -49,7 +49,7 @@ Bu servis varsayılan olarak `http://localhost:8000` adresinde açılır.
    - `SMTP_USER=...`
    - `SMTP_PASS=...`
    - `SMTP_FROM_EMAIL=...`
-   - `SMTP_FROM_NAME=NB PDF TOOLS`
+   - `SMTP_FROM_NAME=NB PDF PLARTFORM`
    - `ADMIN_EMAIL=admin@example.com` (kendi yönetici gelen kutunuz)
 5. Prisma istemcisini üret:
    `npm run prisma:generate`

@@ -37,7 +37,7 @@ const rawEnvSchema = z
     SMTP_USER: z.string().min(1).optional(),
     SMTP_PASS: z.string().min(1).optional(),
     SMTP_FROM_EMAIL: z.string().email().optional(),
-    SMTP_FROM_NAME: z.string().min(1).default("NB PDF TOOLS"),
+    SMTP_FROM_NAME: z.string().min(1).default("NB PDF PLARTFORM"),
     /** Yönetici bildirimleri ve iletişim formu için gelen kutusu adresi. */
     ADMIN_EMAIL: z.string().email(),
     /** İletişim formu POST /api/contact bildirimlerinin alıcısı (varsayılan: nbglobalstudio@gmail.com). */
@@ -51,7 +51,7 @@ const rawEnvSchema = z
     GOOGLE_CLIENT_ID: z.string().optional().default(""),
     GOOGLE_CLIENT_SECRET: z.string().optional().default(""),
     /** Günlük dosyası yolu (göreli veya mutlak); üst dizin başlangıçta oluşturulur. */
-    LOG_FILE_PATH: z.string().min(1).default("logs/nb-pdf-tools-api.log"),
+    LOG_FILE_PATH: z.string().min(1).default("logs/nb-pdf-PLARTFORM-api.log"),
     LOG_FILE_ENABLED: z.enum(["true", "false"]).optional().default("true"),
     /** Dakikada çoğu /api yolu için IP başına üst sınır (SPA eşzamanlı istekleri için 60 önerilir; /auth/preferences ayrı kota). */
     API_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(60),
@@ -61,10 +61,10 @@ const rawEnvSchema = z
     API_ABUSE_BLOCK_MINUTES: z.coerce.number().int().positive().default(60),
     /**
      * Varsayılan “ücretsiz günlük limit” gösterimi (`site.settings.freeDailyLimitDisplay` / public bootstrap).
-     * FREE planında günlük üst sınır yok; yumuşak sürtünme `tools.config.postLimitThrottle` ile yönetilir.
+     * FREE planında günlük üst sınır yok; yumuşak sürtünme `PLARTFORM.config.postLimitThrottle` ile yönetilir.
      */
     DEFAULT_FREE_DAILY_LIMIT: z.coerce.number().int().min(0).max(10_000).default(5),
-    /** `tools.config` yokken masaüstü FREE max dosya boyutu (MB). */
+    /** `PLARTFORM.config` yokken masaüstü FREE max dosya boyutu (MB). */
     DEFAULT_FREE_DESKTOP_MAX_FILE_MB: z.coerce.number().int().min(1).max(5000).default(15),
     /** Ters proxy arkasında doğru istemci IP için (örn. 1 veya sayı). Boş = güvenme. */
     TRUST_PROXY: z.string().optional().default(""),

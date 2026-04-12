@@ -44,7 +44,7 @@ const defaultPayload: PublicRuntimePayload = {
     notifications: defaultNotifications,
   },
   plans: [],
-  toolsPublic: { disabledFeatures: [], displayFreeDailyLimit: null },
+  PLARTFORMPublic: { disabledFeatures: [], displayFreeDailyLimit: null },
   pricing: defaultPricing,
   flags: { maintenanceMode: false, betaFeatures: {}, featureFlags: {} },
   notifications: defaultNotifications,

@@ -24,7 +24,7 @@ export function LegalPage({ language, documentKey, onBack }: LegalPageProps) {
         </button>
 
         <section className="mt-10 rounded-[28px] border border-white/[0.08] bg-nb-panel/50 p-8 shadow-[0_40px_90px_-24px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.04)_inset] backdrop-blur-xl sm:p-11">
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-nb-accent">NB PDF TOOLS</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-nb-accent">NB PDF PLARTFORM</p>
           <h1 className="mt-5 text-4xl font-semibold tracking-tight text-nb-text sm:text-5xl">{document.title}</h1>
           <p className="mt-5 text-base leading-8 text-nb-muted">{document.summary}</p>
 

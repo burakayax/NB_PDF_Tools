@@ -855,7 +855,7 @@ class NBPDFApp(ctk.CTk):
 
         nav_left = ctk.CTkFrame(navbar, fg_color="transparent")
         nav_left.grid(row=0, column=0, sticky="w", padx=(16, 8), pady=8)
-        logo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets", "nb_pdf_tools_icon.png"))
+        logo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets", "nb_pdf_PLARTFORM_icon.png"))
         logo_lbl = None
         if os.path.isfile(logo_path):
             try:
@@ -1874,14 +1874,14 @@ class NBPDFApp(ctk.CTk):
     def _configure_windows_identity(self):
         """Windows görev çubuğunda özel uygulama kimliğini görünür hale getirir."""
         try:
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("nbglobalstudio.nbpdftools.desktop")
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("nbglobalstudio.nbpdfPLARTFORM.desktop")
         except Exception:
             pass
 
     def _configure_window_icon(self):
         """Pencere ve görev çubuğu için uygulama ikonunu yüklemeyi dener."""
         try:
-            icon_path = resource_path("assets", "nb_pdf_tools_icon.png")
+            icon_path = resource_path("assets", "nb_pdf_PLARTFORM_icon.png")
             if os.path.isfile(icon_path):
                 self._window_icon = PhotoImage(file=icon_path)
                 self.iconphoto(True, self._window_icon)

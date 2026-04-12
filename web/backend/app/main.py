@@ -1,4 +1,4 @@
-"""NB PDF Tools web API giris noktasi."""
+"""NB PDF PLARTFORM web API giris noktasi."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from app.security.headers_middleware import SecurityHeadersMiddleware
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="NB PDF Tools Web API",
+    title="NB PDF PLARTFORM Web API",
     version="0.1.0",
     description="Masaustu PDF aracinin web arayuzu icin API katmani.",
 )

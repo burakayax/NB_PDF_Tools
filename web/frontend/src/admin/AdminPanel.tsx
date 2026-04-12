@@ -9,7 +9,7 @@ import {
   fetchAdminOverview,
   fetchAdminPlans,
   fetchAdminSettings,
-  fetchAdminTools,
+  fetchAdminPLARTFORM,
   fetchAdminUsageSeries,
   fetchAdminUsers,
   patchAdminUser,
@@ -19,7 +19,7 @@ import {
   putAdminPlanPricing,
   putAdminPlansOverride,
   putAdminSettingsPatches,
-  putAdminToolsConfig,
+  putAdminPLARTFORMConfig,
   uploadAdminMedia,
   type AdminMediaItem,
   type AdminOverview,
@@ -47,7 +47,7 @@ import {
 import type { NavGroup } from "./AdminUi";
 import { SystemControlTab } from "./SystemControlTab";
 
-type AdminTabId = "dashboard" | "users" | "packages" | "tools" | "content" | "media" | "settings" | "analytics";
+type AdminTabId = "dashboard" | "users" | "packages" | "PLARTFORM" | "content" | "media" | "settings" | "analytics";
 
 export type AdminUiMode = "simple" | "advanced";
 
@@ -71,7 +71,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "dashboard", label: "Genel bakış", hint: "Özet istatistikler" },
       { id: "users", label: "Kullanıcılar", hint: "Hesaplar" },
       { id: "packages", label: "Paketler", hint: "Fiyat ve planlar" },
-      { id: "tools", label: "Araçlar", hint: "Araçlar · monetizasyon (SiteSetting)" },
+      { id: "PLARTFORM", label: "Araçlar", hint: "Araçlar · monetizasyon (SiteSetting)" },
       { id: "content", label: "İçerik", hint: "Sayfa metinleri ve görseller" },
       { id: "media", label: "Medya", hint: "Görseller" },
       { id: "settings", label: "Ayarlar", hint: "Site, güvenlik, sistem" },
@@ -273,7 +273,7 @@ export function AdminPanel({ accessToken, onExit, onLogout, viewerRole = "ADMIN"
       <aside className="flex w-[260px] shrink-0 flex-col border-r border-white/[0.08] bg-[#080d18] md:w-[280px]">
         <div className="border-b border-white/[0.08] px-4 py-4">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-violet-300/90">Yönetim paneli</p>
-          <p className="mt-1 text-base font-semibold text-white">NB PDF Tools</p>
+          <p className="mt-1 text-base font-semibold text-white">NB PDF PLARTFORM</p>
           <p className="mt-2 text-[11px] leading-snug text-slate-500">Kod bilgisi gerekmez; alanların altındaki açıklamalara bakın.</p>
         </div>
         <AdminSidebarNav groups={NAV_GROUPS} activeId={tab} onSelect={(id) => setTab(id as AdminTabId)} />
@@ -350,7 +350,7 @@ export function AdminPanel({ accessToken, onExit, onLogout, viewerRole = "ADMIN"
           {tab === "dashboard" ? <DashboardTab overview={overview} uiMode={uiMode} /> : null}
           {tab === "users" ? <UsersTab accessToken={accessToken} uiMode={uiMode} /> : null}
           {tab === "packages" ? <PackagesTab accessToken={accessToken} uiMode={uiMode} /> : null}
-          {tab === "tools" ? <ToolsTab accessToken={accessToken} uiMode={uiMode} /> : null}
+          {tab === "PLARTFORM" ? <PLARTFORMTab accessToken={accessToken} uiMode={uiMode} /> : null}
           {tab === "content" ? (
             <ContentTab
               accessToken={accessToken}
@@ -362,7 +362,7 @@ export function AdminPanel({ accessToken, onExit, onLogout, viewerRole = "ADMIN"
           ) : null}
           {tab === "media" ? <MediaTab accessToken={accessToken} onBindToCms={queueCmsMediaBind} /> : null}
           {tab === "settings" ? (
-            <SettingsTab accessToken={accessToken} uiMode={uiMode} showSystemTools={viewerRole === "ADMIN"} />
+            <SettingsTab accessToken={accessToken} uiMode={uiMode} showSystemPLARTFORM={viewerRole === "ADMIN"} />
           ) : null}
           {tab === "analytics" ? <AnalyticsTab accessToken={accessToken} overview={overview} uiMode={uiMode} /> : null}
         </div>
@@ -460,17 +460,17 @@ function DashboardTab({ overview, uiMode }: { overview: AdminOverview | null; ui
         </StatCard>
         <StatCard title="En çok kullanılan araçlar">
           <p className="mb-2 text-[12px] leading-relaxed text-slate-400">
-            {overview.mostUsedToolsAllTimeFallback
+            {overview.mostUsedPLARTFORMAllTimeFallback
               ? "Son 30 günde veri yok; tüm zamanların toplamı gösteriliyor. İşlem sayısı günlük satırlarındaki son araç alanına göre dağıtılır."
               : "Son 30 gün, günlük kullanım kayıtlarına göre (işlem sayısı o günkü son araç alanına yazılır)."}
           </p>
-          {overview.mostUsedTools.length === 0 ? (
+          {overview.mostUsedPLARTFORM.length === 0 ? (
             <p className="text-sm text-slate-500">
               Henüz araç kullanımı yok veya <code className="text-slate-400">lastFeatureKey</code> dolu kayıt bulunmuyor. PDF işlemi yaptıktan sonra burası dolacaktır.
             </p>
           ) : (
             <ul className="max-h-48 space-y-1 overflow-y-auto text-sm">
-              {overview.mostUsedTools.map((t) => (
+              {overview.mostUsedPLARTFORM.map((t) => (
                 <li key={t.featureKey} className="flex justify-between gap-2">
                   <span className="min-w-0 truncate">
                     <span className="text-slate-200">{pdfToolLabelTr(t.featureKey)}</span>
@@ -1370,8 +1370,8 @@ function cmsSetBool(root: Record<string, unknown>, path: string[], value: boolea
 
 function cmsGetToolField(root: Record<string, unknown>, toolId: string, field: "title" | "description" | "button"): string {
   const ws = root.workspace as Record<string, unknown> | undefined;
-  const tools = ws?.tools as Record<string, Record<string, unknown>> | undefined;
-  const row = tools?.[toolId];
+  const PLARTFORM = ws?.PLARTFORM as Record<string, Record<string, unknown>> | undefined;
+  const row = PLARTFORM?.[toolId];
   if (!row) {
     return "";
   }
@@ -1395,19 +1395,19 @@ function cmsSetToolField(
     next.workspace = {};
     ws = next.workspace as Record<string, unknown>;
   }
-  let tools = ws.tools as Record<string, Record<string, unknown>> | undefined;
-  if (!tools || typeof tools !== "object" || Array.isArray(tools)) {
-    ws.tools = {};
-    tools = ws.tools as Record<string, Record<string, unknown>>;
+  let PLARTFORM = ws.PLARTFORM as Record<string, Record<string, unknown>> | undefined;
+  if (!PLARTFORM || typeof PLARTFORM !== "object" || Array.isArray(PLARTFORM)) {
+    ws.PLARTFORM = {};
+    PLARTFORM = ws.PLARTFORM as Record<string, Record<string, unknown>>;
   }
-  const cur = { ...(tools[toolId] ?? {}) };
+  const cur = { ...(PLARTFORM[toolId] ?? {}) };
   if (field === "button") {
     cur.button = value;
     delete cur.buttonText;
   } else {
     cur[field] = value;
   }
-  tools[toolId] = cur;
+  PLARTFORM[toolId] = cur;
   return next;
 }
 
@@ -1469,7 +1469,7 @@ function cmsSetFeatureItemField(
 
 const cmsInputClass = adminInputClass;
 
-type AdminToolsApiPayload = {
+type AdminPLARTFORMApiPayload = {
   catalog?: string[];
   planDefinitions?: Array<{ plan: string; dailyLimit: number | null; allowedFeatures: string[] }>;
   overrides?: Record<string, unknown> | null;
@@ -1485,7 +1485,7 @@ function readConversion(obj: Record<string, unknown>): Record<string, unknown> {
   return {};
 }
 
-function mergeToolsQuickForm(
+function mergePLARTFORMQuickForm(
   base: Record<string, unknown>,
   notes: string,
   upgradeCtaLabel: string,
@@ -1526,7 +1526,7 @@ type MonetizationEditorState = {
   strongRecordMessageMinPostLimitExtra: number;
 };
 
-function loadMonetizationFromToolsRoot(o: Record<string, unknown>): MonetizationEditorState {
+function loadMonetizationFromPLARTFORMRoot(o: Record<string, unknown>): MonetizationEditorState {
   let delaysEnabled = true;
   let freeOpsBeforeThrottle = 5;
   let delayCapMs = 30_000;
@@ -1592,7 +1592,7 @@ function loadMonetizationFromToolsRoot(o: Record<string, unknown>): Monetization
   };
 }
 
-function mergeMonetizationIntoToolsConfig(
+function mergeMonetizationIntoPLARTFORMConfig(
   base: Record<string, unknown>,
   mon: MonetizationEditorState,
 ): Record<string, unknown> {
@@ -1623,16 +1623,16 @@ function mergeMonetizationIntoToolsConfig(
   return { ...base, postLimitThrottle: nextPlt, conversionMessaging: nextCm };
 }
 
-function ToolsTab({ accessToken, uiMode }: { accessToken: string; uiMode: AdminUiMode }) {
+function PLARTFORMTab({ accessToken, uiMode }: { accessToken: string; uiMode: AdminUiMode }) {
   const [full, setFull] = useState<Record<string, unknown>>({ notes: "" });
   const [notes, setNotes] = useState("");
   const [ctaLabel, setCtaLabel] = useState("");
   const [ctaSubtitle, setCtaSubtitle] = useState("");
   const [catalog, setCatalog] = useState<string[]>([]);
-  const [planDefinitions, setPlanDefinitions] = useState<AdminToolsApiPayload["planDefinitions"]>([]);
+  const [planDefinitions, setPlanDefinitions] = useState<AdminPLARTFORMApiPayload["planDefinitions"]>([]);
   const [usageByTool, setUsageByTool] = useState<Record<string, { rows: number; operations: number }>>({});
   const [postLimitNote, setPostLimitNote] = useState<string | null>(null);
-  const [monetization, setMonetization] = useState<MonetizationEditorState>(() => loadMonetizationFromToolsRoot({}));
+  const [monetization, setMonetization] = useState<MonetizationEditorState>(() => loadMonetizationFromPLARTFORMRoot({}));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -1640,10 +1640,10 @@ function ToolsTab({ accessToken, uiMode }: { accessToken: string; uiMode: AdminU
   const reload = useCallback(async () => {
     setLoadErr(null);
     try {
-      const d = (await fetchAdminTools(accessToken)) as AdminToolsApiPayload;
+      const d = (await fetchAdminPLARTFORM(accessToken)) as AdminPLARTFORMApiPayload;
       const o = d.overrides && typeof d.overrides === "object" ? { ...(d.overrides as Record<string, unknown>) } : { notes: "" };
       setFull(o);
-      setMonetization(loadMonetizationFromToolsRoot(o));
+      setMonetization(loadMonetizationFromPLARTFORMRoot(o));
       setNotes(String(o.notes ?? ""));
       const conv = readConversion(o);
       setCtaLabel(String(conv.upgradeCtaLabel ?? ""));
@@ -1690,7 +1690,7 @@ function ToolsTab({ accessToken, uiMode }: { accessToken: string; uiMode: AdminU
 
       <AdminSection
         title="Monetizasyon (FREE gecikme)"
-        description="Kayıt: SiteSetting `tools.config` — kod değişikliği gerekmez. Ücretsiz planda sunucu gecikmesi, yumuşak kota eşiği ve mesaj eşikleri buradan yönetilir."
+        description="Kayıt: SiteSetting `PLARTFORM.config` — kod değişikliği gerekmez. Ücretsiz planda sunucu gecikmesi, yumuşak kota eşiği ve mesaj eşikleri buradan yönetilir."
         variant="emerald"
       >
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
@@ -2056,7 +2056,7 @@ function ToolsTab({ accessToken, uiMode }: { accessToken: string; uiMode: AdminU
 
       <AdminSection
         title="Yükseltme mesajları ve yönetici notu"
-        description="Kota dolduğunda veya gecikmeli işlemde API’nin döndürdüğü düğme etiketi ve alt satır (tools.config.conversion). Güçlü metin eşikleri yukarıdaki Monetizasyon bölümündedir."
+        description="Kota dolduğunda veya gecikmeli işlemde API’nin döndürdüğü düğme etiketi ve alt satır (PLARTFORM.config.conversion). Güçlü metin eşikleri yukarıdaki Monetizasyon bölümündedir."
         variant="violet"
       >
         {advanced ? (
@@ -2087,11 +2087,11 @@ function ToolsTab({ accessToken, uiMode }: { accessToken: string; uiMode: AdminU
                 setMsg("Monetizasyon: en az bir gecikme aralığı satırı gerekli.");
                 return;
               }
-              const next = mergeMonetizationIntoToolsConfig(
-                mergeToolsQuickForm(full, notes, ctaLabel, ctaSubtitle),
+              const next = mergeMonetizationIntoPLARTFORMConfig(
+                mergePLARTFORMQuickForm(full, notes, ctaLabel, ctaSubtitle),
                 monetization,
               );
-              await putAdminToolsConfig(accessToken, next);
+              await putAdminPLARTFORMConfig(accessToken, next);
               setFull(next);
               setMsg("Araç ayarları kaydedildi. Birkaç saniye içinde canlıya yansır.");
               notifyRuntimeRefresh();
@@ -2424,8 +2424,8 @@ function ContentTab({
               <input
                 className={cmsInputClass}
                 placeholder="Örn. Tüm PDF araçları tek yerde"
-                value={cmsGetStr(cms, ["toolsStrip", "headline"])}
-                onChange={(e) => patch((p) => cmsSetStr(p, ["toolsStrip", "headline"], e.target.value))}
+                value={cmsGetStr(cms, ["PLARTFORMStrip", "headline"])}
+                onChange={(e) => patch((p) => cmsSetStr(p, ["PLARTFORMStrip", "headline"], e.target.value))}
               />
             </AdminField>
             {(["tr", "en"] as const).map((lang) => (
@@ -2723,11 +2723,11 @@ function ContentTab({
 
 function SettingsTab({
   accessToken,
-  showSystemTools = false,
+  showSystemPLARTFORM = false,
   uiMode,
 }: {
   accessToken: string;
-  showSystemTools?: boolean;
+  showSystemPLARTFORM?: boolean;
   uiMode: AdminUiMode;
 }) {
   const fullRef = useRef<Record<string, unknown>>({ ...DEFAULT_SITE_SETTINGS });
@@ -3005,13 +3005,13 @@ function SettingsTab({
         {busy ? "Kaydediliyor…" : "Ayarları kaydet"}
       </button>
 
-      {showSystemTools && advanced ? (
+      {showSystemPLARTFORM && advanced ? (
         <div className="space-y-3 border-t border-white/[0.08] pt-8">
           <h3 className="text-sm font-semibold text-white">Sistem kontrolü</h3>
           <p className="text-[12px] text-slate-500">Yedek sürümler, denetim kaydı ve teknik bayraklar — yalnız tam yönetici.</p>
           <SystemControlTab accessToken={accessToken} />
         </div>
-      ) : showSystemTools && !advanced ? (
+      ) : showSystemPLARTFORM && !advanced ? (
         <AdminMutedBox>Sistem kontrolü (geri alma, denetim) Gelişmiş modda ve yalnız tam yönetici hesabında açılır.</AdminMutedBox>
       ) : (
         <AdminMutedBox>Gelişmiş sistem araçları yalnız tam yönetici hesabında gösterilir.</AdminMutedBox>

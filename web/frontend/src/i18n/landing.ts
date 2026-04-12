@@ -116,7 +116,7 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
   en: {
     navbar: {
       studioTagline: "NB Global Studio",
-      productLabel: "NB PDF TOOLS",
+      productLabel: "NB PDF PLARTFORM",
       platformTag: "Professional PDF Workflow Platform",
       contact: "Contact",
       languageLabel: "Language",
@@ -128,14 +128,14 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
     hero: {
       audience: ["Office teams", "Tender departments", "Administrative staff", "Operations leads"],
       kicker: "PDF Management for Business Workflows",
-      headline: "MANAGE YOUR DOCUMENTS WITH MASTERY.",
+      headline: "Manage all your PDF workflows in one platform.",
       alternatives: [
         "Fast, Secure PDF Management for Business Workflows",
         "Handle Your PDFs in Seconds, Built for Professionals",
       ],
       description:
-        "NB PDF TOOLS brings conversion, merge, split, compression, and encryption into one professional system so teams move faster, reduce document handling errors, and keep sensitive files under control.",
-      primaryCta: "Use Web App",
+        "NB PDF is a unified platform for all your PDF needs — convert, edit, compress, merge, split, sign, and secure your documents in one place. No more switching PLARTFORM. Work faster, safer, and more professionally.",
+      primaryCta: "Start Free",
       secondaryCta: "Download for Windows",
       highlights: [
         { label: "Built for", value: "Business-critical document handling" },
@@ -198,7 +198,7 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
         {
           src: "/app-preview-main.png",
           title: "Unified multi-tool workspace",
-          description: "Core PDF operations are grouped in one interface so teams can complete work without switching tools.",
+          description: "Core PDF operations are grouped in one interface so teams can complete work without switching PLARTFORM.",
         },
         {
           src: "/app-preview-merge.png",
@@ -286,7 +286,7 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
   tr: {
     navbar: {
       studioTagline: "NB Global Studio",
-      productLabel: "NB PDF TOOLS",
+      productLabel: "NB PDF PLARTFORM",
       platformTag: "Profesyonel PDF İş Akışı Platformu",
       contact: "İletişim",
       languageLabel: "Dil",
@@ -298,15 +298,15 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
     hero: {
       audience: ["Ofis Ekipleri", "İhale Birimleri", "İdari Personel", "Operasyon Yöneticileri"],
       kicker: "İş Süreçleri İçin PDF Yönetimi",
-      headline: "BELGELERİNİZİ USTALIKLA YÖNETİN.",
+      headline: "Tüm PDF işlemlerinizi tek bir platformda yönetin.",
       alternatives: [
         "İş Süreçleri İçin Hızlı ve Güvenli PDF Yönetimi",
         "PDF İşlemlerinizi Saniyeler İçinde Yönetin, Profesyoneller İçin Tasarlandı",
       ],
       description:
-        "NB PDF TOOLS; dönüştürme, birleştirme, ayırma, sıkıştırma ve şifreleme işlemlerini tek bir profesyonel sistemde toplar. Ekipler daha hızlı çalışır, manuel iş yükünü azaltır ve belge hatalarını en aza indirir.",
-      primaryCta: "Web Sürümünü Kullan",
-      secondaryCta: "Windows İçin İndir",
+        "NB PDF; PDF dosyalarınızı dönüştürme, düzenleme, sıkıştırma, birleştirme, bölme, imzalama ve şifreleme dahil tüm işlemler için tek bir platform sunar. Farklı araçlar arasında geçiş yapmadan belgelerinizi daha hızlı, daha güvenli ve daha profesyonel şekilde yönetin.",
+      primaryCta: "Ücretsiz Başla",
+      secondaryCta: "Windows Uygulamasını İndir",
       highlights: [
         { label: "Tasarlanan kullanım", value: "İş açısından kritik belge yönetimi" },
         { label: "Ana fayda", value: "Daha az manuel iş, daha az belge hatası" },

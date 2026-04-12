@@ -26,7 +26,7 @@ apiRouter.use(requireJwtUnlessPublic);
 apiRouter.get("/health", (_request, response) => {
   response.json({
     status: "ok",
-    service: "nb-pdf-tools-auth-api",
+    service: "nb-pdf-PLARTFORM-auth-api",
   });
 });
 

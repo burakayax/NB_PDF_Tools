@@ -1,4 +1,4 @@
-# NB PDF Tools — Kullanım Detayları
+# NB PDF PLARTFORM — Kullanım Detayları
 
 Bu dosya, projeyi **kod bilgisi olmayan** biri için de anlaşılır şekilde özetler: klasörler ne işe yarar, metni nereden değiştirirsiniz, ödeme ve e-posta ayarları nerededir, masaüstü uygulaması nasıl derlenir.
 
@@ -28,7 +28,7 @@ Projede kökte tek bir `backend` veya `desktop` klasörü **yoktur**; işlevler 
 
 ### Masaüstü uygulaması — `src/` (Windows .exe)
 
-- **Ne işe yarar:** Bilgisayara kurulan **NB PDF Tools masaüstü programı** buradaki Python kodlarıdır (CustomTkinter arayüzü).
+- **Ne işe yarar:** Bilgisayara kurulan **NB PDF PLARTFORM masaüstü programı** buradaki Python kodlarıdır (CustomTkinter arayüzü).
 - **Ana giriş dosyası:** `src/main.py` veya çalıştırma için `src/__main__.py` (aşağıda “Masaüstü uygulaması” bölümünde).
 - **Kısaca:** “Desktop” dediğimiz parça pratikte **`src/`** klasörüdür; kökte ayrı bir `desktop/` klasörü yoktur.
 
@@ -116,7 +116,7 @@ EMAIL_PASS=...
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_SECURE=false
-SMTP_FROM_NAME=NB PDF TOOLS
+SMTP_FROM_NAME=NB PDF PLARTFORM
 ```
 
 - **Gmail kullanıyorsanız:** Normal hesap şifresi çoğu zaman çalışmaz. Google Hesabı → Güvenlik → **2 adımlı doğrulama** açıkken **uygulama şifresi** oluşturup `EMAIL_PASS` alanına yazmanız gerekir (`.env.example` içindeki Türkçe açıklamaya bakın).
@@ -142,14 +142,14 @@ Projede hazır tek tıkla `build.bat` her zaman olmayabilir. Önerilen yöntem *
 1. Python kurulu olsun; proje kökünde `pip install -r requirements.txt`
 2. `pip install pyinstaller`
 3. Kökte küçük bir `build_entry.py` ile `src.__main__` çağrılır (örnek `MASAUSTU_BUILD.md` içinde)
-4. `pyinstaller --onefile --windowed --name "NB_PDF_Tools" build_entry.py`
-5. Çıktı genelde **`dist/NB_PDF_Tools.exe`** olur.
+4. `pyinstaller --onefile --windowed --name "NB_PDF_PLARTFORM" build_entry.py`
+5. Çıktı genelde **`dist/NB_PDF_PLARTFORM.exe`** olur.
 
 **Not:** Tesseract, Poppler, ikon dosyaları gibi ek dosyalar tam dağıtım için ayrıca paketlenmelidir; detay yine `MASAUSTU_BUILD.md` ve `SETUP_NOTES.txt` içindedir.
 
 ### Masaüstü sunucu adresi
 
-- Masaüstü uygulaması API’ye bağlanmak için **`desktop_auth_config.json`** (proje kökünde veya `%APPDATA%\NB PDF TOOLS` altında) kullanabilir; içinde **`api_base_url`** (örn. `http://127.0.0.1:4000/api`) tanımlanır.
+- Masaüstü uygulaması API’ye bağlanmak için **`desktop_auth_config.json`** (proje kökünde veya `%APPDATA%\NB PDF PLARTFORM` altında) kullanabilir; içinde **`api_base_url`** (örn. `http://127.0.0.1:4000/api`) tanımlanır.
 
 ---
 
@@ -176,7 +176,7 @@ Projede hazır tek tıkla `build.bat` her zaman olmayabilir. Önerilen yöntem *
 
 ### Logo değiştirmek
 
-- **Masaüstü penceresi ikonu:** Kökte veya `assets/` altında **`nb_pdf_tools_icon.png`** gibi dosyalara kod içinde referans vardır (`src/main.py` içinde ikon yolu kontrol edilir).
+- **Masaüstü penceresi ikonu:** Kökte veya `assets/` altında **`nb_pdf_PLARTFORM_icon.png`** gibi dosyalara kod içinde referans vardır (`src/main.py` içinde ikon yolu kontrol edilir).
 - **Web sitesi:** `web/frontend` içinde `public/` veya bileşenlerde kullanılan görsel dosyaları değiştirin; dosya adı değiştiyse ilgili `.tsx` dosyasında yolu güncellemeniz gerekir.
 
 ### Fiyatlandırma (paket fiyatları)

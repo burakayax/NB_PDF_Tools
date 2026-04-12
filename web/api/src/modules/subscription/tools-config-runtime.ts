@@ -13,13 +13,13 @@ import {
 } from "./post-limit-throttle.js";
 import { featureCatalog, isFeatureKey, type FeatureKey } from "./subscription.config.js";
 
-export type ToolsConversionOverrides = {
+export type PLARTFORMConversionOverrides = {
   upgradeCtaLabel?: string;
   upgradeCtaSubtitle?: string;
 };
 
-export type ResolvedToolsBusinessConfig = {
-  conversion: ToolsConversionOverrides;
+export type ResolvedPLARTFORMBusinessConfig = {
+  conversion: PLARTFORMConversionOverrides;
   globallyDisabledFeatures: Set<FeatureKey>;
   postLimitThrottle: PostLimitThrottleRuntime;
   conversionMessaging: ConversionMessagingThresholds;
@@ -29,7 +29,7 @@ export type ResolvedToolsBusinessConfig = {
   freeDesktopMaxFileSizeMb: number;
 };
 
-function parseConversionFromToolsConfig(raw: unknown): ToolsConversionOverrides {
+function parseConversionFromPLARTFORMConfig(raw: unknown): PLARTFORMConversionOverrides {
   if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
     return {};
   }
@@ -39,7 +39,7 @@ function parseConversionFromToolsConfig(raw: unknown): ToolsConversionOverrides 
     return {};
   }
   const c = conv as Record<string, unknown>;
-  const out: ToolsConversionOverrides = {};
+  const out: PLARTFORMConversionOverrides = {};
   if (typeof c.upgradeCtaLabel === "string" && c.upgradeCtaLabel.trim()) {
     out.upgradeCtaLabel = c.upgradeCtaLabel.trim();
   }
@@ -199,13 +199,13 @@ function parseFreeDesktopMaxMb(raw: unknown): number {
   return env.DEFAULT_FREE_DESKTOP_MAX_FILE_MB;
 }
 
-function parseResolvedFromRoot(raw: unknown): ResolvedToolsBusinessConfig {
+function parseResolvedFromRoot(raw: unknown): ResolvedPLARTFORMBusinessConfig {
   const postRaw =
     raw != null && typeof raw === "object" && !Array.isArray(raw)
       ? (raw as Record<string, unknown>).postLimitThrottle
       : undefined;
   return {
-    conversion: parseConversionFromToolsConfig(raw),
+    conversion: parseConversionFromPLARTFORMConfig(raw),
     globallyDisabledFeatures: parseDisabledFeatures(raw),
     postLimitThrottle: parsePostLimitThrottleRuntime(postRaw),
     conversionMessaging: parseConversionMessaging(
@@ -224,19 +224,19 @@ function parseResolvedFromRoot(raw: unknown): ResolvedToolsBusinessConfig {
 }
 
 /**
- * Birleşik `tools.config` görünümü: kota sonrası gecikme, devre dışı araçlar, masaüstü dosya sınırı, mesaj eşikleri.
+ * Birleşik `PLARTFORM.config` görünümü: kota sonrası gecikme, devre dışı araçlar, masaüstü dosya sınırı, mesaj eşikleri.
  * `getSetting` önbelleği admin kaydında temizlenir; yeniden başlatma gerekmez.
  */
-export async function getResolvedToolsBusinessConfig(): Promise<ResolvedToolsBusinessConfig> {
-  const cfg = await getSetting(SITE_SETTING_KEYS.TOOLS_CONFIG);
+export async function getResolvedPLARTFORMBusinessConfig(): Promise<ResolvedPLARTFORMBusinessConfig> {
+  const cfg = await getSetting(SITE_SETTING_KEYS.PLARTFORM_CONFIG);
   return parseResolvedFromRoot(cfg);
 }
 
-export async function getToolsConversionOverrides(): Promise<ToolsConversionOverrides> {
-  const r = await getResolvedToolsBusinessConfig();
+export async function getPLARTFORMConversionOverrides(): Promise<PLARTFORMConversionOverrides> {
+  const r = await getResolvedPLARTFORMBusinessConfig();
   return r.conversion;
 }
 
-export function invalidateToolsConfigCache() {
-  invalidateSettingCache(SITE_SETTING_KEYS.TOOLS_CONFIG);
+export function invalidatePLARTFORMConfigCache() {
+  invalidateSettingCache(SITE_SETTING_KEYS.PLARTFORM_CONFIG);
 }

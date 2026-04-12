@@ -1,4 +1,4 @@
-NB PDF TOOLS - GEREKLI KURULUM NOTLARI
+NB PDF PLARTFORM - GEREKLI KURULUM NOTLARI
 
 Bu projeyi farkli bir bilgisayarda calistirirken sadece kodu tasimak yetmez.
 Asagidaki Python kutuphaneleri ve harici programlar eksiksiz kurulmalidir.

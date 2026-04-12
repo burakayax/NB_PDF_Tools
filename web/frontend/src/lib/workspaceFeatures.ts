@@ -78,8 +78,8 @@ const REGISTRY: Omit<WorkspaceFeatureUi, "title" | "description" | "buttonText">
 export const WORKSPACE_TOOL_IDS: FeatureKey[] = REGISTRY.map((r) => r.id);
 
 /**
- * `cms.content.workspace.tools[featureId]` overrides title / description / button.
- * `tools.config.disabledFeatures` (via runtime) removes tools from the list.
+ * `cms.content.workspace.PLARTFORM[featureId]` overrides title / description / button.
+ * `PLARTFORM.config.disabledFeatures` (via runtime) removes PLARTFORM from the list.
  */
 export function buildWorkspaceFeaturesFromCms(
   language: Language,
@@ -87,13 +87,13 @@ export function buildWorkspaceFeaturesFromCms(
   disabledFeatures: string[],
 ): WorkspaceFeatureUi[] {
   const disabled = new Set(disabledFeatures);
-  const tools = (cms?.workspace as Record<string, unknown> | undefined)?.tools as
+  const PLARTFORM = (cms?.workspace as Record<string, unknown> | undefined)?.PLARTFORM as
     | Record<string, { title?: string; description?: string; button?: string; buttonText?: string }>
     | undefined;
 
   return REGISTRY.filter((r) => !disabled.has(r.id)).map((r) => {
     const fb = featureCopy(r.id, language);
-    const ov = tools?.[r.id];
+    const ov = PLARTFORM?.[r.id];
     const btn =
       typeof ov?.button === "string" && ov.button.trim()
         ? ov.button.trim()

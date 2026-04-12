@@ -154,13 +154,13 @@ export function buildPublicPricingPayload(prices: Awaited<ReturnType<typeof getP
   };
 }
 
-export type PublicToolsSlice = {
+export type PublicPLARTFORMSlice = {
   disabledFeatures: string[];
   displayFreeDailyLimit: number | null;
 };
 
-export async function getPublicToolsSlice(): Promise<PublicToolsSlice> {
-  const raw = await getSetting(SITE_SETTING_KEYS.TOOLS_CONFIG);
+export async function getPublicPLARTFORMSlice(): Promise<PublicPLARTFORMSlice> {
+  const raw = await getSetting(SITE_SETTING_KEYS.PLARTFORM_CONFIG);
   const disabled: string[] = [];
   let displayFreeDailyLimit: number | null = null;
   if (raw != null && typeof raw === "object" && !Array.isArray(raw)) {
@@ -180,11 +180,11 @@ export async function getPublicToolsSlice(): Promise<PublicToolsSlice> {
 }
 
 export async function getPublicRuntimePayload(request: Request) {
-  const [cms, site, plansPayload, toolsPublic, tryPrices] = await Promise.all([
+  const [cms, site, plansPayload, PLARTFORMPublic, tryPrices] = await Promise.all([
     getCmsContent(),
     getPublicSiteConfig(),
     getPublicPlansPayload(),
-    getPublicToolsSlice(),
+    getPublicPLARTFORMSlice(),
     getPaymentPricesTry(),
   ]);
   const pricing = buildPublicPricingPayload(tryPrices, request);
@@ -192,7 +192,7 @@ export async function getPublicRuntimePayload(request: Request) {
     cms,
     site,
     plans: plansPayload.plans,
-    toolsPublic,
+    PLARTFORMPublic,
     pricing,
     flags: {
       maintenanceMode: site.maintenanceMode === true,

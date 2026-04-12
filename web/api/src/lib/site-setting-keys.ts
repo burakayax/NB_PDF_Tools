@@ -6,7 +6,7 @@ export const SITE_SETTING_KEYS = {
   CMS_CONTENT: "cms.content",
   /** Unified plans override, marketing copy, and payment prices (single source of truth for writes). */
   PACKAGES_CONFIG: "packages.config",
-  TOOLS_CONFIG: "tools.config",
+  PLARTFORM_CONFIG: "PLARTFORM.config",
   GLOBAL_FLAGS: "global.flags",
   /** System-wide banner / announcement (JSON). */
   GLOBAL_NOTIFICATIONS: "global.notifications",

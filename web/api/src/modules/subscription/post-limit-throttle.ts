@@ -14,10 +14,10 @@ export type PostLimitDelayTier = { minNextOp: number; maxNextOp: number; minMs: 
 export type PostLimitFileTier = { minMb: number; factor: number };
 
 /**
- * Free-tier gecikme davranışı — varsayılanlar `tools.config` ile aynı şekilde override edilebilir.
+ * Free-tier gecikme davranışı — varsayılanlar `PLARTFORM.config` ile aynı şekilde override edilebilir.
  */
 export type PostLimitThrottleRuntime = {
-  /** SiteSetting `tools.config.postLimitThrottle`; false iken FREE gecikme sistemi kapalı. */
+  /** SiteSetting `PLARTFORM.config.postLimitThrottle`; false iken FREE gecikme sistemi kapalı. */
   delaysEnabled: boolean;
   /** Bu işlem numarasına kadar (dahil) ek gecikme yok; sonrası `delayTiers`. */
   freeOpsBeforeThrottle: number;
@@ -150,9 +150,9 @@ export function computePostLimitThrottle(params: {
   behaviorStressMultiplier?: number;
   lifetimeThrottleEvents?: number;
   lifetimeTotalOps?: number;
-  /** From `tools.config` → `conversion` (admin). */
+  /** From `PLARTFORM.config` → `conversion` (admin). */
   conversionCtaOverrides?: ConversionCtaOverrides;
-  /** From `tools.config` → `postLimitThrottle` (admin). */
+  /** From `PLARTFORM.config` → `postLimitThrottle` (admin). */
   throttleRuntime: PostLimitThrottleRuntime;
   conversionMessaging?: ConversionMessagingThresholds;
 }): PostLimitThrottle | null {

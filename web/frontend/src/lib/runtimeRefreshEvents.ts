@@ -1,4 +1,4 @@
-/** Dispatched after admin saves CMS / site / packages / tools so the app refetches public runtime without reload. */
+/** Dispatched after admin saves CMS / site / packages / PLARTFORM so the app refetches public runtime without reload. */
 export const RUNTIME_REFRESH_EVENT = "nb-runtime-refresh";
 
 export function notifyRuntimeRefresh() {

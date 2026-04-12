@@ -40,7 +40,7 @@ export async function fetchPublicSiteConfig(): Promise<PublicSiteConfig> {
   return r.json() as Promise<PublicSiteConfig>;
 }
 
-export type PublicToolsPublicSlice = {
+export type PublicPLARTFORMPublicSlice = {
   disabledFeatures: string[];
   displayFreeDailyLimit: number | null;
 };
@@ -59,7 +59,7 @@ export type PublicRuntimePayload = {
   cms: Record<string, unknown>;
   site: PublicSiteConfig;
   plans: PlanDefinition[];
-  toolsPublic: PublicToolsPublicSlice;
+  PLARTFORMPublic: PublicPLARTFORMPublicSlice;
   pricing: PublicPricingPayload;
   flags: {
     maintenanceMode: boolean;

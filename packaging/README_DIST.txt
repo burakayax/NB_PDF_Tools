@@ -1,27 +1,27 @@
-NB PDF Tools — Windows distribution checklist
+NB PDF PLARTFORM — Windows distribution checklist
 ==============================================
 
 1) Version bump
    - Edit src/version_info.py (__version__)
    - Sync packaging/version_file.txt (FileVersion / ProductVersion strings and filevers tuple)
-   - Sync installer/NB_PDF_Tools.iss (#define MyAppVersion)
+   - Sync installer/NB_PDF_PLARTFORM.iss (#define MyAppVersion)
 
 2) Icon
-   - assets/nb_pdf_tools_icon.png is the source art
+   - assets/nb_pdf_PLARTFORM_icon.png is the source art
    - Regenerate ICO:  python scripts/png_to_ico.py
-   - Produces assets/nb_pdf_tools_icon.ico (used by PyInstaller and Inno Setup)
+   - Produces assets/nb_pdf_PLARTFORM_icon.ico (used by PyInstaller and Inno Setup)
 
 3) Build standalone EXE
    - From repo root (with requirements.txt installed):
      pip install -r requirements-build.txt
-     pyinstaller --noconfirm packaging/nb_pdf_tools.spec
-   - Output: dist/NB_PDF_Tools.exe (windowed, one file)
+     pyinstaller --noconfirm packaging/nb_pdf_PLARTFORM.spec
+   - Output: dist/NB_PDF_PLARTFORM.exe (windowed, one file)
 
 4) Build installer EXE (optional)
    - Install Inno Setup 6
    - Build step 3 first
-   - Run:  "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\NB_PDF_Tools.iss
-   - Output: dist_installer/NB_PDF_Tools_Setup_1.0.0.exe (version from .iss)
+   - Run:  "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\NB_PDF_PLARTFORM.iss
+   - Output: dist_installer/NB_PDF_PLARTFORM_Setup_1.0.0.exe (version from .iss)
 
 5) Auto-updates (optional)
    - Host a JSON manifest (see config/update-manifest.example.json)

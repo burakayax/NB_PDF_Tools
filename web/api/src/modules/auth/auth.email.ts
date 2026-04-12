@@ -25,11 +25,11 @@ export function createVerificationEmailTemplate({
   const html = renderBrandedVerificationEmailHtml(verificationUrl);
 
   const text = [
-    "Email Doğrulama — NB PDF TOOLS",
+    "Email Doğrulama — NB PDF PLARTFORM",
     "",
     "Email Adresinizi Doğrulayın",
     "",
-    "NB PDF TOOLS hesabınızı aktifleştirmek için aşağıdaki bağlantıyı tarayıcıda açın:",
+    "NB PDF PLARTFORM hesabınızı aktifleştirmek için aşağıdaki bağlantıyı tarayıcıda açın:",
     "",
     verificationUrl,
     "",
@@ -104,7 +104,7 @@ type PasswordResetCodeEmailInput = {
 export function createPasswordResetCodeEmailTemplate({ code, lang }: PasswordResetCodeEmailInput) {
   const safeCode = escapeHtml(code);
   const subject =
-    lang === "tr" ? "NB PDF TOOLS — Şifre sıfırlama kodunuz" : "NB PDF TOOLS — Your password reset code";
+    lang === "tr" ? "NB PDF PLARTFORM — Şifre sıfırlama kodunuz" : "NB PDF PLARTFORM — Your password reset code";
 
   const title = lang === "tr" ? "Şifre sıfırlama kodu" : "Password reset code";
   const intro =
@@ -128,14 +128,14 @@ export function createPasswordResetCodeEmailTemplate({ code, lang }: PasswordRes
         ${lang === "tr" ? "Bu kod 15 dakika geçerlidir. İsteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz." : "This code expires in 15 minutes. If you did not request a reset, you can ignore this email."}
       </p>
     `,
-    footerText: "NB PDF TOOLS — NB Global Studio",
-    productName: "NB PDF TOOLS",
+    footerText: "NB PDF PLARTFORM — NB Global Studio",
+    productName: "NB PDF PLARTFORM",
   });
 
   const text =
     lang === "tr"
       ? [
-          "NB PDF TOOLS — Şifre sıfırlama",
+          "NB PDF PLARTFORM — Şifre sıfırlama",
           "",
           `Kodunuz: ${code}`,
           "",
@@ -143,7 +143,7 @@ export function createPasswordResetCodeEmailTemplate({ code, lang }: PasswordRes
           "İsteği siz yapmadıysanız bu e-postayı yok sayın.",
         ].join("\n")
       : [
-          "NB PDF TOOLS — Password reset",
+          "NB PDF PLARTFORM — Password reset",
           "",
           `Your code: ${code}`,
           "",

@@ -66,7 +66,7 @@ export function LoginSuccessPage({ completeOAuthLogin, clearSession, onNavigateT
       <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-nb-panel/80 p-8 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.45)] backdrop-blur-sm">
         {phase === "loading" || phase === "redirecting" ? (
           <>
-            <div className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-nb-accent">NB PDF TOOLS</div>
+            <div className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-nb-accent">NB PDF PLARTFORM</div>
             <h1 className="text-xl font-semibold text-nb-text">
               {phase === "redirecting" ? "Opening workspace…" : "Signing you in…"}
             </h1>

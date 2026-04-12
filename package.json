@@ -1,8 +1,8 @@
 {
-  "name": "nb-pdf-tools",
+  "name": "nb-pdf-PLARTFORM",
   "private": true,
   "version": "0.1.0",
-  "description": "NB PDF Tools — kök betiklerle web (PDF API + kimlik API + Vite) birlikte çalıştırılır.",
+  "description": "NB PDF PLARTFORM — kök betiklerle web (PDF API + kimlik API + Vite) birlikte çalıştırılır.",
   "//_turkce_aciklama": "JSON standart olarak yorum satırı içermez; tüm betik açıklamaları kökteki CALISTIRMA.md dosyasındadır.",
   "scripts": {
     "postinstall": "npm install --prefix web/api --no-fund --no-audit && npm install --prefix web/frontend --no-fund --no-audit",

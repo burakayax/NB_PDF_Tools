@@ -200,7 +200,7 @@ export function LandingPricingSection({ language, pricing, kicker, title, descri
               <td className="px-4 py-3">{P.valFull}</td>
             </tr>
             <tr className="border-b border-white/5">
-              <td className="px-4 py-3 font-medium text-slate-400">{P.rowTools}</td>
+              <td className="px-4 py-3 font-medium text-slate-400">{P.rowPLARTFORM}</td>
               <td className="px-4 py-3">{P.valCore}</td>
               <td className="px-4 py-3">{P.valAll}</td>
               <td className="px-4 py-3">{P.valAll}</td>

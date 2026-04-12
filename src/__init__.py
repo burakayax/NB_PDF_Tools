@@ -1,4 +1,4 @@
-# NB PDF Tools - Paket Başlatıcı
+# NB PDF PLARTFORM - Paket Başlatıcı
 # Bu dosya, 'src' klasörünü bir Python modülü (package) olarak tanımlar.
 
 from . import pdf_engine

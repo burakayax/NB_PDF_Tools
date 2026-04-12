@@ -33,7 +33,7 @@ export type AdminOverview = {
   freeUsers: number;
   paidUsers: number;
   usersByPlan: { FREE: number; PRO: number; BUSINESS: number };
-  mostUsedTools: Array<{ featureKey: string; userDayRows: number; operationsAttributed: number }>;
+  mostUsedPLARTFORM: Array<{ featureKey: string; userDayRows: number; operationsAttributed: number }>;
   usagePerPackage: Array<{ plan: string; userCount: number }>;
   anonymousSessionsToday: number;
   registeredSessionsToday: number;
@@ -52,7 +52,7 @@ export type AdminOverview = {
   distinctSessionsActiveNow: number;
   registeredUsersActiveNow: number;
   anonymousSessionsActiveNow: number;
-  mostUsedToolsAllTimeFallback: boolean;
+  mostUsedPLARTFORMAllTimeFallback: boolean;
 };
 
 export type AdminUserRow = {
@@ -239,16 +239,16 @@ export async function putAdminPackagesMarketing(accessToken: string, marketing: 
   }
 }
 
-export async function fetchAdminTools(accessToken: string): Promise<unknown> {
-  const r = await adminFetch(accessToken, "/tools");
+export async function fetchAdminPLARTFORM(accessToken: string): Promise<unknown> {
+  const r = await adminFetch(accessToken, "/PLARTFORM");
   if (!r.ok) {
     throw new Error(await r.text());
   }
   return r.json();
 }
 
-export async function putAdminToolsConfig(accessToken: string, config: unknown): Promise<void> {
-  const r = await adminFetch(accessToken, "/tools/config", {
+export async function putAdminPLARTFORMConfig(accessToken: string, config: unknown): Promise<void> {
+  const r = await adminFetch(accessToken, "/PLARTFORM/config", {
     method: "PUT",
     body: JSON.stringify({ config }),
   });

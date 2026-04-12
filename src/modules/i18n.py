@@ -41,7 +41,7 @@ def detect_system_language() -> str:
 
 def _preferences_path() -> Path:
     appdata_root = Path(os.environ.get("APPDATA") or Path.cwd())
-    return appdata_root / "NB PDF TOOLS" / "desktop_preferences.json"
+    return appdata_root / "NB PDF PLARTFORM" / "desktop_preferences.json"
 
 
 class LanguageManager:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
+from funcPLARTFORM import lru_cache
 from pathlib import Path
 
 from pydantic import Field, field_validator

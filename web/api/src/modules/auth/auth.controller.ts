@@ -139,7 +139,7 @@ function renderVerificationHtml(status: "success" | "error", title: string, deta
   <body style="margin:0;min-height:100vh;background:#0f172a;font-family:Arial,Helvetica,sans-serif;color:#e2e8f0;display:flex;align-items:center;justify-content:center;padding:24px;">
     <div style="width:min(560px,100%);background:#111827;border:1px solid #1f2937;border-radius:24px;box-shadow:0 24px 80px rgba(0,0,0,.35);overflow:hidden;">
       <div style="padding:28px 28px 16px;border-bottom:1px solid #1f2937;">
-        <div style="font-size:12px;font-weight:700;letter-spacing:.18em;color:#7dd3fc;text-transform:uppercase;">NB PDF TOOLS</div>
+        <div style="font-size:12px;font-weight:700;letter-spacing:.18em;color:#7dd3fc;text-transform:uppercase;">NB PDF PLARTFORM</div>
         <h1 style="margin:16px 0 0;font-size:28px;line-height:1.2;color:#f8fafc;">${title}</h1>
       </div>
       <div style="padding:28px;">
@@ -149,7 +149,7 @@ function renderVerificationHtml(status: "success" | "error", title: string, deta
         <p style="margin:18px 0 0;font-size:15px;line-height:1.8;color:#cbd5e1;">${detail}</p>
         <p style="margin:18px 0 0;font-size:14px;line-height:1.8;color:#94a3b8;">You can now return to the application and continue with your account flow.</p>
         <a href="${env.FRONTEND_ORIGIN}/?view=login&email_verified=1" style="display:inline-block;margin-top:24px;padding:12px 18px;border-radius:14px;background:#1e293b;color:#f8fafc;text-decoration:none;font-weight:700;">
-          Open NB PDF TOOLS
+          Open NB PDF PLARTFORM
         </a>
       </div>
     </div>

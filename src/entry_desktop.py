@@ -5,7 +5,7 @@ Development:
   python src/entry_desktop.py
 
 Distribution (PyInstaller):
-  NB_PDF_Tools.exe built from this script.
+  NB_PDF_PLARTFORM.exe built from this script.
 """
 
 from __future__ import annotations

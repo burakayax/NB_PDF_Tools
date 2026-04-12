@@ -108,7 +108,7 @@ def badge_colors(tone: str = "neutral"):
 
 def add_footer(
     parent,
-    left_text: str = "NB PDF Tools",
+    left_text: str = "NB PDF PLARTFORM",
     center_text: str | None = None,
     right_text: str | None = None,
     action_text: str | None = None,

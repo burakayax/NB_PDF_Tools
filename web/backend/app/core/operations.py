@@ -225,7 +225,7 @@ def format_derived_filename(source_name: str, suffix: str, extension: str) -> st
 def operation_capabilities() -> dict:
     """Web arayuzunun hangi islemleri nasil gosterecegini belirler."""
     return {
-        "brand": "NB PDF TOOLS",
+        "brand": "NB PDF PLARTFORM",
         "supports": {
             "merge": True,
             "split": True,

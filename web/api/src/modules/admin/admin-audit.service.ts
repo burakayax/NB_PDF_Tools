@@ -4,7 +4,7 @@ import { getSettingDirect, setSettingFromAdminPatch } from "../../lib/site-confi
 import { PACKAGES_RELATED_KEYS, SITE_SETTING_KEYS } from "../../lib/site-setting-keys.js";
 import { HttpError } from "../../lib/http-error.js";
 import { invalidatePlanRuntimeCache } from "../subscription/plan-runtime.js";
-import { invalidateToolsConfigCache } from "../subscription/tools-config-runtime.js";
+import { invalidatePLARTFORMConfigCache } from "../subscription/PLARTFORM-config-runtime.js";
 
 export type AdminActor = { userId: string; email: string };
 
@@ -84,8 +84,8 @@ function runPatchSideEffectsForKey(key: string) {
     invalidatePlanRuntimeCache();
     void import("../payment/payment-pricing.js").then((m) => m.invalidatePaymentPricesCache());
   }
-  if (key === SITE_SETTING_KEYS.TOOLS_CONFIG) {
-    invalidateToolsConfigCache();
+  if (key === SITE_SETTING_KEYS.PLARTFORM_CONFIG) {
+    invalidatePLARTFORMConfigCache();
   }
 }
 

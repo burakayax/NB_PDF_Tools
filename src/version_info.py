@@ -7,11 +7,11 @@ from __future__ import annotations
 
 __version__ = "1.0.0"
 
-PRODUCT_NAME = "NB PDF Tools"
-INTERNAL_NAME = "NB_PDF_Tools"
+PRODUCT_NAME = "NB PDF PLARTFORM"
+INTERNAL_NAME = "NB_PDF_PLARTFORM"
 COMPANY_NAME = "NB Global Studio"
 COPYRIGHT = "Copyright © NB Global Studio"
-FILE_DESCRIPTION = "NB PDF Tools — PDF suite for Windows"
+FILE_DESCRIPTION = "NB PDF PLARTFORM — PDF suite for Windows"
 
 
 def get_version_string() -> str:

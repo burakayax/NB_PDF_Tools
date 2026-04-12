@@ -1,6 +1,6 @@
 # GitHub’a yükleme (Git — kısa rehber)
 
-Bu dosya projeyi ilk kez Git ve GitHub ile eşleştirmek isteyenler içindir. Komutları **proje kök klasöründe** (ör. `NB_PDF_Tools`) bir terminalde çalıştırın.
+Bu dosya projeyi ilk kez Git ve GitHub ile eşleştirmek isteyenler içindir. Komutları **proje kök klasöründe** (ör. `NB_PDF_PLARTFORM`) bir terminalde çalıştırın.
 
 ---
 

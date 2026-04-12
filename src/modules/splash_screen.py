@@ -38,7 +38,7 @@ def show_splash() -> ctk.CTk:
     inner = ctk.CTkFrame(card, fg_color="transparent")
     inner.pack(expand=True, fill="both", padx=28, pady=28)
 
-    logo_path = resource_path("assets", "nb_pdf_tools_icon.png")
+    logo_path = resource_path("assets", "nb_pdf_PLARTFORM_icon.png")
     if os.path.isfile(logo_path):
         try:
             from PIL import Image

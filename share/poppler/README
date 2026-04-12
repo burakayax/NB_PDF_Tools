@@ -8,7 +8,7 @@ poppler to correctly render CJK and Cyrillic properly.  While poppler
 is licensed under the GPL, these encoding files have different license, 
 and thus distributed separately.
 
-All the Makefile does is install the data files, so autotools seemed a
+All the Makefile does is install the data files, so autoPLARTFORM seemed a
 bit overkill.  There is no ./configure file, all there is to do is to
 say 'make install'.  To override the install destinations, specify
 prefix, datadir, pkgdatadir or DESTDIR at 'make install' time as
