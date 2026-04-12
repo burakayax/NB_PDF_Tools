@@ -81,7 +81,7 @@ function applyHomepageToLanding(base: LandingTranslation, cms: Record<string, un
 
 function applyTopLevelCms(base: LandingTranslation, cms: Record<string, unknown>): LandingTranslation {
   let next = { ...base };
-  const ts = cms.PLARTFORMStrip as { headline?: string } | undefined;
+  const ts = cms.TOOLSStrip as { headline?: string } | undefined;
   if (typeof ts?.headline === "string" && ts.headline.trim()) {
     next = {
       ...next,
@@ -95,7 +95,7 @@ function applyTopLevelCms(base: LandingTranslation, cms: Record<string, unknown>
 }
 
 /**
- * Full landing copy: i18n base + `cms.content` (`homepage`, `landing.[lang]`, optional PLARTFORMStrip/banner).
+ * Full landing copy: i18n base + `cms.content` (`homepage`, `landing.[lang]`, optional TOOLSStrip/banner).
  */
 export function mergeLandingWithCms(
   base: LandingTranslation,

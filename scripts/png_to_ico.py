@@ -1,4 +1,4 @@
-"""Build assets/nb_pdf_PLARTFORM_icon.ico from assets/nb_pdf_PLARTFORM_icon.png (Windows exe icon)."""
+"""Build assets/nb_pdf_TOOLS_icon.ico from assets/nb_pdf_TOOLS_icon.png (Windows exe icon)."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PNG = ROOT / "assets" / "nb_pdf_PLARTFORM_icon.png"
-ICO = ROOT / "assets" / "nb_pdf_PLARTFORM_icon.ico"
+PNG = ROOT / "assets" / "nb_pdf_TOOLS_icon.png"
+ICO = ROOT / "assets" / "nb_pdf_TOOLS_icon.ico"
 
 
 def main() -> None:

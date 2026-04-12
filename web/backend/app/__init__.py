@@ -1,1 +1,1 @@
-"""NB PDF PLARTFORM web backend paketi; FastAPI uygulaması ve çekirdek servisleri gruplar."""
+"""NB PDF TOOLS web backend paketi; FastAPI uygulaması ve çekirdek servisleri gruplar."""

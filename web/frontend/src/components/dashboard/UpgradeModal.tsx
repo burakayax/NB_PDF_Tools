@@ -90,7 +90,7 @@ export function UpgradeModal({
         <div className="upgrade-modal__header">
           <div className="upgrade-modal__brand">
             <span className="upgrade-modal__brand-mark">NB</span>
-            <span className="upgrade-modal__brand-text">PDF PLARTFORM</span>
+            <span className="upgrade-modal__brand-text">PDF TOOLS</span>
           </div>
           <button type="button" className="upgrade-modal__close" onClick={onClose} aria-label={C.close}>
             ×

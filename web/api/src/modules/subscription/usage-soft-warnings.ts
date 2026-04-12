@@ -31,7 +31,7 @@ export function computeUsageSoftWarnings(input: {
   dailyLimit: number | null;
   usedToday: number;
   postLimitExtraOps: number;
-  /** 0.05–0.99; ücretsiz kotanın bu oranında “yaklaşıyor” uyarısı (`PLARTFORM.config.usageSoftWarningRatio`). */
+  /** 0.05–0.99; ücretsiz kotanın bu oranında “yaklaşıyor” uyarısı (`TOOLS.config.usageSoftWarningRatio`). */
   approachingCapRatio?: number;
   /** FREE unlimited: first N ops without server delay; used with `dailyLimit === null`. */
   softFrictionAfterOps?: number | null;
@@ -79,7 +79,7 @@ export function computeUsageSoftWarnings(input: {
     return {
       usageWarningCode: "beyond_free",
       softUsageWarning: null,
-      strongUsageWarning: `You've passed today's free allowance (${usedToday}/${dailyLimit} operations). Extra runs are slower with reduced quality on some PLARTFORM. ${PREMIUM_SPEED_QUALITY_LINE}`,
+      strongUsageWarning: `You've passed today's free allowance (${usedToday}/${dailyLimit} operations). Extra runs are slower with reduced quality on some TOOLS. ${PREMIUM_SPEED_QUALITY_LINE}`,
       premiumBenefitsLine,
     };
   }
@@ -88,7 +88,7 @@ export function computeUsageSoftWarnings(input: {
     return {
       usageWarningCode: "at_free_cap",
       softUsageWarning: null,
-      strongUsageWarning: `You've used all ${dailyLimit} free operations for today. Further runs are slower with reduced quality on some PLARTFORM. ${PREMIUM_SPEED_QUALITY_LINE}`,
+      strongUsageWarning: `You've used all ${dailyLimit} free operations for today. Further runs are slower with reduced quality on some TOOLS. ${PREMIUM_SPEED_QUALITY_LINE}`,
       premiumBenefitsLine,
     };
   }

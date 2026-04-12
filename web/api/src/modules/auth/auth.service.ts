@@ -156,7 +156,7 @@ async function sendVerificationEmail(user: User, rawToken: string) {
   const verificationUrl = buildEmailVerificationLink(rawToken);
   const emailTemplate = createVerificationEmailTemplate({
     verificationUrl,
-    productName: "NB PDF PLARTFORM",
+    productName: "NB PDF TOOLS",
     expiresInHours: env.EMAIL_VERIFICATION_TTL_HOURS,
   });
 
@@ -172,7 +172,7 @@ async function sendAdminNotificationEmail(user: User) {
   const notificationTemplate = createAdminNotificationEmailTemplate({
     userEmail: user.email,
     registeredAt: user.createdAt.toISOString(),
-    productName: "NB PDF PLARTFORM",
+    productName: "NB PDF TOOLS",
   });
 
   await sendMail({

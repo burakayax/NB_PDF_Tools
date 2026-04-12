@@ -20,12 +20,12 @@ import {
   adminPutPackagesMarketingController,
   adminPutPaymentPricesController,
   adminPutPlansOverrideController,
-  adminPutPLARTFORMController,
+  adminPutTOOLSController,
   adminRemoveBlockedEmailController,
   adminRollbackRevisionController,
   adminSettingRevisionsController,
   adminSystemResetController,
-  adminPLARTFORMController,
+  adminTOOLSController,
   adminUpdateUserController,
   adminUploadMediaController,
   adminUsageExportController,
@@ -81,8 +81,8 @@ adminRouter.put("/packages/marketing", asyncHandler(adminPutPackagesMarketingCon
 adminRouter.post("/media", mediaUpload.single("file"), asyncHandler(adminUploadMediaController));
 adminRouter.get("/media", asyncHandler(adminListMediaController));
 
-adminRouter.get("/PLARTFORM", asyncHandler(adminPLARTFORMController));
-adminRouter.put("/PLARTFORM/config", asyncHandler(adminPutPLARTFORMController));
+adminRouter.get("/TOOLS", asyncHandler(adminTOOLSController));
+adminRouter.put("/TOOLS/config", asyncHandler(adminPutTOOLSController));
 
 adminRouter.get("/reports/usage-series", asyncHandler(adminUsageSeriesController));
 adminRouter.get("/reports/usage-export", asyncHandler(adminUsageExportController));

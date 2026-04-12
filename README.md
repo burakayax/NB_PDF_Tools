@@ -1,4 +1,4 @@
-# NB PDF PLARTFORM
+# NB PDF TOOLS
 
 Çoklu PDF ve ofis belgesi işlemlerini tek yerden yönetmenizi sağlayan araç seti. **Windows masaüstü uygulaması** ve tarayıcıda çalışan **web sürümü** (kimlik doğrulama, abonelik özeti ve PDF API) birlikte sunulur.
 
@@ -8,7 +8,7 @@
 
 ### Proje açıklaması
 
-NB PDF PLARTFORM; PDF birleştirme, sayfa ayırma, Word/Excel ile dönüşümler, sıkıştırma ve şifreleme gibi işlemleri kullanıcı dostu arayüzlerle sunar. Masaüstü sürümü yerel Python motoru üzerinde çalışır; web sürümü FastAPI tabanlı PDF servisi, Node.js kimlik API’si ve React arayüzünden oluşur.
+NB PDF TOOLS; PDF birleştirme, sayfa ayırma, Word/Excel ile dönüşümler, sıkıştırma ve şifreleme gibi işlemleri kullanıcı dostu arayüzlerle sunar. Masaüstü sürümü yerel Python motoru üzerinde çalışır; web sürümü FastAPI tabanlı PDF servisi, Node.js kimlik API’si ve React arayüzünden oluşur.
 
 ### Özellikler
 
@@ -74,7 +74,7 @@ NB PDF PLARTFORM; PDF birleştirme, sayfa ayırma, Word/Excel ile dönüşümler
 
 ### Overview
 
-NB PDF PLARTFORM is a document toolkit for merging, splitting, converting, compressing, and securing PDFs, plus Word/Excel workflows. It ships as a **Windows desktop app** (Python) and a **web stack** (FastAPI PDF service, Node.js auth API, React UI).
+NB PDF TOOLS is a document toolkit for merging, splitting, converting, compressing, and securing PDFs, plus Word/Excel workflows. It ships as a **Windows desktop app** (Python) and a **web stack** (FastAPI PDF service, Node.js auth API, React UI).
 
 ### Features
 

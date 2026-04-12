@@ -1,5 +1,5 @@
 /**
- * Üretimde hafif caydırıcılar (sağ tık / yaygın devPLARTFORM kısayolları).
+ * Üretimde hafif caydırıcılar (sağ tık / yaygın devTOOLS kısayolları).
  * Gerçek güvenlik değildir; her zaman atlanabilir.
  */
 export function installProductionGuards(): void {

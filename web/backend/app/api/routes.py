@@ -31,14 +31,14 @@ from app.core.jobs import cleanup_job, create_merge_job, get_job_download, get_j
 from app.core.saas_gate import saas_assert_feature, saas_record_usage, saas_session_ok
 from app.limiter import limiter
 
-router = APIRouter(prefix="/api", tags=["nb-pdf-PLARTFORM"])
+router = APIRouter(prefix="/api", tags=["nb-pdf-TOOLS"])
 engine = get_engine()
 
 
 @router.get("/health")
 @limiter.exempt
 def health():
-    return {"status": "ok", "service": "nb-pdf-PLARTFORM-web"}
+    return {"status": "ok", "service": "nb-pdf-TOOLS-web"}
 
 
 @router.get("/capabilities")

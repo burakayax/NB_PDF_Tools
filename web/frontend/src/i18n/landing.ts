@@ -134,7 +134,7 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
         "Handle Your PDFs in Seconds, Built for Professionals",
       ],
       description:
-        "NB PDF is a unified platform for all your PDF needs — convert, edit, compress, merge, split, sign, and secure your documents in one place. No more switching PLARTFORM. Work faster, safer, and more professionally.",
+        "NB PDF is a unified platform for all your PDF needs — convert, edit, compress, merge, split, sign, and secure your documents in one place. No more switching TOOLS. Work faster, safer, and more professionally.",
       primaryCta: "Start Free",
       secondaryCta: "Download for Windows",
       highlights: [
@@ -194,11 +194,16 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
       title: "A focused workspace for teams that process documents every day.",
       description:
         "The interface is designed to keep important actions visible, reduce confusion, and support high-volume PDF operations with a clean enterprise-grade layout.",
+      // Maintenance note:
+      // Files inside `web/frontend/public/` must be referenced with a leading slash.
+      // Example: `/app-preview-main.png`
+      // If you write `app-preview-main.png` without `/`, the image may not load correctly
+      // depending on the current route.
       items: [
         {
           src: "/app-preview-main.png",
           title: "Unified multi-tool workspace",
-          description: "Core PDF operations are grouped in one interface so teams can complete work without switching PLARTFORM.",
+          description: "Core PDF operations are grouped in one interface so teams can complete work without switching TOOLS.",
         },
         {
           src: "/app-preview-merge.png",
@@ -454,4 +459,3 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
     },
   },
 };
-

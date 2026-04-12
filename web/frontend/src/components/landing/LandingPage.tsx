@@ -80,6 +80,94 @@ export function LandingPage({
     }
     return { copy: copyOut, heroImageSrc: hero, logoSrc: logo };
   }, [cmsContent, language]);
+  // Product showcase source map:
+  // - `Convert` uses `copy.screenshots.items[0].src`
+  // - `Compress` uses `copy.screenshots.items[1].src`
+  // - `Merge` uses `heroImageSrc`
+  // - `Sign` reuses `copy.screenshots.items[1].src`
+  //
+  // If a CMS asset exists, `screenshot1Url` / `screenshot2Url` above can override
+  // the `landing.ts` values before this mapping runs.
+  const showcaseFeatures = useMemo(() => {
+    const [firstShot, secondShot] = copy.screenshots.items;
+    const localizedContent =
+      language === "tr"
+        ? {
+            convert: {
+              title: "Dosyalari tek akista donusturun",
+              description: "Word, Excel, PowerPoint ve gorselleri temiz bir arayuzle saniyeler icinde PDF'e cevirin.",
+              eyebrow: "Akilli donusum",
+            },
+            compress: {
+              title: "Kaliteyi koruyarak boyutu kucultun",
+              description: "Paylasim ve arsivleme icin dosya agirligini dusurun, onizleme netligini premium seviyede tutun.",
+              eyebrow: "Verimli sikistirma",
+            },
+            merge: {
+              title: "Birden fazla dosyayi tek teslimata toplayin",
+              description: "Surukle-birak akisi ile sayfalari hizalayin, belgeleri duzenleyin ve tek PDF olarak cikti alin.",
+              eyebrow: "Duzenli birlestirme",
+            },
+            sign: {
+              title: "Imza surecini daha hizli tamamlayin",
+              description: "Sozlesmeleri tek panelde hazirlayin, imza alanlarini yerlestirin ve profesyonel bir teslim deneyimi sunun.",
+              eyebrow: "Guvenli imza",
+            },
+          }
+        : {
+            convert: {
+              title: "Convert files in one polished flow",
+              description: "Turn Word, Excel, PowerPoint, and images into PDF in seconds with a focused, premium workflow.",
+              eyebrow: "Smart conversion",
+            },
+            compress: {
+              title: "Reduce size without losing clarity",
+              description: "Optimize documents for sharing and storage while keeping previews sharp and presentation-ready.",
+              eyebrow: "Efficient compression",
+            },
+            merge: {
+              title: "Combine documents into one delivery",
+              description: "Arrange pages, organize uploads, and export a single PDF from a calm drag-and-drop workspace.",
+              eyebrow: "Structured merging",
+            },
+            sign: {
+              title: "Move signing from friction to flow",
+              description: "Prepare agreements, place signature fields, and complete approvals from one clean control surface.",
+              eyebrow: "Secure signing",
+            },
+          };
+
+    return [
+      {
+        key: "convert" as const,
+        label: "Convert",
+        src: firstShot?.src ?? heroImageSrc,
+        ...localizedContent.convert,
+      },
+      {
+        key: "compress" as const,
+        label: "Compress",
+        src: secondShot?.src ?? firstShot?.src ?? heroImageSrc,
+        ...localizedContent.compress,
+      },
+      {
+        key: "merge" as const,
+        label: "Merge",
+        src: heroImageSrc,
+        ...localizedContent.merge,
+      },
+      {
+        key: "sign" as const,
+        label: "Sign",
+        src: secondShot?.src ?? heroImageSrc,
+        ...localizedContent.sign,
+      },
+    ];
+  }, [copy.screenshots.items, heroImageSrc, language]);
+  const [activeShowcaseIndex, setActiveShowcaseIndex] = useState(0);
+  const [visibleShowcaseIndex, setVisibleShowcaseIndex] = useState(0);
+  const [isShowcaseTransitioning, setIsShowcaseTransitioning] = useState(false);
+  const [isShowcasePaused, setIsShowcasePaused] = useState(false);
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactMessage, setContactMessage] = useState("");
@@ -88,6 +176,8 @@ export function LandingPage({
   const [contactSuccess, setContactSuccess] = useState("");
   const [contactSubmitting, setContactSubmitting] = useState(false);
 
+  // Auto-rotate the passive showcase every 3.6s.
+  // Hover pauses the cycle on desktop via `isShowcasePaused`.
   useEffect(() => {
     if (!isCmsPreviewActive()) {
       return;
@@ -111,6 +201,36 @@ export function LandingPage({
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
   }, []);
+
+  // Split the animation into 2 phases:
+  // 1. fade/slide out current preview
+  // 2. swap the visible feature
+  useEffect(() => {
+    if (isShowcasePaused) {
+      return;
+    }
+
+    const rotateTimer = window.setInterval(() => {
+      setActiveShowcaseIndex((current) => (current + 1) % showcaseFeatures.length);
+    }, 3600);
+
+    return () => window.clearInterval(rotateTimer);
+  }, [isShowcasePaused, showcaseFeatures.length]);
+
+  useEffect(() => {
+    if (activeShowcaseIndex === visibleShowcaseIndex) {
+      return;
+    }
+
+    setIsShowcaseTransitioning(true);
+    const swapTimer = window.setTimeout(() => setVisibleShowcaseIndex(activeShowcaseIndex), 170);
+    const settleTimer = window.setTimeout(() => setIsShowcaseTransitioning(false), 380);
+
+    return () => {
+      window.clearTimeout(swapTimer);
+      window.clearTimeout(settleTimer);
+    };
+  }, [activeShowcaseIndex, visibleShowcaseIndex]);
 
   async function handleContactSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -438,6 +558,7 @@ export function LandingPage({
         <section data-nb-preview="screenshots" className="relative py-24">
            {/* Arka Plandaki Aura Efekti */}
           <div className="absolute -left-20 top-1/2 -z-10 h-[500px] w-[500px] -translate-y-1/2 rounded-full bg-cyan-500/10 blur-[120px] animate-pulse" />
+          <div className="absolute inset-x-10 top-20 -z-10 h-[420px] rounded-[40px] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_55%),linear-gradient(135deg,rgba(34,211,238,0.1),rgba(129,140,248,0.04)_45%,rgba(15,23,42,0)_75%)] blur-2xl" />
           
           <div className="mx-auto max-w-6xl">
               <div className="mb-16 text-center">
@@ -446,23 +567,65 @@ export function LandingPage({
                 <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-slate-400">{copy.screenshots.description}</p>
               </div>
 
-              <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)] lg:items-center">
-                  {copy.screenshots.items.map((shot, index) => (
-                    <article key={shot.title} className="group relative">
-                        {/* Görselin etrafındaki yumuşak kutu */}
-                        <div className="relative rounded-[32px] border border-white/10 bg-slate-900/40 p-4 shadow-2xl backdrop-blur-xl transition-all duration-500 group-hover:scale-[1.03]">
-                            <div className="overflow-hidden rounded-[26px] border border-white/5 bg-slate-950">
-                                <img src={shot.src} alt={shot.title} className="w-full object-cover transition duration-700 group-hover:scale-110" />
+              {/* Maintenance note:
+                  Left column is a passive feature list.
+                  Right column always shows one active preview image.
+                  To change which image appears for each feature, edit the mapping in
+                  `showcaseFeatures` above. */}
+              <div
+                className="rounded-[36px] border border-white/[0.08] bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-5 shadow-[0_32px_90px_-28px_rgba(0,0,0,0.65),0_1px_0_rgba(255,255,255,0.05)_inset] backdrop-blur-xl sm:p-6 lg:p-8"
+                onMouseEnter={() => setIsShowcasePaused(true)}
+                onMouseLeave={() => setIsShowcasePaused(false)}
+              >
+                <div className="grid gap-8 lg:grid-cols-[minmax(0,0.42fr)_minmax(0,1fr)] lg:items-center">
+                  <div className="flex flex-col gap-3">
+                    {showcaseFeatures.map((feature, index) => {
+                      const isActive = index === activeShowcaseIndex;
+
+                      return (
+                        <div
+                          key={feature.key}
+                          className={`rounded-[24px] border px-5 py-4 transition-all duration-500 ${
+                            isActive
+                              ? "border-cyan-300/18 bg-white/[0.06] opacity-100 shadow-[0_0_0_1px_rgba(255,255,255,0.03)_inset,0_20px_40px_-28px_rgba(34,211,238,0.55)]"
+                              : "border-white/[0.06] bg-white/[0.02] opacity-55"
+                          }`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <span
+                              className={`h-2.5 w-2.5 rounded-full transition-all duration-500 ${
+                                isActive ? "bg-cyan-300 shadow-[0_0_18px_rgba(103,232,249,0.9)]" : "bg-white/25"
+                              }`}
+                            />
+                            <div>
+                              <p className="text-sm font-semibold tracking-[0.18em] text-white/95">{feature.label}</p>
+                              <p className="mt-1 text-sm leading-7 text-slate-400">{feature.description}</p>
                             </div>
+                          </div>
                         </div>
-                         
-                         {/* Metin Kutusu (Süzülen Efekt) */}
-                        <div className="absolute -bottom-10 -right-10 max-w-[280px] rounded-2xl border border-white/10 bg-slate-900/90 p-5 shadow-2xl backdrop-blur-xl transition-all duration-500 group-hover:-translate-x-2">
-                             <h4 className="text-lg font-bold text-white tracking-tight">{shot.title}</h4>
-                             <p className="mt-2 text-sm leading-relaxed text-slate-300">{shot.description}</p>
-                        </div>
-                    </article>
-                  ))}
+                      );
+                    })}
+                  </div>
+                  {/* Preview area:
+                      If the image looks wrong, first check `feature.src` in `showcaseFeatures`.
+                      Those values ultimately come from `landing.ts`, `heroImageSrc`, or CMS overrides. */}
+                  <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(160deg,rgba(15,23,42,0.94),rgba(15,23,42,0.78))] p-3 shadow-[0_28px_80px_-28px_rgba(15,23,42,1)] sm:p-4">
+                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(103,232,249,0.14),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.08),transparent_22%,transparent_72%,rgba(129,140,248,0.08))]" />
+                    <div
+                      className={`relative transition-all duration-500 ease-out ${
+                        isShowcaseTransitioning ? "translate-y-5 opacity-0" : "translate-y-0 opacity-100"
+                      }`}
+                    >
+                      {showcaseFeatures
+                        .filter((_, index) => index === visibleShowcaseIndex)
+                        .map((feature) => (
+                          <div key={feature.key} className="overflow-hidden rounded-[26px] border border-white/8 bg-slate-950/90">
+                            <img src={feature.src} alt={feature.title} className="aspect-[16/10] w-full object-cover sm:aspect-[16/9]" />
+                          </div>
+                        ))}
+                  </div>
+                  </div>
+                </div>
               </div>
           </div>
         </section>

@@ -2,7 +2,7 @@
 
 ## Release Title
 
-`NB PDF PLARTFORM v1.0.0`
+`NB PDF TOOLS v1.0.0`
 
 ## Suggested Tag
 
@@ -13,7 +13,7 @@
 ```md
 ## Overview
 
-NB PDF PLARTFORM is a Windows desktop application designed to simplify common PDF workflows from a single interface. It brings together PDF conversion, page extraction, compression, password protection, and Office document conversion features in one place.
+NB PDF TOOLS is a Windows desktop application designed to simplify common PDF workflows from a single interface. It brings together PDF conversion, page extraction, compression, password protection, and Office document conversion features in one place.
 
 ## Highlights
 
@@ -35,7 +35,7 @@ NB PDF PLARTFORM is a Windows desktop application designed to simplify common PD
 ## Best For
 
 - Office teams working with recurring PDF and document conversion tasks
-- Users who need a practical desktop utility instead of multiple online PLARTFORM
+- Users who need a practical desktop utility instead of multiple online TOOLS
 - Workflows that require quick PDF handling on Windows
 
 ## Requirements
@@ -50,7 +50,7 @@ NB PDF PLARTFORM is a Windows desktop application designed to simplify common PD
 
 - Table preservation quality depends on the structure of the source PDF
 - Scanned PDFs and visually complex tables may require OCR or manual review
-- Some conversion features rely on external applications or system PLARTFORM
+- Some conversion features rely on external applications or system TOOLS
 
 ## Included Project Improvements
 

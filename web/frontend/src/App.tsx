@@ -422,7 +422,7 @@ function App() {
     refreshSession,
   } = useAuthSession();
   const { hasConsent, isReady: isCookieConsentReady, acceptConsent } = useCookieConsent();
-  const { cms, site, plans, PLARTFORMPublic, flags, pricing } = useSettings();
+  const { cms, site, plans, TOOLSPublic, flags, pricing } = useSettings();
   const [view, setView] = useState<AppView>(getInitialViewFromLocation);
   const [legalBackView, setLegalBackView] = useState<NonLegalView>("landing");
   const [selectedFeatureId, setSelectedFeatureId] = useState<FeatureId>("split");
@@ -511,8 +511,8 @@ function App() {
   }, []);
 
   const workspaceFeatures = useMemo(
-    () => buildWorkspaceFeaturesFromCms(language, cms, PLARTFORMPublic.disabledFeatures),
-    [language, cms, PLARTFORMPublic.disabledFeatures],
+    () => buildWorkspaceFeaturesFromCms(language, cms, TOOLSPublic.disabledFeatures),
+    [language, cms, TOOLSPublic.disabledFeatures],
   );
 
   const selectedFeature = useMemo((): Feature => {
@@ -1389,9 +1389,9 @@ function App() {
     Boolean(mergeJob && selectedFeatureId === "merge" && mergeJob.status !== "completed");
   const genericToolProgressActive =
     submitting && selectedFeatureId !== "merge" && view === "web" && contentPanel === "tool";
-  const PLARTFORMuccessBarActive = Boolean(toolProgressSuccess && view === "web" && contentPanel === "tool");
+  const TOOLSuccessBarActive = Boolean(toolProgressSuccess && view === "web" && contentPanel === "tool");
   const bottomToolProgressActive =
-    mergeProgressActive || genericToolProgressActive || PLARTFORMuccessBarActive;
+    mergeProgressActive || genericToolProgressActive || TOOLSuccessBarActive;
   /** Free tier: in-flight strip when no server friction banner (avoids duplicate copy with DelayConversionBanner). */
   const freeDuringProcessingMonetization = Boolean(
     showUsageQuota &&
@@ -2153,7 +2153,7 @@ function App() {
       <>
         <div className="min-h-screen bg-nb-bg px-6 py-12 font-sans text-nb-text antialiased">
           <div className="mx-auto flex max-w-md flex-col items-center justify-center rounded-[28px] border border-white/[0.08] bg-nb-panel/55 px-10 py-16 text-center shadow-[0_50px_100px_-24px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.04)_inset] backdrop-blur-xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300">NB PDF PLARTFORM</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300">NB PDF TOOLS</p>
             <h1 className="mt-4 text-3xl font-semibold tracking-tight text-white">Oturum doğrulanıyor</h1>
             <p className="mt-4 text-base leading-8 text-nb-muted">Güvenli erişim bilgileriniz kontrol ediliyor. Lütfen bekleyin.</p>
           </div>
@@ -2194,7 +2194,7 @@ function App() {
       <>
         <div className="min-h-screen bg-nb-bg px-6 py-12 font-sans text-nb-text antialiased">
           <div className="mx-auto flex max-w-md flex-col items-center justify-center rounded-2xl border border-white/[0.08] bg-nb-panel/55 px-10 py-16 text-center shadow-xl backdrop-blur-xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300">NB PDF PLARTFORM</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300">NB PDF TOOLS</p>
             <p className="mt-4 text-base text-nb-muted">Oturum bilgileri yükleniyor…</p>
           </div>
         </div>
@@ -3237,7 +3237,7 @@ function App() {
             </>
           ) : null}
         </div>
-        {PLARTFORMuccessBarActive && toolProgressSuccess ? (
+        {TOOLSuccessBarActive && toolProgressSuccess ? (
           <div className="merge-progress-fixed merge-progress-fixed--success" role="status" aria-live="polite">
             <div className="merge-progress-fixed__inner">
               <div className="merge-progress-fixed__head">
@@ -3314,7 +3314,7 @@ function App() {
             </div>
           </div>
         ) : null}
-        {PLARTFORMuccessBarActive ? null : mergeProgressActive && mergeJob ? (
+        {TOOLSuccessBarActive ? null : mergeProgressActive && mergeJob ? (
           <div className="merge-progress-fixed" role="status" aria-live="polite">
             <div className="merge-progress-fixed__inner">
               <div className="merge-progress-fixed__head">
@@ -3389,7 +3389,7 @@ function App() {
             </div>
           </div>
         ) : null}
-        {PLARTFORMuccessBarActive ? null : genericToolProgressActive ? (
+        {TOOLSuccessBarActive ? null : genericToolProgressActive ? (
           <div className="merge-progress-fixed merge-progress-fixed--generic" role="status" aria-live="polite">
             <div className="merge-progress-fixed__inner">
               <div className="merge-progress-fixed__head">
@@ -3467,7 +3467,7 @@ function App() {
       </div>
 
       <footer className="footer-bar">
-        <span>NB PDF PLARTFORM</span>
+        <span>NB PDF TOOLS</span>
         <span>by NB Global Studio</span>
         <div className="footer-bar__right">
           <span>Web Edition</span>

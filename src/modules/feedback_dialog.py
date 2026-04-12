@@ -287,7 +287,7 @@ class FeedbackDialog(ctk.CTkToplevel):
                 path_prefix=str(cfg.get("api_path_prefix") or ""),
             )
             meta = {
-                "client": "nb_pdf_PLARTFORM_desktop",
+                "client": "nb_pdf_TOOLS_desktop",
                 "platform": platform.platform(),
                 "machine_id": str(uuid.getnode()),
             }

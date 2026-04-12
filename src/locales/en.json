@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "NB PDF PLARTFORM",
+    "name": "NB PDF TOOLS",
     "desktop_edition": "Windows Desktop Edition",
     "secure_access": "Secure desktop access",
     "contact": "CONTACT",
@@ -32,7 +32,7 @@
     "open_folder": "Open folder"
   },
   "upgrade_modal": {
-    "window_title": "Upgrade — NB PDF PLARTFORM",
+    "window_title": "Upgrade — NB PDF TOOLS",
     "headline": "Unlock the full PDF suite",
     "subtitle_limit": "You've reached today's limit on the Free plan. Compare plans below and upgrade in one click — checkout opens securely in your browser.",
     "subtitle_locked": "This tool is part of the Pro & Business toolkit. Upgrade to remove feature locks and daily caps.",
@@ -43,9 +43,9 @@
     "row_daily": "Daily operations",
     "row_daily_free": "5 / day",
     "row_daily_unlimited": "Unlimited",
-    "row_PLARTFORM": "Desktop toolkit",
-    "row_PLARTFORM_free": "Core PLARTFORM",
-    "row_PLARTFORM_all": "All PLARTFORM",
+    "row_TOOLS": "Desktop toolkit",
+    "row_TOOLS_free": "Core TOOLS",
+    "row_TOOLS_all": "All TOOLS",
     "row_convert": "Office conversions",
     "row_convert_free": "Limited on Free",
     "row_convert_yes": "Included",
@@ -102,7 +102,7 @@
     "body": "Use the top-right menu to change the language. Server URLs require the auth API (Node) and web app URL for sign-in and payments.",
     "server_api": "Auth API: {url}",
     "server_web": "Web app: {url}",
-    "config_hint": "If connection fails, create desktop_auth_config.json next to the app or under %APPDATA%\\NB PDF PLARTFORM and set api_base_url (e.g. http://127.0.0.1:4000/api) and web_app_url.",
+    "config_hint": "If connection fails, create desktop_auth_config.json next to the app or under %APPDATA%\\NB PDF TOOLS and set api_base_url (e.g. http://127.0.0.1:4000/api) and web_app_url.",
     "update_manifest_hint": "Updates: manifest URL {url}",
     "check_updates": "Check for updates",
     "update_title": "Update",
@@ -177,7 +177,7 @@
     "headline": "You have reached today’s limit on the Free plan.",
     "used_line": "Today: {used} / {limit} operations",
     "remaining_line": "Remaining: {n}",
-    "detail": "Upgrade to unlock unlimited usage and all PLARTFORM. Checkout opens securely in your browser.",
+    "detail": "Upgrade to unlock unlimited usage and all TOOLS. Checkout opens securely in your browser.",
     "upgrade_cta": "Upgrade plan",
     "later": "Close"
   },
@@ -196,7 +196,7 @@
     "loading_detail": "Your desktop license is being validated securely. Please wait.",
     "loading_verify": "Checking saved access token.",
     "loading_profile": "Loading user profile and subscription details.",
-    "title": "NB PDF PLARTFORM",
+    "title": "NB PDF TOOLS",
     "subtitle": "PDF SUITE BY NB GLOBAL STUDIO",
     "description": "PDF merge, extraction, Office conversion, compression, and encryption in one desktop workspace.",
     "login_title": "Windows Desktop Sign In",

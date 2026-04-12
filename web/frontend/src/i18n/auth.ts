@@ -109,7 +109,7 @@ export const authTranslations: Record<Language, AuthCopy> = {
       errorPrefix: "Please fix the following issue:",
     },
     login: {
-      title: "Sign in to NB PDF PLARTFORM",
+      title: "Sign in to NB PDF TOOLS",
       description: "Access your PDF workspace and continue your document operations securely.",
       submit: "Sign In",
       alternatePrompt: "Don't have an account yet?",
@@ -142,7 +142,7 @@ export const authTranslations: Record<Language, AuthCopy> = {
       errorPrefix: "Lütfen şu sorunu düzeltin:",
     },
     login: {
-      title: "NB PDF PLARTFORM hesabınıza giriş yapın",
+      title: "NB PDF TOOLS hesabınıza giriş yapın",
       description: "PDF çalışma alanınıza güvenle erişin ve belge işlemlerinize kaldığınız yerden devam edin.",
       submit: "Giriş Yap",
       alternatePrompt: "Henüz hesabınız yok mu?",

@@ -19,7 +19,7 @@ const REVISION_SCOPE_OPTIONS = [
   { value: "global.flags", label: "Genel bayraklar (bakım modu vb.)" },
   { value: "global.notifications", label: "Bildirimler ve duyuru şeridi" },
   { value: "cms.content", label: "Sayfa içeriği (CMS)" },
-  { value: "PLARTFORM.config", label: "Araç ayarları (monetizasyon dahil)" },
+  { value: "TOOLS.config", label: "Araç ayarları (monetizasyon dahil)" },
   { value: "packages.config", label: "Paketler ve fiyatlar" },
   { value: "global.elements", label: "Genel site metinleri" },
 ] as const;

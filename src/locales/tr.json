@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "NB PDF PLARTFORM",
+    "name": "NB PDF TOOLS",
     "desktop_edition": "Windows Masaüstü Sürümü",
     "secure_access": "Güvenli masaüstü erişimi",
     "contact": "İLETİŞİM",
@@ -32,7 +32,7 @@
     "open_folder": "Klasörü aç"
   },
   "upgrade_modal": {
-    "window_title": "Yükselt — NB PDF PLARTFORM",
+    "window_title": "Yükselt — NB PDF TOOLS",
     "headline": "Tam PDF paketinin kilidini açın",
     "subtitle_limit": "Ücretsiz planda günlük limitinize ulaştınız. Aşağıdaki planları karşılaştırın; tek tıkla yükseltin — ödeme tarayıcıda güvenle açılır.",
     "subtitle_locked": "Bu araç Pro ve Business paketindedir. Yükselterek kısıtları ve günlük sınırları kaldırın.",
@@ -43,9 +43,9 @@
     "row_daily": "Günlük işlem",
     "row_daily_free": "5 / gün",
     "row_daily_unlimited": "Sınırsız",
-    "row_PLARTFORM": "Masaüstü araçlar",
-    "row_PLARTFORM_free": "Temel araçlar",
-    "row_PLARTFORM_all": "Tüm araçlar",
+    "row_TOOLS": "Masaüstü araçlar",
+    "row_TOOLS_free": "Temel araçlar",
+    "row_TOOLS_all": "Tüm araçlar",
     "row_convert": "Office dönüşümleri",
     "row_convert_free": "Ücretsizde kısıtlı",
     "row_convert_yes": "Dahil",
@@ -102,7 +102,7 @@
     "body": "Dili anında değiştirmek için pencerenin sağ üst köşesindeki menüyü kullanın. Sunucu adresleri ve ödeme için kimlik API (Node) ve web uygulaması URL’si gerekir.",
     "server_api": "Kimlik API: {url}",
     "server_web": "Web uygulaması: {url}",
-    "config_hint": "Bağlantı sorununda proje kökünde veya %APPDATA%\\NB PDF PLARTFORM yanında desktop_auth_config.json oluşturup api_base_url (örn. http://127.0.0.1:4000/api) ve web_app_url değerlerini düzenleyin.",
+    "config_hint": "Bağlantı sorununda proje kökünde veya %APPDATA%\\NB PDF TOOLS yanında desktop_auth_config.json oluşturup api_base_url (örn. http://127.0.0.1:4000/api) ve web_app_url değerlerini düzenleyin.",
     "update_manifest_hint": "Güncelleme: manifest {url}",
     "check_updates": "Güncellemeleri kontrol et",
     "update_title": "Güncelleme",
@@ -196,7 +196,7 @@
     "loading_detail": "Masaüstü lisansınız güvenli şekilde doğrulanıyor. Lütfen bekleyin.",
     "loading_verify": "Kaydedilmiş erişim belirteci kontrol ediliyor.",
     "loading_profile": "Kullanıcı profili ve abonelik bilgileri alınıyor.",
-    "title": "NB PDF PLARTFORM",
+    "title": "NB PDF TOOLS",
     "subtitle": "PDF SUITE BY NB GLOBAL STUDIO",
     "description": "PDF birleştirme, ayıklama, Office dönüşümleri, sıkıştırma ve şifreleme işlemleri tek ekranda.",
     "login_title": "Masaüstü oturumu",

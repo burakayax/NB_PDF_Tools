@@ -15,7 +15,7 @@ const useTls = Boolean(keyPath && certPath);
 
 function listenMessage() {
   const scheme = useTls ? "https" : "http";
-  console.log(`NB PDF PLARTFORM auth API listening on ${scheme}://0.0.0.0:${env.PORT}`);
+  console.log(`NB PDF TOOLS auth API listening on ${scheme}://0.0.0.0:${env.PORT}`);
 }
 
 if (useTls) {

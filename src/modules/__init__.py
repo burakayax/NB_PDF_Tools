@@ -1,1 +1,1 @@
-"""NB PDF PLARTFORM UI modules."""
+"""NB PDF TOOLS UI modules."""

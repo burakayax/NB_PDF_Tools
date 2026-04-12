@@ -43,7 +43,7 @@ enum ErrorCategory
                     //   output will probably be incorrect
     errConfig, // error in Xpdf config info (xpdfrc file, etc.)
     errCommandLine, // error in user-supplied parameters, action not
-                    //   allowed, etc. (only used by command-line PLARTFORM)
+                    //   allowed, etc. (only used by command-line TOOLS)
     errIO, // error in file I/O
     errNotAllowed, // action not allowed by PDF permission bits
     errUnimplemented, // unimplemented PDF feature - display will be

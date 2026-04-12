@@ -86,7 +86,7 @@ export type ConversionTracking = {
   lifetimeUpgradeCtaImpressions?: number;
 };
 
-/** FREE: lifetime counters + top PLARTFORM for adaptive UI nudges (API `behaviorMonetization`). */
+/** FREE: lifetime counters + top TOOLS for adaptive UI nudges (API `behaviorMonetization`). */
 export type BehaviorMonetization = {
   totalOperationsLifetime: number;
   totalThrottleEventsLifetime: number;
@@ -115,7 +115,7 @@ export type SubscriptionSummary = {
     postLimitExtraOps?: number;
     /** Delayed assert/authorize events today (post–free-cap). */
     postLimitThrottleEventsToday?: number;
-    /** Free unlimited: delay kicks in after this many fast runs (server PLARTFORM config). */
+    /** Free unlimited: delay kicks in after this many fast runs (server TOOLS config). */
     softFrictionAfterOps?: number | null;
     usageWarningCode?: UsageWarningCode | null;
     softUsageWarning?: string | null;

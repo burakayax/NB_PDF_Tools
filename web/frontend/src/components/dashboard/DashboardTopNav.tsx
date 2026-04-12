@@ -63,7 +63,7 @@ export function DashboardTopNav({
   const { cms } = useSettings();
   const dashboardLogoSrc = useMemo(() => {
     const assets = cms?.assets as { logoUrl?: string } | undefined;
-    return resolveCmsAssetUrl(assets?.logoUrl, getSaasApiBase()) ?? "/nb_pdf_PLARTFORM_icon.png";
+    return resolveCmsAssetUrl(assets?.logoUrl, getSaasApiBase()) ?? "/nb_pdf_TOOLS_icon.png";
   }, [cms]);
   const plan = subscriptionStatus ? planNameFromApi(subscriptionStatus.plan) : null;
   const upgradeVisible = Boolean(onUpgradeClick && plan && showNavbarUpgrade(plan));
@@ -80,9 +80,9 @@ export function DashboardTopNav({
         </span>
         <span className="hidden sm:block">
           <span className="block text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-400">NB Global Studio</span>
-          <span className="block text-[15px] font-semibold tracking-[0.12em] text-nb-text">NB PDF PLARTFORM</span>
+          <span className="block text-[15px] font-semibold tracking-[0.12em] text-nb-text">NB PDF TOOLS</span>
         </span>
-        <span className="max-w-[140px] truncate sm:hidden text-sm font-semibold tracking-wide text-nb-text">NB PDF PLARTFORM</span>
+        <span className="max-w-[140px] truncate sm:hidden text-sm font-semibold tracking-wide text-nb-text">NB PDF TOOLS</span>
       </button>
 
       {subscriptionStatus ? (

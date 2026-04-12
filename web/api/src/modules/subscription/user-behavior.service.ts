@@ -33,7 +33,7 @@ export function serializeToolUsageCountsJson(c: ToolUsageCounts): string {
   return JSON.stringify(base);
 }
 
-export function getTopPLARTFORMFromCounts(
+export function getTopTOOLSFromCounts(
   c: ToolUsageCounts,
   limit: number,
 ): { featureKey: FeatureKey; count: number }[] {
@@ -57,7 +57,7 @@ export function computeBehaviorStressMultiplier(input: {
   const o = Math.max(0, input.lifetimeTotalOps);
   const fromThrottle = Math.min(0.22, Math.log1p(t) * 0.026);
   const fromVolume = Math.min(0.14, Math.log1p(o) * 0.016);
-  const top = getTopPLARTFORMFromCounts(input.toolCounts, 1)[0];
+  const top = getTopTOOLSFromCounts(input.toolCounts, 1)[0];
   const favorCurrent = top && top.featureKey === input.featureKey && top.count >= 8;
   const favorBump = favorCurrent ? 0.075 : 0;
   return 1 + fromThrottle + fromVolume + favorBump;

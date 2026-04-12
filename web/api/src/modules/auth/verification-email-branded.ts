@@ -1,7 +1,7 @@
 import { escapeHtmlAttr } from "../../lib/email-html.js";
 
 /**
- * NB PDF PLARTFORM — kurumsal SaaS doğrulama e-postası (satır içi CSS, tablo düzeni, max 600px).
+ * NB PDF TOOLS — kurumsal SaaS doğrulama e-postası (satır içi CSS, tablo düzeni, max 600px).
  * Ham bağlantı metin olarak gösterilmez; yalnızca düğümde kullanılır.
  */
 export function renderBrandedVerificationEmailHtml(verificationUrl: string): string {
@@ -13,7 +13,7 @@ export function renderBrandedVerificationEmailHtml(verificationUrl: string): str
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="x-apple-disable-message-reformatting" />
-  <title>NB PDF PLARTFORM</title>
+  <title>NB PDF TOOLS</title>
 </head>
 <body style="margin:0;padding:0;width:100%;background-color:#f8fafc;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background-color:#f8fafc;mso-table-lspace:0pt;mso-table-rspace:0pt;">
@@ -23,7 +23,7 @@ export function renderBrandedVerificationEmailHtml(verificationUrl: string): str
           <tr>
             <td style="padding:28px 32px 20px 32px;border-bottom:1px solid #e2e8f0;background-color:#ffffff;">
               <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;line-height:1.3;color:#2563eb;letter-spacing:0.02em;">
-                NB PDF PLARTFORM
+                NB PDF TOOLS
               </p>
             </td>
           </tr>
@@ -33,7 +33,7 @@ export function renderBrandedVerificationEmailHtml(verificationUrl: string): str
                 Email Adresinizi Doğrulayın
               </h1>
               <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.65;color:#0f172a;">
-                NB PDF PLARTFORM hesabınızı aktifleştirmek için aşağıdaki butona tıklayın.
+                NB PDF TOOLS hesabınızı aktifleştirmek için aşağıdaki butona tıklayın.
               </p>
             </td>
           </tr>
@@ -56,7 +56,7 @@ export function renderBrandedVerificationEmailHtml(verificationUrl: string): str
                 Bu işlemi siz yapmadıysanız bu emaili dikkate almayabilirsiniz.
               </p>
               <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#94a3b8;">
-                NB PDF PLARTFORM © 2026
+                NB PDF TOOLS © 2026
               </p>
             </td>
           </tr>

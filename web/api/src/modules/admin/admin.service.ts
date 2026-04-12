@@ -39,7 +39,7 @@ export type AdminOverview = {
   freeUsers: number;
   paidUsers: number;
   usersByPlan: { FREE: number; PRO: number; BUSINESS: number };
-  mostUsedPLARTFORM: Array<{
+  mostUsedTOOLS: Array<{
     featureKey: string;
     userDayRows: number;
     operationsAttributed: number;
@@ -66,7 +66,7 @@ export type AdminOverview = {
   /** Son N dakikada sayfa görüntüleyen anonim oturum sayısı (sessionId, userId yok). */
   anonymousSessionsActiveNow: number;
   /** Araç sıralaması son 30 günde veri yoksa tüm zamanlara düşüldü. */
-  mostUsedPLARTFORMAllTimeFallback: boolean;
+  mostUsedTOOLSAllTimeFallback: boolean;
 };
 
 export async function getAdminOverview(): Promise<AdminOverview> {
@@ -74,7 +74,7 @@ export async function getAdminOverview(): Promise<AdminOverview> {
   const dayStart = startOfTodayUtc();
   const presenceWindowMinutes = 5;
   const activePresenceSince = new Date(Date.now() - presenceWindowMinutes * 60 * 1000);
-  const PLARTFORMtatsSince = usageDateKeySubtractDays(30);
+  const TOOLStatsSince = usageDateKeySubtractDays(30);
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000);
 
@@ -158,13 +158,13 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     by: ["lastFeatureKey"],
     where: {
       lastFeatureKey: { not: null },
-      usageDate: { gte: PLARTFORMtatsSince },
+      usageDate: { gte: TOOLStatsSince },
     },
     _count: { _all: true },
     _sum: { operationsCount: true },
   });
-  const mostUsedPLARTFORMAllTimeFallback = toolGroups30d.length === 0;
-  const toolGroups = mostUsedPLARTFORMAllTimeFallback
+  const mostUsedTOOLSAllTimeFallback = toolGroups30d.length === 0;
+  const toolGroups = mostUsedTOOLSAllTimeFallback
     ? await prisma.dailyUsage.groupBy({
         by: ["lastFeatureKey"],
         where: { lastFeatureKey: { not: null } },
@@ -181,7 +181,7 @@ export async function getAdminOverview(): Promise<AdminOverview> {
   const paidUsers = usersByPlan.PRO + usersByPlan.BUSINESS;
   const freeUsers = usersByPlan.FREE;
 
-  const mostUsedPLARTFORM = toolGroups
+  const mostUsedTOOLS = toolGroups
     .map((row) => ({
       featureKey: row.lastFeatureKey as string,
       userDayRows: row._count._all,
@@ -221,7 +221,7 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     freeUsers,
     paidUsers,
     usersByPlan,
-    mostUsedPLARTFORM,
+    mostUsedTOOLS,
     usagePerPackage: [
       { plan: "FREE", userCount: usersByPlan.FREE },
       { plan: "PRO", userCount: usersByPlan.PRO },
@@ -244,7 +244,7 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     distinctSessionsActiveNow,
     registeredUsersActiveNow,
     anonymousSessionsActiveNow,
-    mostUsedPLARTFORMAllTimeFallback,
+    mostUsedTOOLSAllTimeFallback,
   };
 }
 
@@ -555,7 +555,7 @@ const DEFAULT_CMS = {
     primaryCta: "",
     secondaryCta: "",
   },
-  PLARTFORMStrip: { headline: "" },
+  TOOLSStrip: { headline: "" },
   banner: { text: "", enabled: false },
   modals: { upgradeTeaser: "" },
   /** Shallow merge into `landingTranslations` per language (navbar, hero, footer, finalCta). */
@@ -646,9 +646,9 @@ export async function putPackagesMarketing(marketing: unknown, actor: AdminActor
   await auditedPackagesPartial({ marketing }, actor, "packages.marketing", "Paket pazarlama metni güncellendi");
 }
 
-export async function getPLARTFORMAdminPayload() {
+export async function getTOOLSAdminPayload() {
   const defs = await getPlanDefinitionsResolved();
-  const overrides = await getSetting(SITE_SETTING_KEYS.PLARTFORM_CONFIG);
+  const overrides = await getSetting(SITE_SETTING_KEYS.TOOLS_CONFIG);
 
   const perTool = await prisma.dailyUsage.groupBy({
     by: ["lastFeatureKey"],
@@ -674,12 +674,12 @@ export async function getPLARTFORMAdminPayload() {
     overrides,
     usageByTool,
     postLimitNote:
-      "Monetization lives in SiteSetting `PLARTFORM.config`: `postLimitThrottle` (delaysEnabled, freeOpsBeforeThrottle, delayCapMs, delayFloorMs, delayTiers, featureWeights, fileTiers), `conversion` (upgradeCtaLabel, upgradeCtaSubtitle), and `conversionMessaging` (strong message thresholds). The Araçlar tab exposes these in the Monetization section.",
+      "Monetization lives in SiteSetting `TOOLS.config`: `postLimitThrottle` (delaysEnabled, freeOpsBeforeThrottle, delayCapMs, delayFloorMs, delayTiers, featureWeights, fileTiers), `conversion` (upgradeCtaLabel, upgradeCtaSubtitle), and `conversionMessaging` (strong message thresholds). The Araçlar tab exposes these in the Monetization section.",
   };
 }
 
-export async function putPLARTFORMConfig(config: unknown, actor: AdminActor) {
-  await auditedPatchSetting(SITE_SETTING_KEYS.PLARTFORM_CONFIG, config, actor, "PLARTFORM.config", "Araç yapılandırması kaydedildi");
+export async function putTOOLSConfig(config: unknown, actor: AdminActor) {
+  await auditedPatchSetting(SITE_SETTING_KEYS.TOOLS_CONFIG, config, actor, "TOOLS.config", "Araç yapılandırması kaydedildi");
 }
 
 export async function getUsageSeries(days: number) {

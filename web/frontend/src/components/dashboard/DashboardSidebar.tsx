@@ -28,7 +28,7 @@ type DashboardSidebarProps = {
   onUsageUpgradeClick?: () => void;
   /** Yalnızca ADMIN: istatistik modali. */
   onOpenAdminDashboard?: () => void;
-  /** Sunucu `PLARTFORM.config.disabledFeatures` sonrası görünen araçlar; verilmezse tam liste. */
+  /** Sunucu `TOOLS.config.disabledFeatures` sonrası görünen araçlar; verilmezse tam liste. */
   enabledToolIds?: FeatureKey[];
   /** CMS / çalışma alanı araç başlığı; verilmezse `sidebarToolLabel`. */
   resolveToolLabel?: (id: FeatureKey) => string;
@@ -57,7 +57,7 @@ export function DashboardSidebar({
 
   return (
     <aside className="fixed bottom-0 left-0 top-14 z-40 hidden w-60 flex-col border-r border-white/[0.08] bg-gradient-to-b from-nb-bg-elevated/92 via-[#0c1424]/95 to-nb-bg-elevated/92 shadow-[4px_0_32px_-6px_rgba(0,0,0,0.55)] backdrop-blur-xl backdrop-saturate-150 md:flex">
-      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4" aria-label="PLARTFORM">
+      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4" aria-label="TOOLS">
         {userRole === "ADMIN" && onOpenAdminDashboard ? (
           <button
             type="button"

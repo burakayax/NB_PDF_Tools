@@ -8,15 +8,15 @@ import {
   type PostLimitThrottle,
 } from "./post-limit-throttle.js";
 import { buildRecordPastLimitCopy, buildSummaryUpgradeHint } from "./conversion-upgrade.js";
-import { getResolvedPLARTFORMBusinessConfig } from "./PLARTFORM-config-runtime.js";
+import { getResolvedTOOLSBusinessConfig } from "./TOOLS-config-runtime.js";
 import { computeUsageSoftWarnings, mergeUsageSoftWarnings } from "./usage-soft-warnings.js";
 import type { FeatureKey } from "./subscription.config.js";
 import { getPaymentPricesTry } from "../payment/payment-pricing.js";
-import { isFeatureGloballyDisabled } from "../../lib/PLARTFORM-feature-policy.js";
+import { isFeatureGloballyDisabled } from "../../lib/TOOLS-feature-policy.js";
 import { getPlanDefinitionsResolved } from "./plan-runtime.js";
 import {
   computeBehaviorStressMultiplier,
-  getTopPLARTFORMFromCounts,
+  getTopTOOLSFromCounts,
   incrementUserLifetimeOperation,
   parseToolUsageCountsJson,
 } from "./user-behavior.service.js";
@@ -111,7 +111,7 @@ async function serializePlanCatalog() {
 export async function getSubscriptionSummary(userId: string) {
   const { user } = await ensurePaidSubscriptionActiveOrDowngrade(userId);
   const defs = await getPlanDefinitionsResolved();
-  const PLARTFORMCfg = await getResolvedPLARTFORMBusinessConfig();
+  const TOOLSCfg = await getResolvedTOOLSBusinessConfig();
 
   const usageDate = todayKey();
   const usage = await prisma.dailyUsage.findUnique({
@@ -142,7 +142,7 @@ export async function getSubscriptionSummary(userId: string) {
             postLimitExtraOps: usage?.postLimitExtraOps ?? 0,
             postLimitThrottleEventsToday: usage?.postLimitThrottleCount ?? 0,
           },
-          { approachingCapRatio: PLARTFORMCfg.usageSoftWarningRatio },
+          { approachingCapRatio: TOOLSCfg.usageSoftWarningRatio },
         ),
         processingTier: "premium" as const,
         priorityProcessing: true,
@@ -156,7 +156,7 @@ export async function getSubscriptionSummary(userId: string) {
   const remainingToday = plan.dailyLimit === null ? null : Math.max(plan.dailyLimit - usedToday, 0);
   const throttleEvents = usage?.postLimitThrottleCount ?? 0;
   const softFrictionAfterOps =
-    user.plan === "FREE" && plan.dailyLimit === null ? PLARTFORMCfg.postLimitThrottle.freeOpsBeforeThrottle : null;
+    user.plan === "FREE" && plan.dailyLimit === null ? TOOLSCfg.postLimitThrottle.freeOpsBeforeThrottle : null;
   const usagePayload = mergeUsageSoftWarnings(
     {
       date: usageDate,
@@ -168,9 +168,9 @@ export async function getSubscriptionSummary(userId: string) {
       postLimitExtraOps: usage?.postLimitExtraOps ?? 0,
       postLimitThrottleEventsToday: throttleEvents,
     },
-    { approachingCapRatio: PLARTFORMCfg.usageSoftWarningRatio },
+    { approachingCapRatio: TOOLSCfg.usageSoftWarningRatio },
   );
-  const ctaOv = user.plan === "FREE" ? PLARTFORMCfg.conversion : undefined;
+  const ctaOv = user.plan === "FREE" ? TOOLSCfg.conversion : undefined;
   const hint =
     user.plan === "FREE"
       ? buildSummaryUpgradeHint(
@@ -179,13 +179,13 @@ export async function getSubscriptionSummary(userId: string) {
             dailyLimit: plan.dailyLimit,
             postLimitExtraOps: usage?.postLimitExtraOps ?? 0,
             postLimitThrottleEventsToday: throttleEvents,
-            freeOpsBeforeThrottle: plan.dailyLimit === null ? PLARTFORMCfg.postLimitThrottle.freeOpsBeforeThrottle : null,
+            freeOpsBeforeThrottle: plan.dailyLimit === null ? TOOLSCfg.postLimitThrottle.freeOpsBeforeThrottle : null,
           },
           ctaOv,
         )
       : null;
 
-  const freeBefore = PLARTFORMCfg.postLimitThrottle.freeOpsBeforeThrottle;
+  const freeBefore = TOOLSCfg.postLimitThrottle.freeOpsBeforeThrottle;
   const conversionTrackingFree =
     user.plan === "FREE"
       ? plan.dailyLimit !== null
@@ -216,7 +216,7 @@ export async function getSubscriptionSummary(userId: string) {
           totalOperationsLifetime: user.totalOperationsCount,
           totalThrottleEventsLifetime: user.totalThrottleEventsCount,
           totalUpgradeCtaImpressionsLifetime: user.totalUpgradeCtaImpressionsCount,
-          toolUsageTop: getTopPLARTFORMFromCounts(parseToolUsageCountsJson(user.toolUsageCountsJson), 8),
+          toolUsageTop: getTopTOOLSFromCounts(parseToolUsageCountsJson(user.toolUsageCountsJson), 8),
         }
       : null;
 
@@ -245,7 +245,7 @@ export async function getSubscriptionSummary(userId: string) {
         : {
             processingTier: "standard" as const,
             priorityProcessing: false,
-            serverThrottleApplies: PLARTFORMCfg.postLimitThrottle.delaysEnabled,
+            serverThrottleApplies: TOOLSCfg.postLimitThrottle.delaysEnabled,
           }),
     },
     allowedFeatures: plan.allowedFeatures,
@@ -291,7 +291,7 @@ export async function getPostLimitThrottleForUser(
   }
 
   const defs = await getPlanDefinitionsResolved();
-  const PLARTFORMCfg = await getResolvedPLARTFORMBusinessConfig();
+  const TOOLSCfg = await getResolvedTOOLSBusinessConfig();
   const plan = defs[user.plan];
   const usageDate = todayKey();
   const [currentUsage, behUser] = await Promise.all([
@@ -336,9 +336,9 @@ export async function getPostLimitThrottleForUser(
     behaviorStressMultiplier,
     lifetimeThrottleEvents: lifetimeThrottle,
     lifetimeTotalOps: lifetimeOps,
-    conversionCtaOverrides: PLARTFORMCfg.conversion,
-    throttleRuntime: PLARTFORMCfg.postLimitThrottle,
-    conversionMessaging: PLARTFORMCfg.conversionMessaging,
+    conversionCtaOverrides: TOOLSCfg.conversion,
+    throttleRuntime: TOOLSCfg.postLimitThrottle,
+    conversionMessaging: TOOLSCfg.conversionMessaging,
   });
 }
 
@@ -389,7 +389,7 @@ export async function recordUsage(userId: string, featureKey: FeatureKey) {
   }
 
   if (isAdminUser(user)) {
-    const PLARTFORMCfg = await getResolvedPLARTFORMBusinessConfig();
+    const TOOLSCfg = await getResolvedTOOLSBusinessConfig();
     const usageDate = todayKey();
     const currentUsage = await prisma.dailyUsage.findUnique({
       where: {
@@ -410,7 +410,7 @@ export async function recordUsage(userId: string, featureKey: FeatureKey) {
         dailyLimit: null,
         usedToday: ops,
         postLimitExtraOps: extra,
-        approachingCapRatio: PLARTFORMCfg.usageSoftWarningRatio,
+        approachingCapRatio: TOOLSCfg.usageSoftWarningRatio,
       }),
       usageSummary: null,
       conversionMessage: null,
@@ -423,7 +423,7 @@ export async function recordUsage(userId: string, featureKey: FeatureKey) {
   }
 
   const defs = await getPlanDefinitionsResolved();
-  const PLARTFORMCfg = await getResolvedPLARTFORMBusinessConfig();
+  const TOOLSCfg = await getResolvedTOOLSBusinessConfig();
   const plan = defs[user.plan];
   const usageDate = todayKey();
 
@@ -436,7 +436,7 @@ export async function recordUsage(userId: string, featureKey: FeatureKey) {
     },
   });
   const usedBefore = existingRow?.operationsCount ?? 0;
-  const freeBefore = PLARTFORMCfg.postLimitThrottle.freeOpsBeforeThrottle;
+  const freeBefore = TOOLSCfg.postLimitThrottle.freeOpsBeforeThrottle;
   const extraInc =
     plan.dailyLimit !== null && usedBefore >= plan.dailyLimit
       ? 1
@@ -493,7 +493,7 @@ export async function recordUsage(userId: string, featureKey: FeatureKey) {
     dailyLimit,
     usedToday: nextUsage.operationsCount,
     postLimitExtraOps: nextUsage.postLimitExtraOps,
-    approachingCapRatio: PLARTFORMCfg.usageSoftWarningRatio,
+    approachingCapRatio: TOOLSCfg.usageSoftWarningRatio,
     softFrictionAfterOps: user.plan === "FREE" && dailyLimit === null ? freeBefore : null,
   });
 
@@ -512,8 +512,8 @@ export async function recordUsage(userId: string, featureKey: FeatureKey) {
         lifetimeThrottleEvents: refreshedUser?.totalThrottleEventsCount ?? 0,
         lifetimeTotalOps: refreshedUser?.totalOperationsCount ?? 0,
       },
-      PLARTFORMCfg.conversion,
-      PLARTFORMCfg.conversionMessaging,
+      TOOLSCfg.conversion,
+      TOOLSCfg.conversionMessaging,
     );
     conversionMessage = built.conversionMessage;
     postLimitMessage = built.postLimitMessage;

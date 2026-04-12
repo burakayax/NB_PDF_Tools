@@ -1,4 +1,4 @@
-# PyInstaller spec — run from repo root: pyinstaller packaging/nb_pdf_PLARTFORM.spec
+# PyInstaller spec — run from repo root: pyinstaller packaging/nb_pdf_TOOLS.spec
 # Requires: pip install -r requirements-build.txt
 
 import os
@@ -8,7 +8,7 @@ from PyInstaller.utils.hooks import collect_all
 PROJECT_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(SPEC)), ".."))
 SRC = os.path.join(PROJECT_ROOT, "src")
 ENTRY = os.path.join(SRC, "entry_desktop.py")
-ICON = os.path.join(PROJECT_ROOT, "assets", "nb_pdf_PLARTFORM_icon.ico")
+ICON = os.path.join(PROJECT_ROOT, "assets", "nb_pdf_TOOLS_icon.ico")
 VERSION_FILE = os.path.join(os.path.dirname(os.path.abspath(SPEC)), "version_file.txt")
 
 ctk_datas, ctk_binaries, ctk_hidden = collect_all("customtkinter")
@@ -64,7 +64,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name="NB_PDF_PLARTFORM",
+    name="NB_PDF_TOOLS",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

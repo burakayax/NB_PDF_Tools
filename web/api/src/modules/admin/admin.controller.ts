@@ -29,14 +29,14 @@ import {
   getAllSiteSettings,
   getCmsContent,
   getPlansAdminPayload,
-  getPLARTFORMAdminPayload,
+  getTOOLSAdminPayload,
   getUsageSeries,
   listUsersForAdmin,
   patchSiteSettings,
   putCmsContent,
   putPackagesMarketing,
   putPlansOverride,
-  putPLARTFORMConfig,
+  putTOOLSConfig,
   updateUserForAdmin,
 } from "./admin.service.js";
 import { buildPublicMediaUrl, listMediaAssets, persistMediaUpload } from "./media.service.js";
@@ -193,13 +193,13 @@ export async function adminPutPackagesMarketingController(request: Request, resp
   response.json({ ok: true });
 }
 
-export async function adminPLARTFORMController(_request: Request, response: Response) {
-  const payload = await getPLARTFORMAdminPayload();
+export async function adminTOOLSController(_request: Request, response: Response) {
+  const payload = await getTOOLSAdminPayload();
   response.json(payload);
 }
 
-export async function adminPutPLARTFORMController(request: Request, response: Response) {
-  await putPLARTFORMConfig(request.body?.config ?? request.body, adminActor(request));
+export async function adminPutTOOLSController(request: Request, response: Response) {
+  await putTOOLSConfig(request.body?.config ?? request.body, adminActor(request));
   response.json({ ok: true });
 }
 
