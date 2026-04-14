@@ -12,6 +12,7 @@ import { ADMIN_PREVIEW_HIGHLIGHT, isCmsPreviewActive } from "../../lib/cmsPrevie
 import { landingTranslations, type Language } from "../../i18n/landing";
 import { LandingIcon } from "./LandingIcon";
 import { LandingPricingSection } from "./LandingPricingSection";
+import { Marquee } from "../ui/marquee";
 
 type LandingPageProps = {
   language: Language;
@@ -411,7 +412,7 @@ export function LandingPage({
     </p>
 
     {/* Hedef Kitle Etiketleri - Başlığın altında, sönük ve elit */}
-    <div className="mt-8 flex flex-wrap justify-center gap-3">
+    <div className="mt-5 flex flex-wrap justify-center gap-3">
         {copy.hero.audience.map((item) => (
       <span
         key={item}
@@ -426,7 +427,7 @@ export function LandingPage({
     </div>
 
     {/* Butonlar - Premium Işıltılı */}
-    <div data-nb-preview="hero-buttons" className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
+    <div data-nb-preview="hero-buttons" className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
       <button
         type="button"
         onClick={onUseWebApp}
@@ -447,7 +448,7 @@ export function LandingPage({
   </div>
 </section>
         {/* Hap Bilgi Barı - Taşıdığımız 3 Kutucuk */}
-        <section className="-mt-10 mb-16 rounded-[32px] border border-white/[0.05] bg-slate-900/40 px-8 py-6 shadow-2xl backdrop-blur-2xl">
+        <section className="-mt-16 mb-16 rounded-[32px] border border-white/[0.05] bg-slate-900/40 px-8 py-6 shadow-2xl backdrop-blur-2xl">
           <div className="grid gap-6 md:grid-cols-3">
             {copy.hero.highlights.map((item, index) => (
               <div key={item.label} className="flex min-h-[80px] items-start gap-4 p-2 transition-all hover:scale-[1.03]">
@@ -462,6 +463,9 @@ export function LandingPage({
             ))}
           </div>
         </section>
+
+        <Marquee />
+        
 
         <section data-nb-preview="features" className="relative pt-16 pb-8 px-6 overflow-hidden">
           <div className="relative z-10 mx-auto max-w-6xl rounded-[48px] border border-white/5 bg-slate-900/20 p-12 md:p-24 backdrop-blur-3xl shadow-[0_32px_100px_-20px_rgba(0,0,0,0.7)]">
@@ -554,81 +558,109 @@ export function LandingPage({
 
 {/* --- BÖLÜM SONU --- */}
 
-        {/* Canlı Ekran Görüntüleri (Yeni - Sağ Tarafın Evrimi) */}
-        <section data-nb-preview="screenshots" className="relative py-24">
-           {/* Arka Plandaki Aura Efekti */}
-          <div className="absolute -left-20 top-1/2 -z-10 h-[500px] w-[500px] -translate-y-1/2 rounded-full bg-cyan-500/10 blur-[120px] animate-pulse" />
-          <div className="absolute inset-x-10 top-20 -z-10 h-[420px] rounded-[40px] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_55%),linear-gradient(135deg,rgba(34,211,238,0.1),rgba(129,140,248,0.04)_45%,rgba(15,23,42,0)_75%)] blur-2xl" />
-          
-          <div className="mx-auto max-w-6xl">
-              <div className="mb-16 text-center">
-                <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-400/90">{copy.screenshots.kicker}</p>
-                <h3 className="mt-4 bg-gradient-to-b from-white via-white to-white/40 bg-clip-text text-4xl font-black tracking-tight text-transparent sm:text-5xl">{copy.screenshots.title}</h3>
-                <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-slate-400">{copy.screenshots.description}</p>
-              </div>
+<section data-nb-preview="screenshots" className="relative py-28 overflow-hidden">
 
-              {/* Maintenance note:
-                  Left column is a passive feature list.
-                  Right column always shows one active preview image.
-                  To change which image appears for each feature, edit the mapping in
-                  `showcaseFeatures` above. */}
-              <div
-                className="rounded-[36px] border border-white/[0.08] bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-5 shadow-[0_32px_90px_-28px_rgba(0,0,0,0.65),0_1px_0_rgba(255,255,255,0.05)_inset] backdrop-blur-xl sm:p-6 lg:p-8"
-                onMouseEnter={() => setIsShowcasePaused(true)}
-                onMouseLeave={() => setIsShowcasePaused(false)}
-              >
-                <div className="grid gap-8 lg:grid-cols-[minmax(0,0.42fr)_minmax(0,1fr)] lg:items-center">
-                  <div className="flex flex-col gap-3">
-                    {showcaseFeatures.map((feature, index) => {
-                      const isActive = index === activeShowcaseIndex;
+  {/* BACKGROUND GLOW */}
+  <div className="absolute inset-0 -z-10">
+    <div className="absolute left-1/2 top-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-500/10 blur-[140px]" />
+  </div>
 
-                      return (
-                        <div
-                          key={feature.key}
-                          className={`rounded-[24px] border px-5 py-4 transition-all duration-500 ${
-                            isActive
-                              ? "border-cyan-300/18 bg-white/[0.06] opacity-100 shadow-[0_0_0_1px_rgba(255,255,255,0.03)_inset,0_20px_40px_-28px_rgba(34,211,238,0.55)]"
-                              : "border-white/[0.06] bg-white/[0.02] opacity-55"
-                          }`}
-                        >
-                          <div className="flex items-center gap-4">
-                            <span
-                              className={`h-2.5 w-2.5 rounded-full transition-all duration-500 ${
-                                isActive ? "bg-cyan-300 shadow-[0_0_18px_rgba(103,232,249,0.9)]" : "bg-white/25"
-                              }`}
-                            />
-                            <div>
-                              <p className="text-sm font-semibold tracking-[0.18em] text-white/95">{feature.label}</p>
-                              <p className="mt-1 text-sm leading-7 text-slate-400">{feature.description}</p>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {/* Preview area:
-                      If the image looks wrong, first check `feature.src` in `showcaseFeatures`.
-                      Those values ultimately come from `landing.ts`, `heroImageSrc`, or CMS overrides. */}
-                  <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(160deg,rgba(15,23,42,0.94),rgba(15,23,42,0.78))] p-3 shadow-[0_28px_80px_-28px_rgba(15,23,42,1)] sm:p-4">
-                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(103,232,249,0.14),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.08),transparent_22%,transparent_72%,rgba(129,140,248,0.08))]" />
-                    <div
-                      className={`relative transition-all duration-500 ease-out ${
-                        isShowcaseTransitioning ? "translate-y-5 opacity-0" : "translate-y-0 opacity-100"
-                      }`}
-                    >
-                      {showcaseFeatures
-                        .filter((_, index) => index === visibleShowcaseIndex)
-                        .map((feature) => (
-                          <div key={feature.key} className="overflow-hidden rounded-[26px] border border-white/8 bg-slate-950/90">
-                            <img src={feature.src} alt={feature.title} className="aspect-[16/10] w-full object-cover sm:aspect-[16/9]" />
-                          </div>
-                        ))}
-                  </div>
-                  </div>
+  <div className="mx-auto max-w-6xl text-center">
+
+    {/* HEADER */}
+    <div className="mb-20">
+      <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-400/90">
+        {copy.screenshots.kicker}
+      </p>
+      <h3 className="mt-4 text-5xl font-black text-white tracking-tight">
+        {copy.screenshots.title}
+      </h3>
+      <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-400">
+        {copy.screenshots.description}
+      </p>
+    </div>
+
+    {/* MAIN PREVIEW */}
+    <div className="relative mb-14">
+      <div className="relative mx-auto max-w-4xl overflow-hidden rounded-[28px] border border-white/10 bg-slate-950 shadow-[0_40px_120px_-20px_rgba(0,0,0,0.9)]">
+
+        <div
+          className={`transition-all duration-500 ${
+            isShowcaseTransitioning
+              ? "opacity-0 scale-[0.98]"
+              : "opacity-100 scale-100"
+          }`}
+        >
+          {showcaseFeatures
+            .filter((_, i) => i === visibleShowcaseIndex)
+            .map((feature) => (
+              <div key={feature.key} className="relative">
+
+                <img
+                  src={feature.src}
+                  alt={feature.title}
+                  className="w-full object-cover"
+                />
+
+                {/* OVERLAY */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
+                <div className="absolute bottom-6 left-6 text-left">
+                  <p className="text-xs text-cyan-300 uppercase tracking-widest">
+                    {feature.eyebrow}
+                  </p>
+                  <h4 className="text-2xl font-bold text-white mt-1">
+                    {feature.title}
+                  </h4>
                 </div>
+
               </div>
-          </div>
-        </section>
+            ))}
+        </div>
+      </div>
+    </div>
+
+    {/* STACKED CARDS */}
+    <div className="relative flex justify-center gap-4 flex-wrap">
+
+      {showcaseFeatures.map((feature, index) => {
+        const isActive = index === activeShowcaseIndex;
+
+        return (
+          <button
+            key={feature.key}
+            onClick={() => setActiveShowcaseIndex(index)}
+            className={`relative w-[220px] text-left rounded-2xl border p-4 transition-all duration-500 ${
+              isActive
+                ? "bg-white text-black scale-105 shadow-[0_20px_60px_-10px_rgba(255,255,255,0.4)] z-10"
+                : "bg-white/5 text-white border-white/10 opacity-70 hover:opacity-100 hover:scale-[1.03]"
+            }`}
+          >
+            {/* SMALL PREVIEW */}
+            <div className="mb-3 overflow-hidden rounded-lg">
+              <img src={feature.src} alt="" className="h-24 w-full object-cover" />
+            </div>
+
+            <p className="text-xs uppercase tracking-widest opacity-70">
+              {feature.label}
+            </p>
+
+            <p className="mt-1 text-sm font-semibold">
+              {feature.title}
+            </p>
+
+            {/* ACTIVE GLOW */}
+            {isActive && (
+              <div className="absolute inset-0 rounded-2xl border border-cyan-300/40 pointer-events-none" />
+            )}
+          </button>
+        );
+      })}
+
+    </div>
+
+  </div>
+</section>
 
         <LandingPricingSection
           language={language}

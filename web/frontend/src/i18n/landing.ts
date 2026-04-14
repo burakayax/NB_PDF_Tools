@@ -110,6 +110,9 @@ export type LandingTranslation = {
     };
     honeypotLabel: string;
   };
+  marqueeItems: {
+    items: string[];
+  };
 };
 
 export const landingTranslations: Record<Language, LandingTranslation> = {
@@ -287,7 +290,21 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
       },
       honeypotLabel: "Leave this field empty",
     },
-  },
+    marqueeItems: {
+      items: [
+        "PDF Merge",
+        "PDF Split",
+        "PDF Encrypt",
+        "PDF Sign",
+        "Word → PDF",
+        "Excel → PDF",
+        "PowerPoint → PDF",
+        "PDF Compress",
+        "PDF Edit",
+        "PDF Convert",
+      ],
+    },
+},
   tr: {
     navbar: {
       studioTagline: "NB Global Studio",
@@ -456,6 +473,20 @@ export const landingTranslations: Record<Language, LandingTranslation> = {
         messageTooShort: "Lütfen mesajınızı girin (en az 10 karakter).",
       },
       honeypotLabel: "Bu alanı boş bırakın",
+    },
+    marqueeItems: {
+      items: [
+        "PDF Birleştirme",
+        "PDF Ayırma",
+        "PDF Şifreleme",
+        "PDF İmzalama",
+        "Word → PDF",
+        "Excel → PDF",
+        "PowerPoint → PDF",
+        "PDF Sıkıştırma",
+        "PDF Düzenleme",
+        "PDF Dönüştürme",
+      ],
     },
   },
 };
